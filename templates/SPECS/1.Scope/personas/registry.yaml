@@ -1,0 +1,12 @@
+schema: ewai.persona-registry/v1
+sources:
+  - id: project
+    path: project
+    managed: false
+  - id: personal
+    scope: user
+    managed: false
+  - id: premium
+    pack: ewai.personas.professional
+    managed: true
+assignments: {}

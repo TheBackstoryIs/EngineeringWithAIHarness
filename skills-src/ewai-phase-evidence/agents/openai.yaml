@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Phase Evidence"
+  short_description: "Guide named owners through phase evidence"
+  default_prompt: "Use $ewai-phase-evidence to guide named owners through the current supported delivery phase."

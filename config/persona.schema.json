@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/persona-v1.json",
+  "type": "object",
+  "required": ["schema", "id", "name", "version", "category", "pack", "tier"],
+  "properties": {
+    "schema": { "const": "ewai.persona/v1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9.-]+$" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string" },
+    "category": { "type": "string", "minLength": 1 },
+    "pack": { "type": "string", "minLength": 1 },
+    "tier": { "enum": ["core", "professional", "enterprise", "personal", "project"] },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "capabilities": { "type": "array", "items": { "type": "string" } }
+  }
+}

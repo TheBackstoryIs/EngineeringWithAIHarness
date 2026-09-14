@@ -1,0 +1,30 @@
+schema: ewai.pack/v1
+id: ewai.technology.nuxt
+name: Nuxt
+version: 0.1.0
+type: technology
+description: Nuxt repository discovery, implementation, validation, and deployment guidance.
+compatibility:
+  languages: [typescript, javascript]
+  frameworks: [nuxt, vue]
+detection:
+  files: [nuxt.config.ts, package.json]
+  dependencies: [nuxt]
+commands:
+  install: npm install
+  build: npm run build
+  test: npm test
+source_map:
+  profiles:
+    - id: nuxt-pages
+      patterns: [pages/**/*.vue, app/pages/**/*.vue]
+      analyser: tree-sitter
+      classification: user-interface
+      priority: 50
+    - id: package-manifest
+      patterns: [package.json]
+      analyser: structured-keys
+      classification: dependency-manifest
+      priority: 40
+deployment: []
+boilerplates: []

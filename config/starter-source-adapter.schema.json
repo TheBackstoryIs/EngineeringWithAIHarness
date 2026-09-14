@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/starter-source-adapter-v1.json",
+  "type": "object",
+  "required": ["schema", "id", "name", "publisher", "version", "protocolVersion", "sourceClasses", "entrypoint"],
+  "properties": {
+    "schema": { "const": "ewai.starter-source-adapter/v1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{1,79}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "publisher": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 240 }
+      },
+      "additionalProperties": false
+    },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$" },
+    "protocolVersion": { "const": "1" },
+    "sourceClasses": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["https", "git", "archive", "directory", "package", "opaque"] }
+    },
+    "entrypoint": { "$ref": "#/$defs/boundedPath" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "boundedPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "not": { "pattern": "(^/|^[A-Za-z]:|(^|[\\\\/])\\.\\.([\\\\/]|$)|[\\u0000-\\u001f])" }
+    }
+  }
+}

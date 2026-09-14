@@ -1,0 +1,44 @@
+schema: ewai.pack/v1
+id: ewai.design-system.default
+name: EWAI Intentional Product Design
+description: Brand-neutral experience, interaction, content and review guidance for coherent UI Design and Prototype work.
+version: 1.0.0
+type: design-system
+requires: []
+design_system:
+  compatibility:
+    ewai: 0.x
+  provenance:
+    kind: owner-declared
+    summary: Portable default derived from the product-design principles agreed by the EWAI owner.
+  contributions:
+    - id: experience-promise
+      kind: experience
+      title: Experience promise
+      source: experience-promise.md
+      applicability: [ui-design, prototype, review]
+      required: true
+    - id: product-principles
+      kind: principles
+      title: Product design principles
+      source: principles.md
+      applicability: [ui-design, prototype, review]
+      required: true
+    - id: interaction-and-entry
+      kind: interaction
+      title: Interaction and entry modes
+      source: interaction-and-entry.md
+      applicability: [ui-design, prototype, review]
+      required: true
+    - id: meaningful-content-and-states
+      kind: states
+      title: Meaningful content and states
+      source: meaningful-content-and-states.md
+      applicability: [ui-design, prototype, content, review]
+      required: true
+    - id: intentional-review
+      kind: review
+      title: Intentional design and self-critique
+      source: intentional-review.md
+      applicability: [ui-design, prototype, review]
+      required: true

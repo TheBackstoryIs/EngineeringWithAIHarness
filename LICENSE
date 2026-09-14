@@ -1,0 +1,165 @@
+Backstory Group Source-Available Licence 1.0
+
+Copyright (c) 2026 Backstory Group Limited (www.backstorygroup.co.uk)
+All rights reserved.
+
+This licence is a source-available licence. It is not an open-source licence.
+
+1. Definitions
+
+"Backstory Group", "we", "us" and "our" mean Backstory Group Limited.
+
+"EWAI" means the Engineering With AI software, including its source code,
+runtime, command-line tools, dashboard, documentation, templates and other
+materials distributed with it.
+
+"Official Package" means an unmodified release of EWAI published by Backstory
+Group through npm or another channel that we identify as official.
+
+"Project Content" means the source code, specifications, documentation,
+configuration, records and other material that you or your organisation create,
+provide or maintain in a project that uses EWAI.
+
+"Output" means material produced through the ordinary intended use of the
+Official Package, including generated or materialised project source code,
+specifications, plans, reports, documentation and other project artefacts.
+Output does not include EWAI itself or a Modified Version.
+
+"Extension" means independently written software that interoperates with EWAI
+through a documented or ordinarily supported interface without copying,
+modifying or incorporating any part of EWAI.
+
+"Modified Version" means EWAI, or any part of it, that has been modified,
+adapted, translated, rearranged, combined into another product, or used to
+create a derivative work.
+
+"you" means the individual or legal entity accepting this licence. People who
+work for you may use the Official Package on your behalf, provided that you
+ensure they comply with this licence.
+
+2. Permission to use the Official Package
+
+Subject to this licence, Backstory Group gives you a non-exclusive, worldwide,
+royalty-free right to install and run the Official Package for lawful personal,
+internal, professional and commercial work.
+
+This includes using the Official Package:
+
+- to design, build, test, operate and maintain commercial or non-commercial
+  software and other products;
+- in work performed for clients; and
+- alongside your own tools, Project Content and Extensions.
+
+This permission applies only to use of the Official Package. It does not give
+you permission to sell, license, host, distribute or otherwise offer EWAI
+itself, whether alone or as part of another product or service.
+
+3. Your Project Content and Output
+
+Backstory Group claims no ownership of your Project Content or Output merely
+because you used EWAI to create, examine or manage it.
+
+Subject to any rights belonging to other people, you may use, modify, license,
+publish, distribute and commercialise your Project Content and Output without
+paying Backstory Group a royalty.
+
+4. Independent Extensions and integrations
+
+You may create, use, license, distribute and commercialise Extensions.
+Interoperating with EWAI through a documented or ordinarily supported interface
+does not, by itself, make an Extension a Modified Version.
+
+An Extension must not:
+
+- copy, incorporate, modify or redistribute EWAI source code;
+- bypass technical restrictions or licence controls;
+- imply that it is made, approved or endorsed by Backstory Group without our
+  written permission; or
+- use Backstory Group trade marks except to describe truthful compatibility.
+
+5. Source transparency
+
+Where Backstory Group makes EWAI source code available, you may view and inspect
+it for transparency, evaluation, security review, compliance review and
+understanding how the Official Package works. You may make the copies that are
+technically necessary for those purposes, including a local inspection copy.
+
+Access to the source code does not give you permission to use it to create a
+Modified Version, to maintain an unofficial distribution, or to exercise any
+right not expressly granted by this licence. Any technical ability supplied by
+a source-hosting platform, including the ability to fork a repository, does not
+expand the permissions in this licence.
+
+6. Restrictions
+
+Unless Backstory Group gives you separate written permission, you must not:
+
+- modify, adapt, translate or create a derivative work from EWAI;
+- copy EWAI except as necessary to install, run, back up or inspect the Official
+  Package as expressly permitted by this licence;
+- publish, distribute, sublicense, sell, rent, lease or transfer EWAI or a
+  Modified Version;
+- repackage or rebrand EWAI;
+- make EWAI or a Modified Version available as a hosted, managed or bureau
+  service whose principal value is access to EWAI;
+- use EWAI source code to create or improve a substitute for, or competing
+  version of, EWAI;
+- remove or alter copyright, attribution, trade mark or licence notices; or
+- bypass or interfere with access, subscription, entitlement, update, security
+  or usage controls.
+
+7. Third-party materials
+
+EWAI may use or refer to third-party software, services or content. Those
+materials remain subject to their own terms. This licence does not give you any
+additional rights in them.
+
+8. No trade mark licence
+
+This licence does not grant a right to use the names, logos or trade marks of
+Backstory Group, Backstory, Engineering With AI or Conversational Coding except
+as necessary to describe truthful compatibility with an Official Package.
+
+9. Term and termination
+
+This licence continues until terminated. It terminates automatically if you
+breach it and do not remedy the breach within 30 days after receiving written
+notice from Backstory Group. A breach involving deliberate redistribution,
+repackaging, rebranding or commercial exploitation of EWAI may be terminated
+immediately.
+
+When this licence terminates, you must stop using EWAI and delete copies in your
+possession or control. Termination does not take away rights already granted in
+your Project Content or Output.
+
+10. Disclaimer of warranty
+
+EWAI is provided "as is" and "as available". To the fullest extent permitted by
+law, Backstory Group excludes all warranties, conditions and representations,
+whether express, implied or statutory, including warranties of satisfactory
+quality, fitness for a particular purpose, non-infringement, availability,
+accuracy and freedom from defects.
+
+11. Limitation of liability
+
+To the fullest extent permitted by law, Backstory Group will not be liable for
+any indirect, incidental, special, consequential or punitive loss, or for any
+loss of profit, revenue, business, goodwill, data or anticipated savings,
+arising from or connected with EWAI or this licence.
+
+Nothing in this licence excludes or limits liability that cannot lawfully be
+excluded or limited.
+
+12. Governing law
+
+This licence and any dispute or claim arising from it are governed by the laws
+of Scotland. The courts of Scotland have exclusive jurisdiction, except where
+applicable law requires otherwise.
+
+13. Separate commercial terms
+
+Backstory Group may offer separate commercial terms, including permission to
+modify, embed, redistribute or provide EWAI as part of another service. Those
+rights exist only where they are agreed in writing.
+
+For licensing enquiries, visit https://www.backstorygroup.co.uk.

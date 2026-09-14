@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ewai checkin --project . --json",
+            "timeout": 30,
+            "statusMessage": "Opening the EWAI project companion…"
+          }
+        ]
+      }
+    ]
+  }
+}

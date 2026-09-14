@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Organisation Policy"
+  short_description: "Design and review organisation policy gates"
+  default_prompt: "Use $ewai-organisation-policy to author or apply an optional organisation policy design gate."

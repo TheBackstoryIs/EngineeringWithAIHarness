@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Standards Check"
+  short_description: "Verify code against project SPECS standards"
+  default_prompt: "Use $ewai-standards-check to verify this code against the standards captured in the project SPECS and write a Markdown report."

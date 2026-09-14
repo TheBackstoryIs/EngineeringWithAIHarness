@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/intent-v1.json",
+  "type": "object",
+  "required": ["schema", "slug", "title", "status", "personas"],
+  "properties": {
+    "schema": { "const": "ewai.intent/v1" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["draft", "ready", "superseded", "retired"] },
+    "intent_map": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "personas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "role", "depth"],
+        "properties": {
+          "ref": { "type": "string", "minLength": 1 },
+          "role": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "depth": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "target"],
+        "properties": {
+          "type": {
+            "enum": [
+              "depends-on",
+              "enables",
+              "complements",
+              "conflicts-with",
+              "supersedes",
+              "relates-to"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "rationale": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "delivery_shape": {
+      "type": ["object", "null"],
+      "required": ["recommendation", "reason", "suggested_children", "blocking_questions", "reviewed_decision"],
+      "properties": {
+        "recommendation": {
+          "enum": ["single", "split", "decision-required"]
+        },
+        "reason": { "type": "string", "minLength": 1 },
+        "suggested_children": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+              "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+              "title": { "type": "string" },
+              "outcome": { "type": "string" },
+              "depends_on": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "blocking_questions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reviewed_decision": {
+          "type": ["string", "null"],
+          "enum": ["keep-as-one", "split", "refine-split", "defer", null]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

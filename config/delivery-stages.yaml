@@ -1,0 +1,77 @@
+schema: ewai.delivery-stages/v1
+name: EWAI fourteen-stage delivery loop
+mission: be right, not done
+stages:
+  - number: 1
+    id: ideate
+    required: conditional
+    condition: Input is a rough idea without an approved intent.
+  - number: 2
+    id: intent
+    required: always
+  - number: 3
+    id: reconcile
+    required: conditional
+    condition: Existing implementation or inherited code is in scope.
+  - number: 4
+    id: plan
+    required: always
+  - number: 5
+    id: pattern-validation
+    required: always
+  - number: 6
+    id: test-plan
+    required: always
+  - number: 7
+    id: validate-external-plan
+    required: provider-gated
+    providers: [claude, codex, antigravity]
+    provider_policy: project-configured-independent-only
+    on_unavailable: not-supported
+  - number: 8
+    id: validate-external-test-plan
+    required: provider-gated
+    providers: [claude, codex, antigravity]
+    provider_policy: project-configured-independent-only
+    on_unavailable: not-supported
+  - number: 9
+    id: build
+    required: always
+    approval: required
+  - number: 10
+    id: standards-sweep
+    required: always
+  - number: 11
+    id: test-execute
+    required: always
+  - number: 12
+    id: validate-external-code
+    required: provider-gated
+    providers: [claude, codex, antigravity]
+    provider_policy: project-configured-independent-only
+    on_unavailable: not-supported
+  - number: 13
+    id: delivery
+    required: always
+  - number: 14
+    id: retro
+    required: always
+    after: manual-qa-approved
+adjuncts:
+  - id: ui-design
+    after: reconcile
+    condition: User-facing interface work is in scope.
+  - id: fit-check
+    before: build
+    condition: A shelved plan is being resumed and needs revalidation.
+human_gates:
+  - id: manual-qa
+    after: delivery
+    before: retro
+    required: always
+rules:
+  - A not-supported provider-gated stage remains visible and is never marked passed.
+  - The active orchestrator cannot satisfy an independent external-validation stage.
+  - Standards compliance remains required when no external validator is configured.
+  - Retro is complete only when its action plan routes accepted learning into durable assets.
+  - Project Retro may change project-local SPECS and assets; it must not mutate a global EWAI installation.

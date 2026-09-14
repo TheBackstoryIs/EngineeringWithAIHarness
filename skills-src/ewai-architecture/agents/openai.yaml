@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Architecture"
+  short_description: "Shape solution architecture into SPECS"
+  default_prompt: "Use $ewai-architecture to walk through this solution architecture and prepare reviewable SPECS records."

@@ -1,0 +1,14 @@
+node_modules/
+.DS_Store
+coverage/
+/SPECS/
+.ewai-pipeline/*
+!.ewai-pipeline/.gitignore
+
+# Commercial packs are distributed separately and must not enter public history.
+packs/personas/premium/
+
+# Public runtime source stays tracked; private project evidence stays local.
+config/*-source-manifest.json
+config/workflow-migration-map.json
+scripts/build-source-manifest.mjs

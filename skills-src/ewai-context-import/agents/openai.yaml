@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Context Import"
+  short_description: "Enrich projects from supplied source material"
+  default_prompt: "Use $ewai-context-import to register and interpret a folder of project materials as evidence-backed SPECS context."

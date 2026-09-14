@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Test Scenarios"
+  short_description: "Design persona-led scenarios and build traceable tests"
+  default_prompt: "Use $ewai-test-scenarios to design source-grounded persona test scenarios or build tests from an accepted scenario pack."

@@ -1,0 +1,62 @@
+schema: ewai.project/v1
+project:
+  name: {{PROJECT_NAME}}
+specs:
+  root: {{SPECS_ROOT}}
+repositories:
+  - name: {{PRIMARY_REPOSITORY_NAME}}
+    path: {{PRIMARY_REPOSITORY_PATH}}
+    role: {{PRIMARY_REPOSITORY_ROLE}}
+skills:
+  namespace: ewai
+  profile: full
+packs:
+  - ewai.core
+personas:
+  premium:
+    provider: wordpress-edd
+approvals:
+  build: required
+  destructive_operations: required
+validation:
+  standards:
+    required: true
+    allow_waiver: false
+  external:
+    policy: configured
+    independent_only: true
+    providers:
+      claude:
+        state: unavailable
+        enabled: false
+      codex:
+        state: unavailable
+        enabled: false
+      antigravity:
+        state: unavailable
+        enabled: false
+    checkpoints:
+      implementation-plan:
+        enabled: true
+        max_cycles: 2
+        validators: auto
+        review:
+          breadth: capability
+          depth: issues-and-fixes
+          output: medium
+      test-plan:
+        enabled: true
+        max_cycles: 2
+        validators: auto
+        review:
+          breadth: capability
+          depth: issues-and-fixes
+          output: medium
+      code:
+        enabled: true
+        max_cycles: 2
+        validators: auto
+        review:
+          breadth: change-set
+          depth: issues-and-fixes
+          output: medium

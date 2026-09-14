@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Shape Intents"
+  short_description: "Turn a broad idea into connected intents"
+  default_prompt: "Use $ewai-shape-intents to explore this idea and turn it into a connected set of project intents."

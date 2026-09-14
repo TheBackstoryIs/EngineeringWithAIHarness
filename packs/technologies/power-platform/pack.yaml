@@ -1,0 +1,31 @@
+schema: ewai.pack/v1
+id: ewai.technology.power-platform
+name: Microsoft Power Platform
+version: 0.1.0
+type: technology
+description: Safe local analysis of already-extracted Power Platform solution and canvas-app source exports.
+compatibility:
+  frameworks: [power-platform, power-apps, dataverse]
+detection:
+  any_files: [Other/Solution.xml]
+  any_patterns: [solutions/*/solution.yml]
+commands: {}
+source_map:
+  profiles:
+    - id: legacy-solution
+      patterns: [Other/Solution.xml, Other/Customizations.xml, Other/Customisations.xml, '**/Other/Solution.xml', '**/Other/Customizations.xml', '**/Other/Customisations.xml']
+      analyser: power-platform-metadata
+      classification: power-platform-metadata
+      priority: 200
+    - id: solution-yaml
+      patterns: [solutions/*/solution.yml, solutions/*/solutioncomponents.yml, solutions/*/rootcomponents.yml, solutions/*/missingdependencies.yml, '**/solutions/*/solution.yml', '**/solutions/*/solutioncomponents.yml', '**/solutions/*/rootcomponents.yml', '**/solutions/*/missingdependencies.yml']
+      analyser: power-platform-metadata
+      classification: power-platform-metadata
+      priority: 200
+    - id: canvas-source
+      patterns: [Src/*.pa.yaml, Src/Component/*.pa.yaml, '**/Src/*.pa.yaml', '**/Src/Component/*.pa.yaml']
+      analyser: power-platform-metadata
+      classification: power-platform-canvas
+      priority: 200
+deployment: []
+boilerplates: []

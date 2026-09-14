@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Error Reporting"
+  short_description: "Create and hand off privacy-safe local reports"
+  default_prompt: "Use $ewai-error-reporting to create, inspect and hand off a local EWAI error report."

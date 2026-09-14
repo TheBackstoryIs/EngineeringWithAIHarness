@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Evidence Depth"
+  short_description: "Reproducible archaeology and discovery depth"
+  default_prompt: "Use $ewai-evidence-depth to prepare and review a reproducible evidence-depth run for this project."

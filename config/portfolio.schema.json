@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/portfolio-v1.json",
+  "title": "Engineering With AI portfolio",
+  "type": "object",
+  "required": ["schema", "id", "name", "owner", "members", "dependencies"],
+  "properties": {
+    "schema": { "const": "ewai.portfolio/v1" },
+    "id": { "$ref": "#/$defs/slug" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "owner": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "members": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/member" }
+    },
+    "dependencies": {
+      "type": "array",
+      "maxItems": 400,
+      "items": { "$ref": "#/$defs/dependency" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 100
+    },
+    "member": {
+      "type": "object",
+      "required": ["id", "kind", "name", "owner"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "kind": { "enum": ["portfolio", "programme", "project"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "owner": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "parent": { "$ref": "#/$defs/slug" },
+        "repository": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "project_path": { "type": "string", "minLength": 1, "maxLength": 500 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "project" } }, "required": ["kind"] },
+          "then": { "required": ["repository", "project_path"] },
+          "else": {
+            "not": { "anyOf": [{ "required": ["repository"] }, { "required": ["project_path"] }] }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "dependency": {
+      "type": "object",
+      "required": ["id", "from", "to", "rationale", "owner"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "from": { "$ref": "#/$defs/slug" },
+        "to": { "$ref": "#/$defs/slug" },
+        "rationale": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "owner": { "type": "string", "minLength": 1, "maxLength": 160 }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

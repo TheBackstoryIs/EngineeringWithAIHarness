@@ -1,0 +1,121 @@
+schema: ewai.delivery-artifacts/v1
+phases:
+  ideate:
+    required:
+      - grill-ledger.md
+      - ideate-draft-intent.md
+  intent:
+    required:
+      - intent-summary.md
+      - gates/intent/intent-dependency-map.json
+      - gates/intent/intent-dependency-map-check.md
+      - gates/intent/intent-dependency-map-check.json
+      - gates/intent/intent-code-disagreements.json
+    organisation_policy:
+      required:
+        - gates/intent/organisation-policy-design.json
+  reconcile:
+    required:
+      - reconcile.md
+      - gates/reconcile/intent-dependency-map-check.md
+      - gates/reconcile/intent-dependency-map-check.json
+      - gates/reconcile/reconcile-disagreements.json
+  ui-design:
+    required:
+      - ui-design.md
+      - ui-design-assets/prototypes/manifest.json
+  plan:
+    required:
+      - build-plan.md
+      - destination.md
+      - task-graph.json
+      - gates/plan/intent-dependency-map-check.md
+      - gates/plan/intent-dependency-map-check.json
+      - gates/plan/discovery-notes.md
+      - gates/plan/code-truth-map.json
+      - gates/plan/claim-ledger.json
+      - gates/plan/claim-ledger-check.md
+      - gates/plan/claim-ledger-check.json
+      - gates/plan/implementation-flow-contract.json
+      - gates/plan/local-pattern-research.json
+      - gates/plan/plan-contract.json
+      - gates/plan/plan-contract-check.md
+      - gates/plan/plan-contract-check.json
+      - gates/plan/plan-existence-check.md
+      - gates/plan/task-graph-check.md
+      - gates/plan/task-graph-check.json
+    organisation_policy:
+      required:
+        - gates/plan/organisation-policy-design.json
+  pattern-validation:
+    required:
+      - pattern-validation.md
+      - gates/pattern-validation/implementation-flow-contract-check.json
+      - gates/pattern-validation/local-pattern-research-check.json
+      - gates/pattern-validation/claim-ledger-check.md
+      - gates/pattern-validation/claim-ledger-check.json
+      - gates/pattern-validation/plan-contract-check.md
+      - gates/pattern-validation/plan-contract-check.json
+      - gates/pattern-validation/task-graph-check.md
+      - gates/pattern-validation/task-graph-check.json
+      - gates/pattern-validation/plan-existence-check.md
+  test-plan:
+    required:
+      - test-plan.md
+      - gates/test-plan/task-to-test-traceability.md
+      - gates/test-plan/red-green-refactor-traceability.md
+      - gates/test-plan/claim-ledger-check.md
+      - gates/test-plan/claim-ledger-check.json
+      - gates/test-plan/plan-contract-check.md
+      - gates/test-plan/plan-contract-check.json
+      - gates/test-plan/plan-existence-check.md
+      - gates/test-plan/task-graph-check.md
+      - gates/test-plan/task-graph-check.json
+  validate-external-plan:
+    required:
+      - validate-external-plan/actions.md
+      - gates/validate-external-plan/plan-contract-check.md
+      - gates/validate-external-plan/plan-contract-check.json
+      - gates/validate-external-plan/plan-existence-check.md
+    validation_cycles: true
+  validate-external-test-plan:
+    required:
+      - validate-external-test-plan/actions.md
+      - gates/validate-external-test-plan/claim-ledger-check.md
+      - gates/validate-external-test-plan/claim-ledger-check.json
+      - gates/validate-external-test-plan/plan-contract-check.md
+      - gates/validate-external-test-plan/plan-contract-check.json
+    validation_cycles: true
+  fit-check:
+    required:
+      - fit-check-report.md
+  build:
+    required:
+      - delivery-checklist.md
+      - gates/build/plan-contract-check.md
+      - gates/build/plan-contract-check.json
+      - gates/build/build-contract-integrity.md
+      - gates/build/build-contract-integrity.json
+      - gates/build/task-graph-check.md
+      - gates/build/task-graph-check.json
+    task_reports: true
+  standards-sweep:
+    required:
+      - standards-sweep.md
+  test-execute:
+    required:
+      - test-execute-report.md
+  validate-external-code:
+    required:
+      - validate-external-code/actions.md
+    validation_cycles: true
+  delivery:
+    required:
+      - delivery-checklist.md
+      - qa-walkthrough.md
+      - gates/delivery/task-graph-check.md
+      - gates/delivery/task-graph-check.json
+    task_reports: true
+  retro:
+    required:
+      - retro.md

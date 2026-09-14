@@ -1,0 +1,7 @@
+schema: ewai.pack/v1
+id: ewai.personas.core
+name: EWAI Core Personas
+version: 0.2.0
+type: persona
+description: Free personas for evidence-led discovery, knowledge curation, delivery, operation, and user-value assessment.
+boilerplates: []

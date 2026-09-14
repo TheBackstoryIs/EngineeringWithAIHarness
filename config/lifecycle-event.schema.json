@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwithai.dev/schemas/lifecycle-event/v1",
+  "title": "EWAI lifecycle event envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "occurredAt", "project", "scope", "facts", "source", "evidence", "personas", "stream", "idempotencyKey"],
+  "properties": {
+    "schema": { "const": "ewai.lifecycle-event/v1" },
+    "id": { "type": "string", "format": "uuid" },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "examples": ["ewai.knowledge-proposals.materialised", "ewai.policy.evaluation.recorded"]
+    },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 }
+      }
+    },
+    "scope": { "type": "object" },
+    "facts": {
+      "type": "object",
+      "description": "Event-specific bounded safe facts from the runtime lifecycle catalogue. Policy events contain identifiers, outcomes and digests only; policy source bodies are never included."
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "revision": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "evidence": { "type": "array", "maxItems": 24, "items": { "type": "string", "minLength": 1, "maxLength": 400 } },
+    "personas": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "tier", "reason"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "tier": { "enum": ["core", "premium", "personal", "project"] },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    },
+    "stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sequence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "sequence": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "idempotencyKey": { "type": "string", "minLength": 16, "maxLength": 160 }
+  }
+}

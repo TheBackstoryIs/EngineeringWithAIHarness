@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Rollout Review"
+  short_description: "Review governed rollout evidence safely"
+  default_prompt: "Use $ewai-rollout to review the current governed rollout, disclose active personas and route unresolved decisions to named humans."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Proposals"
+  short_description: "Turn governed evidence into reviewed SPECS proposals"
+  default_prompt: "Use $ewai-knowledge-proposals to prepare, review and materialise evidence-grounded project knowledge."

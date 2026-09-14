@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwithai.dev/schemas/error-reporting.schema.json",
+  "title": "EWAI local error report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "status", "revision", "createdAt", "updatedAt", "diagnostics", "description", "redactions", "attachments"],
+  "properties": {
+    "schema": { "const": "ewai.error-report/v1" },
+    "id": { "type": "string", "pattern": "^report_[a-z0-9_]{3,80}$" },
+    "status": { "enum": ["draft", "finalised", "archived"] },
+    "revision": { "type": "integer", "minimum": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability", "errorCode", "command", "ewaiVersion", "nodeVersion", "osClass", "installationSource"],
+      "properties": {
+        "capability": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "errorCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,79}$" },
+        "command": { "type": "string", "maxLength": 160 },
+        "ewaiVersion": { "type": "string", "maxLength": 40 },
+        "nodeVersion": { "type": "string", "maxLength": 40 },
+        "osClass": { "enum": ["darwin", "linux", "win32", "other"] },
+        "installationSource": { "enum": ["npm", "git", "local", "unknown"] }
+      }
+    },
+    "description": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "expected", "actual", "reproductionSteps"],
+      "properties": {
+        "title": { "type": "string", "maxLength": 500 },
+        "expected": { "type": "string", "maxLength": 4000 },
+        "actual": { "type": "string", "maxLength": 4000 },
+        "reproductionSteps": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 1000 } }
+      }
+    },
+    "redactions": { "$ref": "#/$defs/redactions" },
+    "attachments": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "size", "digest"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$" },
+          "size": { "type": "integer", "minimum": 0, "maximum": 5242880 },
+          "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageDigest", "archiveDigest", "size", "memberCount"],
+      "properties": {
+        "packageDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "archiveDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "size": { "type": "integer", "minimum": 1 },
+        "memberCount": { "type": "integer", "minimum": 4 }
+      }
+    }
+  },
+  "$defs": {
+    "redactions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "classes", "counts"],
+      "properties": {
+        "schema": { "const": "ewai.error-report-redactions/v1" },
+        "classes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+      }
+    }
+  }
+}

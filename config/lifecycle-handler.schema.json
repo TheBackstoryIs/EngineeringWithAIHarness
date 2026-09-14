@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwithai.dev/schemas/lifecycle-handler/v1",
+  "title": "EWAI lifecycle handler manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "name", "publisher", "version", "compatibility", "entrypoint", "digest", "events", "limits"],
+  "properties": {
+    "schema": { "const": "ewai.lifecycle-handler/v1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,79}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$" },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocols", "eventSchemas"],
+      "properties": {
+        "protocols": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "eventSchemas": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
+    "entrypoint": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "events": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeoutMs", "maxOutputBytes"],
+      "properties": {
+        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 30000 },
+        "maxOutputBytes": { "type": "integer", "minimum": 256, "maximum": 65536 }
+      }
+    },
+    "description": { "type": "string", "maxLength": 500 }
+  }
+}

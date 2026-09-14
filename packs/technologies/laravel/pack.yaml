@@ -1,0 +1,30 @@
+schema: ewai.pack/v1
+id: ewai.technology.laravel
+name: Laravel
+version: 0.1.0
+type: technology
+description: Laravel repository discovery, implementation, validation, and deployment guidance.
+compatibility:
+  languages: [php]
+  frameworks: [laravel]
+detection:
+  files: [artisan, composer.json]
+  dependencies: [laravel/framework]
+commands:
+  install: composer install
+  test: php artisan test
+  lint: vendor/bin/pint --test
+source_map:
+  profiles:
+    - id: laravel-routes
+      patterns: [routes/**/*.php]
+      analyser: tree-sitter
+      classification: framework-routing
+      priority: 50
+    - id: composer-manifest
+      patterns: [composer.json]
+      analyser: structured-keys
+      classification: dependency-manifest
+      priority: 40
+deployment: []
+boilerplates: []

@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Governed Context"
+  short_description: "Prepare minimum-sufficient context without weakening engineering fidelity"
+  default_prompt: "Use $ewai-context to prepare and inspect the governed context for this EWAI operation."

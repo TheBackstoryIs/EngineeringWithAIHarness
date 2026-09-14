@@ -1,0 +1,30 @@
+schema: ewai.pack/v1
+id: ewai.stack.laravel-nuxt
+name: Laravel and Nuxt
+version: 0.1.0
+type: stack
+description: Composed API and web application stack with independently deployable Laravel and Nuxt repositories.
+requires:
+  - ewai.technology.laravel
+  - ewai.technology.nuxt
+repositories:
+  - role: backend
+    technology: ewai.technology.laravel
+  - role: frontend
+    technology: ewai.technology.nuxt
+source_map:
+  profiles:
+    - id: frontend-pages
+      patterns: [pages/**/*.vue, app/pages/**/*.vue]
+      analyser: tree-sitter
+      classification: user-interface
+      repositories: [frontend]
+      priority: 80
+    - id: backend-routes
+      patterns: [routes/**/*.php]
+      analyser: tree-sitter
+      classification: framework-routing
+      repositories: [backend]
+      priority: 80
+deployment: []
+boilerplates: []

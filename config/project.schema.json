@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/project-v1.json",
+  "type": "object",
+  "required": ["schema", "project", "specs", "repositories", "approvals", "validation"],
+  "properties": {
+    "schema": { "const": "ewai.project/v1" },
+    "dashboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sidebar_collapsed": { "type": "boolean", "default": false },
+        "optional_views": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "portfolio": { "type": "boolean", "default": false },
+            "team-hub": { "type": "boolean", "default": false },
+            "rollout": { "type": "boolean", "default": false },
+            "starters": { "type": "boolean", "default": false },
+            "policies": { "type": "boolean", "default": false },
+            "security": { "type": "boolean", "default": false },
+            "hooks": { "type": "boolean", "default": false },
+            "context-inspector": { "type": "boolean", "default": false },
+            "phase-studio": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string", "minLength": 1 } }
+    },
+    "specs": {
+      "type": "object",
+      "required": ["root"],
+      "properties": { "root": { "type": "string", "minLength": 1 } }
+    },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "role"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "role": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "personas": {
+      "type": "object",
+      "properties": {
+        "premium": {
+          "type": "object",
+          "properties": {
+            "provider": { "const": "wordpress-edd" },
+            "server": { "type": "string", "pattern": "^https://" }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "blueprints": {
+      "type": "object",
+      "properties": {
+        "organisation": {
+          "type": "object",
+          "required": ["root", "packs", "selection_digest", "enabled_modules", "applied_modules", "approved_by", "approved_at", "evidence"],
+          "properties": {
+            "root": { "$ref": "#/$defs/blueprintPin" },
+            "packs": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/blueprintPin" }
+            },
+            "selection_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+            "enabled_modules": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+            },
+            "applied_modules": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "approved_by": { "type": "string", "minLength": 1 },
+            "approved_at": { "type": "string", "format": "date-time" },
+            "evidence": { "const": "SPECS/5.Strategy/organisation-blueprint.md" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "design_system": { "$ref": "#/$defs/designSystemSelection" },
+    "organisation_policy": { "$ref": "#/$defs/organisationPolicySelection" },
+    "starter_materialisation": {
+      "type": "object",
+      "required": ["targets"],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["role", "repository", "path"],
+            "properties": {
+              "role": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+              "repository": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_map": {
+      "type": "object",
+      "required": ["profiles"],
+      "properties": {
+        "profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/sourceMapProfile" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "approvals": {
+      "type": "object",
+      "required": ["build", "destructive_operations"],
+      "properties": {
+        "build": { "enum": ["required", "optional"] },
+        "destructive_operations": { "const": "required" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["standards", "external"],
+      "properties": {
+        "standards": {
+          "type": "object",
+          "required": ["required", "allow_waiver"],
+          "properties": {
+            "required": { "const": true },
+            "allow_waiver": { "const": false }
+          },
+          "additionalProperties": false
+        },
+        "external": {
+          "type": "object",
+          "required": ["policy", "independent_only", "providers", "checkpoints"],
+          "properties": {
+            "policy": { "const": "configured" },
+            "independent_only": { "const": true },
+            "providers": {
+              "type": "object",
+              "required": ["claude", "codex", "antigravity"],
+              "properties": {
+                "claude": { "$ref": "#/$defs/provider" },
+                "codex": { "$ref": "#/$defs/provider" },
+                "antigravity": { "$ref": "#/$defs/provider" }
+              },
+              "additionalProperties": false
+            },
+            "checkpoints": {
+              "type": "object",
+              "required": ["implementation-plan", "test-plan", "code"],
+              "properties": {
+                "implementation-plan": { "$ref": "#/$defs/checkpoint" },
+                "test-plan": { "$ref": "#/$defs/checkpoint" },
+                "code": { "$ref": "#/$defs/checkpoint" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "sourceMapProfile": {
+      "type": "object",
+      "required": ["id", "patterns", "analyser", "classification"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+        "patterns": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "not": { "pattern": "(^/|^!|[\\\\{}()\\[\\]]|(^|/)\\.\\.(/|$))" }
+          }
+        },
+        "analyser": { "enum": ["inventory-only", "text-summary", "structured-keys", "tree-sitter", "power-platform-metadata", "salesforce-metadata"] },
+        "classification": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "priority": { "type": "integer", "minimum": -10000, "maximum": 10000 },
+        "repositories": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "max_bytes": { "type": "integer", "minimum": 1, "maximum": 900000 }
+      },
+      "additionalProperties": false
+    },
+    "blueprintPin": {
+      "type": "object",
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^org\\.[a-z0-9-]+\\.[a-z0-9.-]+$" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "designSystemPin": {
+      "type": "object",
+      "required": ["id", "version", "digest", "source_class"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(?:ewai\\.[a-z0-9.-]+|org\\.[a-z0-9-]+\\.[a-z0-9.-]+)$" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "source_class": { "enum": ["bundled", "personal", "project", "installed"] }
+      },
+      "additionalProperties": false
+    },
+    "designSystemSelection": {
+      "type": "object",
+      "required": ["root", "packs", "effective_digest", "approved_by", "approved_at", "evidence"],
+      "properties": {
+        "root": { "$ref": "#/$defs/designSystemPin" },
+        "packs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/designSystemPin" } },
+        "effective_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "approved_by": { "type": "string", "minLength": 1 },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "evidence": { "const": "SPECS/5.Strategy/design-system.md" }
+      },
+      "additionalProperties": false
+    },
+    "organisationPolicySelection": {
+      "type": "object",
+      "required": ["status", "packs", "blueprint_digest", "effective_digest", "approved_by", "approved_at", "evidence"],
+      "properties": {
+        "status": { "const": "enabled" },
+        "packs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/designSystemPin" } },
+        "blueprint_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "effective_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "approved_by": { "type": "string", "minLength": 1 },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "evidence": { "const": "SPECS/4.Constraints/organisation-policy/baseline.json" }
+      },
+      "additionalProperties": false
+    },
+    "provider": {
+      "type": "object",
+      "required": ["state", "enabled"],
+      "properties": {
+        "state": { "enum": ["available", "unavailable"] },
+        "enabled": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "checkpoint": {
+      "type": "object",
+      "required": ["enabled", "max_cycles", "validators", "review"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "max_cycles": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "validators": {
+          "oneOf": [
+            { "const": "auto" },
+            {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "enum": ["claude", "codex", "antigravity"] }
+            }
+          ]
+        },
+        "review": {
+          "type": "object",
+          "required": ["breadth", "depth", "output"],
+          "properties": {
+            "breadth": {
+              "enum": ["targeted", "change-set", "capability", "system"]
+            },
+            "depth": {
+              "enum": [
+                "issues-only",
+                "issues-and-fixes",
+                "analysis-and-recommendations"
+              ]
+            },
+            "output": { "enum": ["small", "medium", "large"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

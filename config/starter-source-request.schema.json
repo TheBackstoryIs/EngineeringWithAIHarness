@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/starter-source-request-v1.json",
+  "type": "object",
+  "required": ["schema", "attemptId", "nonce", "project", "receipt", "stagingRoot", "limits"],
+  "properties": {
+    "schema": { "const": "ewai.starter-source-request/v1" },
+    "attemptId": { "type": "string", "format": "uuid" },
+    "nonce": { "type": "string", "format": "uuid" },
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 240 } },
+      "additionalProperties": false
+    },
+    "receipt": {
+      "type": "object",
+      "required": ["id", "name", "source", "sourceClass", "version", "digest", "licence", "compatibility", "targets"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 320 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "source": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "sourceClass": { "enum": ["https", "git", "archive", "directory", "package", "opaque"] },
+        "version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "licence": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "compatibility": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["role", "sourcePath"],
+            "properties": {
+              "role": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+              "sourcePath": { "type": "string", "minLength": 1, "maxLength": 512 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "stagingRoot": { "type": "string", "minLength": 1 },
+    "limits": {
+      "type": "object",
+      "required": ["maximumDepth", "maximumPathBytes", "maximumFiles", "maximumFileBytes", "maximumTotalBytes", "timeoutMs", "maximumOutputBytes"],
+      "properties": {
+        "maximumDepth": { "type": "integer", "minimum": 1, "maximum": 24 },
+        "maximumPathBytes": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "maximumFiles": { "type": "integer", "minimum": 1, "maximum": 5000 },
+        "maximumFileBytes": { "type": "integer", "minimum": 1, "maximum": 5242880 },
+        "maximumTotalBytes": { "type": "integer", "minimum": 1, "maximum": 104857600 },
+        "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 900000 },
+        "maximumOutputBytes": { "const": 65536 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+import { launch } from '../src/launcher.mjs';
+
+const exitCode = await launch(process.argv.slice(2));
+if (exitCode !== 0) process.exitCode = exitCode;

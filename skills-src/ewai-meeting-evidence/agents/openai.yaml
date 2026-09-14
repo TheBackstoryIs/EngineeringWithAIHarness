@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meeting Evidence"
+  short_description: "Extract and review meeting evidence safely"
+  default_prompt: "Use $ewai-meeting-evidence to extract, review and promote source-grounded meeting evidence."

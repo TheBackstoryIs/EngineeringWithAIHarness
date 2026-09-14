@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/organisation-policy-v1.json",
+  "type": "object",
+  "required": ["schema", "id", "title", "version", "publisher", "provenance", "review_roles", "unmatched_outcome", "rules"],
+  "properties": {
+    "schema": { "const": "ewai.organisation-policy/v1" },
+    "id": { "$ref": "#/$defs/slug" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "publisher": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["kind", "summary", "sources"],
+      "properties": {
+        "kind": { "enum": ["owner-declared", "regulatory", "contractual", "adapted"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/sourceReference" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "review_roles": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/reviewRole" }
+    },
+    "unmatched_outcome": { "$ref": "#/$defs/outcome" },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "valueId": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+    "outcome": { "enum": ["allow", "deny", "review-required", "allow-with-controls", "unassessed"] },
+    "sourceReference": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 240 }
+      },
+      "additionalProperties": false
+    },
+    "reviewRole": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 }
+      },
+      "additionalProperties": false
+    },
+    "conditionValues": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/valueId" }
+    },
+    "conditions": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "resource": { "$ref": "#/$defs/conditionValues" },
+        "operation": { "$ref": "#/$defs/conditionValues" },
+        "data_entity": { "$ref": "#/$defs/conditionValues" },
+        "data_classification": { "$ref": "#/$defs/conditionValues" },
+        "actor": { "$ref": "#/$defs/conditionValues" },
+        "environment": { "$ref": "#/$defs/conditionValues" },
+        "destination": { "$ref": "#/$defs/conditionValues" },
+        "model": { "$ref": "#/$defs/conditionValues" },
+        "ai_use": { "$ref": "#/$defs/conditionValues" },
+        "retention": { "$ref": "#/$defs/conditionValues" }
+      },
+      "additionalProperties": false
+    },
+    "control": {
+      "type": "object",
+      "required": ["id", "title", "description", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "enum": ["claim", "task", "automated-test", "named-human", "specialist-review"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "exception": {
+      "type": "object",
+      "required": ["permitted"],
+      "properties": {
+        "permitted": { "type": "boolean" },
+        "review_role": { "$ref": "#/$defs/slug" }
+      },
+      "additionalProperties": false
+    },
+    "rule": {
+      "type": "object",
+      "required": ["id", "title", "description", "when", "outcome", "controls", "exceptions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1200 },
+        "when": { "$ref": "#/$defs/conditions" },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "review_role": { "$ref": "#/$defs/slug" },
+        "controls": { "type": "array", "maxItems": 40, "items": { "$ref": "#/$defs/control" } },
+        "exceptions": { "$ref": "#/$defs/exception" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Palace Housekeeping"
+  short_description: "Review and tidy project knowledge safely"
+  default_prompt: "Use $ewai-palace-housekeeping to inspect my project Mind Palace and walk me through any proposed housekeeping."

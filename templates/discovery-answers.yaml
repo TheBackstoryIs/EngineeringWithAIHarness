@@ -1,0 +1,86 @@
+schema: ewai.discovery-answers/v1
+project:
+  name: Example Product
+  whyNow: Explain what changed or became unacceptable.
+  purpose: Help a defined group of users achieve a valuable outcome.
+  problem: Describe the current unmet need and why it matters.
+  primaryUsers:
+    - Primary user
+  desiredOutcomes:
+    - Measurable outcome
+  inScope:
+    - Primary project boundary
+  capabilities:
+    - Required capability
+  missingCapabilities: []
+  stage: new
+  productTypes:
+    - web application
+  nonGoals: []
+  dontTouch: []
+  hardConstraints: []
+  softConstraints: []
+  nonNegotiables: []
+  successSignals:
+    - Observable evidence of the desired outcome
+  failureSignals: []
+  definitionOfReady: []
+  definitionOfDone:
+    - Delivery gates pass
+    - Manual QA is approved
+    - Retrospective is complete
+  openQuestions: []
+  risks: []
+  oneSentence: A one-sentence honest description of the project.
+  avoidBecoming: A solution detached from the real user problem.
+  ownership:
+    product: Product owner name or role
+    delivery: Delivery owner name or role
+    technical: Technical owner name or role
+delivery:
+  technologyPacks:
+    - ewai.stack.laravel-nuxt
+  customTechnology: []
+  deploymentTarget: Managed cloud platform
+  constraints: []
+assurance:
+  jurisdictions:
+    - United Kingdom
+  regulatedDomains: []
+  dataClassification: confidential
+  personalData: yes
+  sensitiveData: unknown
+  authentication: yes
+  multiTenant: yes
+  internetFacing: yes
+  payments: no
+  aiFeatures: no
+  accessibility: yes
+  availability: standard
+validation:
+  providers:
+    claude:
+      state: unavailable
+      enabled: false
+    codex:
+      state: unavailable
+      enabled: false
+    antigravity:
+      state: unavailable
+      enabled: false
+  checkpoints:
+    implementation-plan:
+      max_cycles: 2
+      breadth: capability
+      depth: issues-and-fixes
+      output: medium
+    test-plan:
+      max_cycles: 2
+      breadth: capability
+      depth: issues-and-fixes
+      output: medium
+    code:
+      max_cycles: 2
+      breadth: change-set
+      depth: issues-and-fixes
+      output: medium

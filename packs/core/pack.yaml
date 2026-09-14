@@ -1,0 +1,7 @@
+schema: ewai.pack/v1
+id: ewai.core
+name: EWAI Pipeline Core
+version: 0.1.0
+type: core
+description: Portable delivery workflow, project contracts, gates, and agent skills.
+boilerplates: []

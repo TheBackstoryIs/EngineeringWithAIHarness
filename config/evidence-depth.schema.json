@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwithai.dev/schemas/evidence-depth.schema.json",
+  "title": "EWAI evidence depth contracts",
+  "oneOf": [
+    { "$ref": "#/$defs/preparation" },
+    { "$ref": "#/$defs/run" },
+    { "$ref": "#/$defs/comparison" }
+  ],
+  "$defs": {
+    "depth": { "enum": ["bounded", "standard", "deep"] },
+    "dimensionId": { "enum": ["architecture", "data", "security", "product", "delivery", "governance", "operations"] },
+    "preparation": {
+      "type": "object",
+      "required": ["schema", "preparationDigest", "dimensions", "gaps", "activePersonas"],
+      "properties": {
+        "schema": { "const": "ewai.evidence-depth-preparation/v1" },
+        "preparationDigest": { "type": "string" },
+        "dimensions": { "type": "array", "minItems": 7, "maxItems": 7 },
+        "gaps": { "type": "array", "maxItems": 200 },
+        "activePersonas": { "type": "array", "maxItems": 8 }
+      },
+      "additionalProperties": true
+    },
+    "run": {
+      "type": "object",
+      "required": ["schema", "runId", "contentDigest", "preparationDigest", "dimensions", "gaps", "grouping"],
+      "properties": {
+        "schema": { "const": "ewai.evidence-depth-run/v1" },
+        "runId": { "type": "string" },
+        "contentDigest": { "type": "string" },
+        "preparationDigest": { "type": "string" },
+        "dimensions": { "type": "array", "minItems": 7, "maxItems": 7 },
+        "gaps": { "type": "array", "maxItems": 200 },
+        "grouping": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "comparison": {
+      "type": "object",
+      "required": ["schema", "leftRunId", "rightRunId", "changes", "unexplained", "reproducible"],
+      "properties": {
+        "schema": { "const": "ewai.evidence-depth-comparison/v1" },
+        "leftRunId": { "type": "string" },
+        "rightRunId": { "type": "string" },
+        "changes": { "type": "object" },
+        "unexplained": { "type": "array" },
+        "reproducible": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

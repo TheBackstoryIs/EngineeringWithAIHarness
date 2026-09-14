@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/prototype-iteration-v1.json",
+  "title": "EWAI persona-guided prototype iteration",
+  "oneOf": [
+    { "$ref": "#/$defs/planInput" },
+    { "$ref": "#/$defs/planPreparation" },
+    { "$ref": "#/$defs/planSubmission" },
+    { "$ref": "#/$defs/planReview" },
+    { "$ref": "#/$defs/cycleInput" },
+    { "$ref": "#/$defs/cyclePreparation" },
+    { "$ref": "#/$defs/cycleSubmission" },
+    { "$ref": "#/$defs/cycleReview" }
+  ],
+  "$defs": {
+    "safeId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,199}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "persona": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "tier", "category", "matchedSignals", "engagementReason"],
+      "properties": {
+        "id": { "$ref": "#/$defs/safeId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "tier": { "enum": ["core", "project", "personal", "premium"] },
+        "category": { "type": "string", "maxLength": 120 },
+        "matchedSignals": { "type": "array", "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "engagementReason": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "engagement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "stage", "activePersonas", "availability", "baseline", "authority"],
+      "properties": {
+        "schema": { "const": "ewai.prototype-persona-engagement/v1" },
+        "stage": { "enum": ["plan", "design"] },
+        "selectionFingerprint": { "$ref": "#/$defs/digest" },
+        "activePersonas": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/persona" } },
+        "availability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["standardModel", "core", "project", "personal", "premium"],
+          "properties": {
+            "standardModel": { "$ref": "#/$defs/availabilityEntry" },
+            "core": { "$ref": "#/$defs/availabilityEntry" },
+            "project": { "$ref": "#/$defs/availabilityEntry" },
+            "personal": { "$ref": "#/$defs/availabilityEntry" },
+            "premium": { "$ref": "#/$defs/availabilityEntry" }
+          }
+        },
+        "baseline": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["completeWithoutOptionalPersonas"],
+          "properties": { "completeWithoutOptionalPersonas": { "const": true } }
+        },
+        "notices": { "type": "array", "maxItems": 10, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["advisory", "maySelectPrototype", "mayApproveManualQa"],
+          "properties": {
+            "advisory": { "const": true },
+            "maySelectPrototype": { "const": false },
+            "mayApproveManualQa": { "const": false }
+          }
+        }
+      }
+    },
+    "availabilityEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "count": { "type": "integer", "minimum": 0, "maximum": 10000 }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["personaId", "concernCode", "severity", "observation", "recommendation", "evidenceRefs"],
+      "properties": {
+        "id": { "$ref": "#/$defs/safeId" },
+        "personaId": { "$ref": "#/$defs/safeId" },
+        "concernCode": { "$ref": "#/$defs/safeId" },
+        "severity": { "enum": ["advisory", "material", "critical"] },
+        "observation": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "recommendation": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "evidenceRefs": { "type": "array", "minItems": 1, "maxItems": 50, "uniqueItems": true, "items": { "$ref": "#/$defs/safeId" } }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findingId", "disposition", "rationale"],
+      "properties": {
+        "findingId": { "$ref": "#/$defs/safeId" },
+        "disposition": { "enum": ["incorporate", "incorporate-with-modification", "defer", "reject", "escalate"] },
+        "rationale": { "type": "string", "minLength": 12, "maxLength": 2000 },
+        "modification": { "type": "string", "maxLength": 2000 },
+        "owner": { "type": "string", "maxLength": 160 }
+      }
+    },
+    "planInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "deliverySlug", "intentDigest", "designSystem", "plan", "engagement"],
+      "properties": {
+        "schema": { "const": "ewai.prototype-plan-input/v1" },
+        "deliverySlug": { "$ref": "#/$defs/safeId" },
+        "intentDigest": { "$ref": "#/$defs/digest" },
+        "designSystem": { "type": "object" },
+        "plan": { "type": "object" },
+        "engagement": { "$ref": "#/$defs/engagement" },
+        "predecessorDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "const": "" }] }
+      }
+    },
+    "planPreparation": { "type": "object", "required": ["schema", "preparationDigest"], "properties": { "schema": { "const": "ewai.prototype-plan-preparation/v1" }, "preparationDigest": { "$ref": "#/$defs/digest" } } },
+    "planSubmission": { "type": "object", "required": ["schema", "expectedPreparationDigest", "reviewedBy", "findings", "assessments"], "properties": { "schema": { "const": "ewai.prototype-plan-review-submission/v1" }, "expectedPreparationDigest": { "$ref": "#/$defs/digest" }, "reviewedBy": { "type": "string" }, "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } }, "assessments": { "type": "array", "items": { "$ref": "#/$defs/assessment" } } } },
+    "planReview": { "type": "object", "required": ["schema", "contentDigest"], "properties": { "schema": { "const": "ewai.prototype-plan-review/v1" }, "contentDigest": { "$ref": "#/$defs/digest" } } },
+    "cycleInput": { "type": "object", "required": ["schema"], "properties": { "schema": { "const": "ewai.prototype-cycle-input/v1" } } },
+    "cyclePreparation": { "type": "object", "required": ["schema", "preparationDigest"], "properties": { "schema": { "const": "ewai.prototype-cycle-preparation/v1" }, "preparationDigest": { "$ref": "#/$defs/digest" } } },
+    "cycleSubmission": { "type": "object", "required": ["schema"], "properties": { "schema": { "const": "ewai.prototype-cycle-review-submission/v1" } } },
+    "cycleReview": { "type": "object", "required": ["schema", "contentDigest"], "properties": { "schema": { "const": "ewai.prototype-cycle-review/v1" }, "contentDigest": { "$ref": "#/$defs/digest" } } }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Pipeline"
+  short_description: "Run portable Engineering With AI delivery workflows"
+  default_prompt: "Use $ewai-pipeline to open the conversational Engineering With AI companion for this project."

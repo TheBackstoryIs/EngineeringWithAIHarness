@@ -1,0 +1,4 @@
+interface:
+  display_name: "Persona-Guided Prototype Review"
+  short_description: "Review prototype plans and renders with personas"
+  default_prompt: "Use $ewai-prototype-iteration to review this prototype plan and rendered design with the most relevant available personas."

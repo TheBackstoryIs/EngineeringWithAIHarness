@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Archaeology"
+  short_description: "Recreate and review maximum-detail project SPECS"
+  default_prompt: "Use $ewai-archaeology to assess and confirm the best installed persona ensemble, then recreate this project's full-coverage, maximum-discoverable-detail SPECS from code, history, imported context, and human evidence; include security and code-quality reviews, guide curation, and offer a future-work backlog."

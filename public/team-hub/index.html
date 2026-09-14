@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EWAI Team Hub</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to portfolio</a>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">EWAI · TEAM HUB</p>
+      <h1>Connected portfolio</h1>
+    </div>
+    <div id="serviceState" class="service-state" aria-live="polite">Checking service…</div>
+  </header>
+
+  <main id="main">
+    <section class="access-panel" aria-labelledby="accessHeading">
+      <div>
+        <p class="eyebrow">SESSION ACCESS</p>
+        <h2 id="accessHeading">Open this portfolio</h2>
+        <p>The bearer token stays in this browser tab only. Team Hub does not persist it in browser storage.</p>
+      </div>
+      <form id="accessForm">
+        <label for="hubToken">Team Hub token</label>
+        <div class="input-row">
+          <input id="hubToken" name="token" type="password" autocomplete="off" required minlength="16">
+          <button type="submit">Load portfolio</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="authority-note" aria-label="Authority boundary">
+      <strong>Read-only operational evidence.</strong>
+      <span>Team Hub cannot approve Build or Manual QA, accept risk, certify compliance, deploy or release.</span>
+    </section>
+
+    <section id="portfolio" class="portfolio" hidden aria-labelledby="portfolioHeading">
+      <header class="section-heading">
+        <div>
+          <p class="eyebrow">PORTFOLIO EVIDENCE</p>
+          <h2 id="portfolioHeading">Projects</h2>
+        </div>
+        <button id="refreshPortfolio" class="quiet-button" type="button">Refresh</button>
+      </header>
+      <div id="summary" class="summary-grid" aria-live="polite"></div>
+      <div class="portfolio-grid">
+        <nav aria-label="Connected projects">
+          <ul id="projectList" class="project-list"></ul>
+        </nav>
+        <article id="projectDetail" class="project-detail" tabindex="-1">
+          <p class="empty-state">Load the portfolio, then choose a project.</p>
+        </article>
+      </div>
+    </section>
+    <section id="resourceRegistry" class="resource-registry" hidden aria-labelledby="resourceRegistryHeading">
+      <header class="section-heading">
+        <div>
+          <p class="eyebrow">GOVERNED RESOURCES</p>
+          <h2 id="resourceRegistryHeading">Release catalogue</h2>
+          <p>Immutable organisation Blueprint and design-system releases. Publication is not project activation.</p>
+        </div>
+        <button id="refreshResources" class="quiet-button" type="button">Refresh resources</button>
+      </header>
+      <div class="release-chain" aria-label="Resource release chain">
+        <strong>Published</strong><span>→</span><strong>Downloaded</strong><span>→</span><strong>Verified</strong><span>→</span><strong>Installed</strong><span>→</span><strong>Select/apply separately</strong>
+      </div>
+      <div class="resource-grid">
+        <nav aria-label="Published resource releases"><ul id="resourceList" class="project-list"></ul></nav>
+        <article id="resourceDetail" class="project-detail" tabindex="-1"><p class="empty-state">Load the catalogue, then choose a release.</p></article>
+      </div>
+    </section>
+    <p id="message" class="message" role="status" aria-live="polite"></p>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

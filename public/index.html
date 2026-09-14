@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EWAI Pipeline</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main id="app" class="app-shell">
+      <button id="sidebarBackdrop" class="sidebar-backdrop" type="button" tabindex="-1" aria-label="Close navigation" hidden></button>
+      <aside id="dashboardSidebar" class="dashboard-sidebar" aria-label="Project navigation">
+        <button id="sidebarClose" class="quiet-button sidebar-close" type="button" aria-label="Close navigation">×</button>
+        <div class="sidebar-brand"><img class="brand-mark" src="/assets/backstory-icon.png" alt=""><div><strong>Engineering With AI</strong><small>Your project companion</small></div></div>
+        <nav class="view-switcher" aria-label="Dashboard view">
+          <button type="button" class="active" data-view="board" title="Board"><span class="sidebar-icon" aria-hidden="true">▦</span><span class="sidebar-label">Board</span></button>
+          <button type="button" data-view="companion" title="Companion"><span class="sidebar-icon" aria-hidden="true">◇</span><span class="sidebar-label">Companion</span></button>
+          <button type="button" data-view="live" title="Live work"><span class="live-dot sidebar-icon" aria-hidden="true"></span><span class="sidebar-label">Live work</span><span id="liveCount" class="nav-count">0</span></button>
+          <button type="button" data-view="knowledge" title="Mind Palace"><span class="sidebar-icon" aria-hidden="true">▤</span><span class="sidebar-label">Mind Palace</span></button>
+          <p id="optionalViewHeading" class="sidebar-group-label" hidden>Additional views</p>
+          <div id="optionalViewLinks"></div>
+        </nav>
+        <div class="sidebar-premium"><a id="premiumLearn" href="https://www.conversationalcoding.dev/personas/" target="_blank" rel="noopener noreferrer" hidden>Premium personas ↗<span class="sr-only"> (opens in a new tab)</span></a><button id="premiumSetup" type="button" class="quiet-button" hidden>Set up premium personas</button></div>
+        <div class="sidebar-bottom"><button id="configurationNav" type="button" data-view="configuration" title="Configuration" disabled><span class="sidebar-icon" aria-hidden="true">⚙</span><span class="sidebar-label">Configuration</span></button><button id="sidebarCollapse" type="button" title="Collapse sidebar" aria-label="Collapse sidebar" aria-controls="dashboardSidebar" aria-expanded="true"><span class="sidebar-icon" aria-hidden="true">«</span><span class="sidebar-label">Collapse sidebar</span></button></div>
+      </aside>
+      <header class="app-bar">
+        <button id="sidebarOpen" class="quiet-button sidebar-open" type="button" aria-label="Open navigation" aria-controls="dashboardSidebar" aria-expanded="false">☰</button>
+        <div class="brand-block">
+          <img class="brand-mark" src="/assets/backstory-icon.png" alt="Engineering With AI">
+          <div>
+            <h1 id="projectName">EWAI Pipeline</h1>
+            <p><span id="runtimeStatus">Connecting to the local runtime…</span><span id="runtimeWarning" class="runtime-warning" hidden></span></p>
+          </div>
+        </div>
+        <div class="app-actions">
+          <button id="kpiToggle" type="button" class="icon-button" aria-label="Show pipeline KPIs" aria-controls="summary" aria-expanded="false" title="Pipeline KPIs">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/></svg>
+          </button>
+          <label class="global-search">
+            <span id="searchLabel" class="sr-only">Search intents, domains, and phases</span>
+            <input id="search" type="search" placeholder="Search intents, domains, phases…" autocomplete="off">
+          </label>
+          <button id="refresh" type="button" class="quiet-button">Refresh</button>
+        </div>
+      </header>
+
+      <section id="summary" class="summary-strip" aria-label="Pipeline summary" hidden></section>
+      <section id="configurationView" class="dashboard-view dashboard-configuration" hidden>
+        <header class="configuration-heading"><h2>Make this dashboard work for you.</h2><p>Keep the everyday tools. Add the extra views when your project needs them.</p></header>
+        <form id="dashboardPreferencesForm"><div id="dashboardPreferenceGroups"></div><div class="configuration-save"><button id="saveDashboardPreferences" type="submit" class="primary-action" disabled>Save changes</button><button id="cancelDashboardPreferences" type="button" class="quiet-button">Cancel</button><output id="dashboardPreferenceStatus" aria-live="polite"></output></div></form>
+        <p class="configuration-assurance">These settings only change what’s shown. Your standards, required checks and approvals still apply. Turning on a view won’t run a scan, connect a team service or install anything.</p>
+        <section class="configuration-group"><header><h3>Premium personas</h3><p>Manage your licence and installed library.</p></header><div class="configuration-licence"><strong id="configurationLicenceStatus">Checking persona status…</strong><p id="configurationLicenceDetail"></p><button id="managePersonaLicence" type="button" class="quiet-button">Manage licence</button></div></section>
+        <section class="configuration-group"><header><h3>Setup and support</h3><p>Open these when you need them, without adding permanent navigation.</p></header><div class="configuration-shortcuts"><button type="button" class="quiet-button" data-view="guided">Project discovery</button><button type="button" class="quiet-button" data-view="intent-studio">Shape an intent</button><button type="button" class="quiet-button" data-view="error-reporting">Diagnostics and support</button></div></section>
+      </section>
+
+      <section id="boardView" class="dashboard-view board-layout">
+        <aside class="filter-rail">
+          <div class="rail-heading">
+            <div>
+              <span class="eyebrow">Organise</span>
+              <h2>Categories</h2>
+            </div>
+            <span id="visibleCount" class="count-badge">0</span>
+          </div>
+          <div class="scope-controls">
+            <button id="allGroups" type="button" class="scope-button active" data-group="">
+              <span>All intents</span><b id="allCount">0</b>
+            </button>
+            <button id="sprintOnly" type="button" class="scope-button" aria-pressed="false">
+              <span>Active sprint</span><b id="sprintCount">0</b>
+            </button>
+            <label class="done-toggle">
+              <input id="showDone" type="checkbox">
+              <span>Include completed</span>
+            </label>
+          </div>
+          <div id="groupList" class="group-list" aria-label="Intent categories"></div>
+          <a id="premiumCard" class="premium-card" href="https://www.conversationalcoding.dev/personas/" target="_blank" rel="noopener noreferrer" hidden>
+            <span class="premium-kicker"><i aria-hidden="true">✦</i> Premium personas</span>
+            <strong>Add more expert voices</strong>
+            <p>Bring richer specialist perspectives into intent discovery, review, and validation.</p>
+            <span class="premium-action">Get Premium Personas <b aria-hidden="true">↗</b></span>
+          </a>
+        </aside>
+
+        <section class="board-workspace">
+          <header class="workspace-heading">
+            <div>
+              <span class="eyebrow">Delivery flow</span>
+              <h2 id="boardTitle">All intents</h2>
+            </div>
+            <div class="board-mode" role="group" aria-label="Kanban grouping">
+              <button type="button" class="active" data-board-mode="stages">14 stages</button>
+              <button type="button" data-board-mode="cycle">Cycle view</button>
+            </div>
+          </header>
+          <div id="kanban" class="kanban" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section id="companionView" class="dashboard-view companion-view" hidden aria-labelledby="companionTitle">
+        <header class="companion-heading">
+          <div>
+            <span class="eyebrow">Context-aware guidance</span>
+            <h2 id="companionTitle">What deserves attention now</h2>
+            <p id="companionSubtitle">Ranked from current governed project evidence.</p>
+          </div>
+          <form id="companionFocusForm" class="companion-focus">
+            <label for="companionFocus"><span>Focus</span></label>
+            <div><input id="companionFocus" name="focus" maxlength="500" autocomplete="off" placeholder="Intent, decision or delivery concern"><button type="submit">Apply focus</button><button type="button" class="quiet-button" data-companion-clear>Clear</button></div>
+          </form>
+        </header>
+        <div id="companionAdvisoryNotice" class="companion-notice advisory" role="note"></div>
+        <div id="companionSecurityNotice" class="companion-notice security" role="note"></div>
+        <div id="companionContractError" class="companion-contract-error" role="alert" hidden></div>
+        <div id="companionStatus" class="companion-status" aria-live="polite" hidden></div>
+
+        <div class="companion-layout">
+          <section class="companion-runway-panel" aria-labelledby="companionRunwayTitle">
+            <header>
+              <div><span class="eyebrow">Observed state → accountable route</span><h3 id="companionRunwayTitle">Decision runway</h3></div>
+              <span id="companionHumanCount" class="count-badge">0</span>
+            </header>
+            <div id="companionRunway" class="companion-runway" aria-live="polite"></div>
+            <footer class="companion-legend"><span><b>Observed</b> governed state</span><span><b>Advisory</b> ranking and persona lenses</span><span><b>Decided</b> by named people and gates</span></footer>
+          </section>
+
+          <aside class="companion-context-panel" aria-label="Selected Companion context" aria-live="polite">
+            <section id="companionContext" class="companion-context"></section>
+            <section class="companion-persona-section" aria-labelledby="companionPersonasTitle">
+              <header><div><span class="eyebrow">Active now</span><h3 id="companionPersonasTitle">Actively engaged personas</h3></div><p>Personas advise. Accountable people decide.</p></header>
+              <div id="companionPersonas" class="companion-personas"></div>
+            </section>
+            <section class="companion-review" aria-labelledby="companionReviewTitle">
+              <header><div><span class="eyebrow">Standard host-model baseline</span><h3 id="companionReviewTitle">Questions for accountable people</h3></div></header>
+              <ul id="companionReviewQuestions"></ul>
+              <div id="companionBaseline" class="companion-baseline"></div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="portfolioView" class="dashboard-view portfolio-view" hidden aria-labelledby="portfolioTitle">
+        <header class="portfolio-heading">
+          <div>
+            <span class="eyebrow">Cross-project evidence</span>
+            <h2 id="portfolioTitle">Project and Portfolio Orchestration</h2>
+            <p>Review hierarchy, declared dependencies, child-owned evidence and the perspectives examining it.</p>
+          </div>
+          <div id="portfolioSummary" class="portfolio-summary" aria-live="polite"></div>
+        </header>
+        <div id="portfolioAdvisoryNotice" class="portfolio-advisory-notice" role="note"></div>
+        <div id="portfolioSecurityNotice" class="portfolio-security-notice" role="note"></div>
+        <div id="portfolioContractError" class="portfolio-contract-error" role="alert" hidden></div>
+        <div id="portfolioStatus" class="portfolio-status" aria-live="polite" hidden></div>
+
+        <div class="portfolio-workspace">
+          <section class="portfolio-line-panel" aria-labelledby="portfolioLineTitle">
+            <header>
+              <div><span class="eyebrow">Portfolio → Programme → Project</span><h3 id="portfolioLineTitle">Programme line</h3></div>
+              <span id="portfolioAttentionCount" class="count-badge">0</span>
+            </header>
+            <div id="portfolioProgrammeLine" class="portfolio-programme-line" role="tree" aria-label="Portfolio hierarchy"></div>
+            <section class="portfolio-dependency-section" aria-labelledby="portfolioDependenciesTitle">
+              <header><div><span class="eyebrow">Direction and provenance</span><h3 id="portfolioDependenciesTitle">Dependencies</h3></div></header>
+              <div id="portfolioDependencies" class="portfolio-dependencies"></div>
+            </section>
+          </section>
+
+          <aside class="portfolio-context-panel" aria-label="Selected portfolio context">
+            <section id="portfolioContext" class="portfolio-context"></section>
+            <section class="portfolio-persona-section" aria-labelledby="portfolioPersonasTitle">
+              <header><div><span class="eyebrow">Current lenses</span><h3 id="portfolioPersonasTitle">Actively engaged personas</h3></div><p>Personas advise. Named people and child projects decide.</p></header>
+              <div id="portfolioPersonas" class="portfolio-personas"></div>
+            </section>
+            <section id="portfolioReview" class="portfolio-review" aria-labelledby="portfolioReviewTitle">
+              <header><div><span class="eyebrow">Host-model reasoning</span><h3 id="portfolioReviewTitle">Standard LLM baseline</h3></div></header>
+              <div id="portfolioReviewContent"></div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="rolloutView" class="dashboard-view rollout-view" hidden aria-labelledby="rolloutTitle">
+        <header class="rollout-heading">
+          <div>
+            <span class="eyebrow">Consultancy network</span>
+            <h2 id="rolloutTitle">Governed rollout</h2>
+            <p>Review declared cohort baselines, project-owned evidence, accountable routes and the perspectives engaged now.</p>
+          </div>
+          <div id="rolloutSummary" class="rollout-summary" aria-live="polite"></div>
+        </header>
+        <div id="rolloutAdvisoryNotice" class="rollout-advisory-notice" role="note"></div>
+        <div id="rolloutSecurityNotice" class="rollout-security-notice" role="note"></div>
+        <div id="rolloutContractError" class="rollout-contract-error" role="alert" hidden></div>
+        <div id="rolloutStatus" class="rollout-status" aria-live="polite" hidden></div>
+
+        <div class="rollout-layout">
+          <section class="rollout-ledger-panel" aria-labelledby="rolloutLedgerTitle">
+            <header>
+              <div><span class="eyebrow">Declared policy → observed evidence</span><h3 id="rolloutLedgerTitle">Cohort ledger</h3></div>
+              <span id="rolloutAttentionCount" class="count-badge">0</span>
+            </header>
+            <div id="rolloutLedger" class="rollout-ledger"></div>
+            <footer class="rollout-legend">
+              <span><b>Declared</b> rollout policy</span>
+              <span><b>Observed</b> project metadata</span>
+              <span><b>Advisory</b> LLM/persona review</span>
+            </footer>
+          </section>
+
+          <aside class="rollout-context-panel" aria-label="Selected rollout context" aria-live="polite">
+            <section id="rolloutContext" class="rollout-context"></section>
+            <section class="rollout-persona-section" aria-labelledby="rolloutPersonasTitle">
+              <header><div><span class="eyebrow">Active now</span><h3 id="rolloutPersonasTitle">Actively engaged personas</h3></div><p>Personas advise. Named people and project governance decide.</p></header>
+              <div id="rolloutPersonas" class="rollout-personas"></div>
+            </section>
+            <section class="rollout-review" aria-labelledby="rolloutReviewTitle">
+              <header><div><span class="eyebrow">Host-model reasoning</span><h3 id="rolloutReviewTitle">Standard LLM baseline</h3></div></header>
+              <div id="rolloutReviewContent"></div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="liveView" class="dashboard-view live-view" hidden>
+        <header class="live-heading">
+          <div>
+            <span class="eyebrow">Material activity only</span>
+            <h2>Work happening now</h2>
+            <p>Agent handoffs, decisions, reviews, questions, blockers, and completed milestones.</p>
+          </div>
+          <div class="poll-state"><span class="live-dot"></span><span id="pollStatus">Refreshing every 5 seconds</span></div>
+        </header>
+        <section id="liveSummary" class="live-summary"></section>
+        <section id="activeSessions" class="active-grid"></section>
+      </section>
+
+      <section id="knowledgeView" class="dashboard-view knowledge-view" hidden>
+        <aside class="knowledge-rail">
+          <header>
+            <div><span class="eyebrow">Project memory</span><h2>Mind Palace</h2></div>
+            <span id="knowledgeCount" class="count-badge">0</span>
+          </header>
+          <div class="knowledge-mode-switcher" role="tablist" aria-label="Mind Palace mode">
+            <button type="button" class="active" data-knowledge-mode="knowledge" role="tab" aria-selected="true">Knowledge</button>
+            <button type="button" data-knowledge-mode="meeting-evidence" role="tab" aria-selected="false">Meeting evidence</button>
+            <button type="button" data-knowledge-mode="knowledge-proposals" role="tab" aria-selected="false">Knowledge proposals</button>
+          </div>
+          <div id="palaceTidiness" class="palace-tidiness"><i aria-hidden="true"></i><span>Checking tidiness…</span></div>
+          <nav id="knowledgeTree" class="knowledge-tree" aria-label="SPECS folders and documents"></nav>
+          <nav id="meetingEvidenceSources" class="meeting-evidence-sources" aria-label="Registered meeting sources" hidden></nav>
+          <nav id="knowledgeProposalSources" class="knowledge-proposal-sources" aria-label="Eligible knowledge proposal sources and bundles" hidden></nav>
+        </aside>
+        <article id="knowledgeWorkspace" class="knowledge-workspace">
+          <header class="knowledge-heading">
+            <div>
+              <span id="knowledgeEyebrow" class="eyebrow">EWAI Mind Palace</span>
+              <h2 id="knowledgeTitle">Choose a SPECS document</h2>
+              <p id="knowledgeMeta">Browse the durable project context used by people and AI.</p>
+            </div>
+          </header>
+          <section id="knowledgeContent" class="knowledge-content">
+            <div class="knowledge-empty"><strong>Your project Mind Palace.</strong><p>Select a SPECS document to read it here.</p></div>
+          </section>
+        </article>
+        <article id="meetingEvidenceWorkspace" class="meeting-evidence-workspace" hidden>
+          <header class="knowledge-heading meeting-evidence-heading">
+            <div><span class="eyebrow">Source → review → evidence</span><h2 id="meetingEvidenceTitle">Meeting evidence</h2><p id="meetingEvidenceMeta">Select a registered source to inspect its safe provenance record.</p></div>
+            <div id="meetingEvidenceActions" class="meeting-evidence-actions"></div>
+          </header>
+          <div class="meeting-evidence-layout">
+            <main class="meeting-evidence-ledger" aria-live="polite">
+              <div id="meetingEvidenceState"></div>
+              <section class="meeting-evidence-spine" aria-labelledby="meetingEvidenceCandidateTitle">
+                <header><span class="eyebrow">Provenance spine</span><h3 id="meetingEvidenceCandidateTitle">Reviewed candidates</h3></header>
+                <div id="meetingEvidenceCandidates"></div>
+              </section>
+            </main>
+            <aside class="meeting-evidence-context">
+              <section><span class="eyebrow">Source context</span><div id="meetingEvidenceContext"></div></section>
+              <section><span class="eyebrow">Active now</span><h3>Engaged personas</h3><div id="meetingEvidencePersonas"></div></section>
+              <p class="meeting-evidence-advisory">Persona perspectives are advisory. A named person owns review and promotion.</p>
+              <p id="meetingEvidenceNotice" class="meeting-evidence-notice">Security validation is evidence, not certification or proof that this system is secure. Tools can miss vulnerabilities and produce false positives. A qualified human must review the scope, findings, limitations and residual risk before release.</p>
+            </aside>
+          </div>
+        </article>
+        <article id="knowledgeProposalWorkspace" class="knowledge-proposal-workspace" hidden>
+          <header class="knowledge-heading knowledge-proposal-heading">
+            <div><span class="eyebrow">Evidence → proposal → reviewed knowledge</span><h2 id="knowledgeProposalTitle">Knowledge proposals</h2><p id="knowledgeProposalMeta">Choose eligible evidence or a recorded bundle.</p></div>
+            <div id="knowledgeProposalActions" class="knowledge-proposal-actions"></div>
+          </header>
+          <div class="knowledge-proposal-layout">
+            <main class="knowledge-proposal-ledger" aria-live="polite">
+              <div id="knowledgeProposalState"></div>
+              <section class="knowledge-proposal-spine" aria-labelledby="knowledgeProposalCardsTitle">
+                <header><span class="eyebrow">Provenance and destination</span><h3 id="knowledgeProposalCardsTitle">Proposal bundle</h3></header>
+                <div id="knowledgeProposalCards"></div>
+              </section>
+            </main>
+            <aside class="knowledge-proposal-context">
+              <section><span class="eyebrow">Source route</span><div id="knowledgeProposalContext"></div></section>
+              <section><span class="eyebrow">Active now</span><h3>Engaged personas</h3><div id="knowledgeProposalPersonas"></div></section>
+              <p class="knowledge-proposal-advisory">Personas and model output are advisory. A named reviewer disposes of every proposal, and a separately named approver decides materialisation.</p>
+              <p id="knowledgeProposalNotice" class="knowledge-proposal-notice">Security validation is evidence, not certification or proof that this system is secure. Tools can miss vulnerabilities and produce false positives. A qualified human must review the scope, findings, limitations and residual risk before release.</p>
+            </aside>
+          </div>
+        </article>
+      </section>
+
+      <section id="guidedView" class="dashboard-view guided-view" hidden>
+        <aside class="guided-rail">
+          <span class="eyebrow">Project discovery</span>
+          <h2>Set the project up together</h2>
+          <p>Work through the questions in any session. Nothing becomes project truth until someone reviews and approves it.</p>
+          <progress id="guidedProgressBar" class="guided-progress" max="100" value="0" aria-label="Discovery progress"></progress>
+          <nav id="guidedSections" class="guided-sections" aria-label="Discovery sections"></nav>
+        </aside>
+
+        <section class="guided-workspace" aria-labelledby="guidedTitle">
+          <header class="guided-heading">
+            <div><span id="guidedEyebrow" class="eyebrow">Guided Setup</span><h2 id="guidedTitle">Loading project discovery…</h2><p id="guidedSubtitle">Your answers remain a recoverable draft until explicit approval.</p></div>
+            <span id="guidedStepCount" class="guided-step-count"></span>
+          </header>
+          <div id="guidedContent" class="guided-content" aria-live="polite">
+            <div class="guided-empty"><strong>Preparing Discovery</strong><p>Loading the shared project questionnaire and relevant perspectives.</p></div>
+          </div>
+          <footer id="guidedActions" class="guided-actions" hidden>
+            <span id="guidedSaveState">Project-local draft</span>
+            <div><button type="button" class="secondary-action" data-guided-back>Back</button><button type="button" class="primary-action" data-guided-next>Save and continue</button></div>
+          </footer>
+        </section>
+
+        <aside id="guidedOutline" class="guided-outline">
+          <span class="eyebrow">Taking shape</span>
+          <h2>Your project so far</h2>
+          <p>This is a working summary, not approved project truth.</p>
+          <div id="guidedOutlineContent"></div>
+        </aside>
+      </section>
+
+      <section id="intentStudioView" class="dashboard-view intent-studio-view" hidden aria-labelledby="intentStudioTitle">
+        <aside class="intent-studio-spine">
+          <span class="eyebrow">Feature intent</span>
+          <h2>Build the evidence spine</h2>
+          <p>Shape one recoverable draft. Nothing becomes canonical intent truth until named approval.</p>
+          <progress id="intentStudioProgress" max="100" value="0" aria-label="Intent completion progress"></progress>
+          <nav id="intentStudioSections" aria-label="Intent sections"></nav>
+        </aside>
+
+        <main class="intent-studio-canvas">
+          <header>
+            <div><span id="intentStudioEyebrow" class="eyebrow">Intent Studio</span><h2 id="intentStudioTitle">Loading guided intent…</h2><p id="intentStudioSubtitle">Standard host-model questions provide a complete baseline.</p></div>
+            <span id="intentStudioRevision" class="intent-studio-revision">Project-local draft</span>
+          </header>
+          <div id="intentStudioNotice" class="intent-studio-notice" role="status" aria-live="polite" hidden></div>
+          <section id="intentStudioContent" class="intent-studio-content" aria-live="polite">
+            <div class="intent-studio-empty"><strong>Preparing Intent Studio</strong><p>Loading the portable intent contract and relevant installed personas.</p></div>
+          </section>
+          <footer id="intentStudioActions" hidden>
+            <div><button type="button" class="secondary-action" data-intent-discard>Discard draft</button><button type="button" class="secondary-action" data-intent-handoff>Copy AI review hand-off</button></div>
+            <div><button type="button" class="secondary-action" data-intent-back>Back</button><button type="button" class="primary-action" data-intent-next>Save and continue</button></div>
+          </footer>
+        </main>
+
+        <aside class="intent-studio-persona-rail" aria-live="polite">
+          <span class="eyebrow">Active now</span>
+          <h2>Engaged personas</h2>
+          <p>The ensemble is replaced as the section or material context changes.</p>
+          <div id="intentStudioPersonas"></div>
+          <section id="intentStudioBaseline" class="intent-studio-baseline"></section>
+          <p class="intent-studio-advisory">Persona and model perspectives are advisory hypotheses. Participant evidence and named human decisions remain authoritative.</p>
+        </aside>
+      </section>
+
+      <section id="phaseStudioView" class="dashboard-view phase-studio-view" hidden aria-labelledby="phaseStudioTitle">
+        <header class="phase-studio-heading">
+          <div>
+            <span class="eyebrow">Guided phase evidence</span>
+            <h2 id="phaseStudioTitle">Contributions</h2>
+            <p>Add business or technical knowledge to a delivery. EWAI records who provided it and keeps it separate from approvals.</p>
+          </div>
+          <label for="phaseStudioWorkItem"><span>Active delivery</span><select id="phaseStudioWorkItem" data-phase-work-item><option value="">Choose a delivery</option></select></label>
+          <div id="phaseStudioState" class="phase-studio-state" aria-live="polite">Choose an active delivery.</div>
+        </header>
+
+        <section id="phaseStudioContextBridge" class="phase-studio-context-bridge" aria-label="Owner context bridge">
+          <div role="group" aria-label="Contribution owner context">
+            <button type="button" data-phase-context="business" aria-pressed="true"><span>Business-facing owner</span><strong id="phaseStudioBusinessOwner">Not named</strong></button>
+            <span aria-hidden="true">→</span>
+            <button type="button" data-phase-context="technical" aria-pressed="false"><span>Technical owner</span><strong id="phaseStudioTechnicalOwner">Not named</strong></button>
+            <span aria-hidden="true">→</span>
+            <button type="button" data-phase-context="shared-review" aria-pressed="false"><span>Shared review</span><strong id="phaseStudioSharedOwner">Not named</strong></button>
+          </div>
+          <p>Context changes guidance and contribution capabilities, not identity, access or delivery authority. The revision and evidence thread stay shared.</p>
+        </section>
+
+        <div class="phase-studio-layout">
+          <aside class="phase-studio-spine">
+            <span class="eyebrow">Evidence spine</span>
+            <h3 id="phaseStudioPhase">Current phase</h3>
+            <p id="phaseStudioProfileSummary">The server supplies the contribution profile.</p>
+            <nav id="phaseStudioEvidenceSpine" aria-label="Phase evidence topics"></nav>
+            <section id="phaseStudioHandoffHistory" class="phase-studio-history"></section>
+          </aside>
+
+          <main class="phase-studio-canvas">
+            <div id="phaseStudioNotice" class="phase-studio-notice" role="status" aria-live="polite" hidden></div>
+            <div id="phaseStudioContent" class="phase-studio-content" aria-live="polite">
+              <div class="phase-studio-empty"><strong>Choose an active delivery</strong><p>EWAI will check its current state before enabling contributions.</p></div>
+            </div>
+            <footer class="phase-studio-actions">
+              <p>Contribution only · cannot complete a phase, approve Build or accept Manual QA.</p>
+              <div>
+                <button type="button" class="secondary-action" data-phase-discard disabled>Discard draft</button>
+                <button type="button" class="secondary-action" data-phase-handoff disabled>Prepare hand-off</button>
+                <button type="button" class="secondary-action" data-phase-review disabled>Request host review</button>
+                <button type="button" class="secondary-action" data-phase-save disabled>Save contribution</button>
+                <button type="button" class="primary-action" data-phase-confirm disabled>Confirm evidence</button>
+              </div>
+            </footer>
+          </main>
+
+          <aside class="phase-studio-persona-rail">
+            <span class="eyebrow">Active now</span>
+            <h3>Engaged personas</h3>
+            <p>Relevant project, core and optional installed perspectives are swapped as the phase, context and evidence change.</p>
+            <div id="phaseStudioPersonaChanges" class="sr-only" aria-live="polite"></div>
+            <div id="phaseStudioPersonas"></div>
+            <section id="phaseStudioPersonaBaseline" class="phase-studio-persona-baseline"></section>
+            <p class="phase-studio-advisory">Personas are advisory lenses. They are not owner evidence, validation, acceptance or approval.</p>
+          </aside>
+        </div>
+
+        <details id="prototypeReviewPanel" class="prototype-review-panel" hidden>
+          <summary>
+            <span><b>Persona-guided prototype review</b><small>Plan → render → assess → bounded iteration</small></span>
+            <em id="prototypeReviewStatus">Not prepared</em>
+          </summary>
+          <div id="prototypeReviewNotice" class="prototype-review-notice" role="status" aria-live="polite" hidden></div>
+          <header class="prototype-review-heading">
+            <div><span class="eyebrow">Delivery-specific design evidence</span><h3>Review plan and rendered design</h3><p>Relevant available personas are recomputed at each stage. Their findings remain advisory until explicitly assessed.</p></div>
+            <div class="prototype-review-stage" role="group" aria-label="Prototype review stage">
+              <button type="button" data-prototype-stage="plan" aria-pressed="true">Plan review</button>
+              <button type="button" data-prototype-stage="design" aria-pressed="false">Rendered design</button>
+            </div>
+          </header>
+          <section class="prototype-review-availability" aria-labelledby="prototypeAvailabilityTitle">
+            <div><span class="eyebrow">Available perspectives</span><h4 id="prototypeAvailabilityTitle">Persona library</h4></div>
+            <div id="prototypeReviewAvailability"></div>
+          </section>
+          <div class="prototype-review-layout">
+            <section aria-labelledby="prototypePersonasTitle">
+              <header><span class="eyebrow">Active for this stage</span><h4 id="prototypePersonasTitle">Actively engaged prototype reviewers</h4></header>
+              <div id="prototypeReviewPersonas" class="prototype-review-personas"></div>
+            </section>
+            <section aria-labelledby="prototypeFindingsTitle">
+              <header><span class="eyebrow">Finding → assessment</span><h4 id="prototypeFindingsTitle">Review ledger</h4></header>
+              <div id="prototypeReviewFindings" class="prototype-review-findings"></div>
+            </section>
+          </div>
+          <form id="prototypeReviewForm" class="prototype-review-form">
+            <label><span id="prototypeReviewPayloadLabel">Plan preparation JSON</span><textarea id="prototypeReviewPayload" rows="8" spellcheck="false" placeholder="Paste the bounded JSON payload prepared by the EWAI host skill."></textarea></label>
+            <footer><p>Personas advise. Human prototype selection, Manual QA, deployment and release remain separate gates.</p><div><button type="button" class="secondary-action" data-prototype-refresh>Refresh</button><button type="submit" class="primary-action">Prepare plan review</button></div></footer>
+          </form>
+        </details>
+      </section>
+
+      <section id="contextInspectorView" class="dashboard-view context-inspector-view" hidden aria-labelledby="contextInspectorTitle">
+        <header class="context-inspector-heading">
+          <div>
+            <h2 id="contextInspectorTitle">AI context diagnostics</h2>
+            <p>See which evidence and personas EWAI selects for a task, what fits in the AI's context, and what it couldn't include.</p>
+          </div>
+          <div id="contextInspectorSummary" class="context-inspector-summary" aria-live="polite"></div>
+        </header>
+
+        <form id="contextInspectorForm" class="context-inspector-form">
+          <label><span>Profile</span><select id="contextProfile" name="profile">
+            <option value="companion">Companion</option>
+            <option value="intent" selected>Intent</option>
+            <option value="plan">Plan</option>
+            <option value="build-task">Build task</option>
+            <option value="fresh-context-review">Fresh-context review</option>
+            <option value="phase-contribution-review">Phase contribution review</option>
+          </select></label>
+          <label><span>Intent slug</span><input id="contextSlug" name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autocomplete="off" placeholder="governed-context-assembly"></label>
+          <label><span>Task ID <small>when required</small></span><input id="contextTask" name="taskId" autocomplete="off" placeholder="T-001"></label>
+          <label><span>Budget <small>estimated tokens</small></span><input id="contextBudget" name="budgetTokens" type="number" min="1" max="200000" step="1" value="4000"></label>
+          <label class="context-focus-field"><span>Focus <small>optional</small></span><input id="contextFocus" name="focus" maxlength="2000" autocomplete="off" placeholder="Performance, security, a decision or task concern"></label>
+          <label class="context-digest-field"><span>Previous digest <small>optional exact predecessor</small></span><input id="contextPreviousDigest" name="previousDigest" minlength="64" maxlength="64" autocomplete="off" placeholder="64-character SHA-256 digest"></label>
+          <button type="submit" class="primary-action">Prepare manifest</button>
+        </form>
+
+        <div id="contextInspectorStatus" class="context-inspector-status" aria-live="polite">Choose a profile and intent to inspect its bounded context.</div>
+        <div id="contextOverflowAlert" class="context-overflow-alert" role="alert" hidden></div>
+
+        <div class="context-inspector-layout">
+          <section class="context-inspector-panel context-runway-panel" aria-labelledby="contextBudgetTitle">
+            <header><div><span class="eyebrow">Mandatory first</span><h3 id="contextBudgetTitle">Budget runway</h3></div><p>Selected, reused, deferred and overflow evidence are visible without exposing source bodies.</p></header>
+            <div id="contextBudgetRunway" class="context-budget-runway" aria-live="polite"></div>
+            <div id="contextEvidenceLedger" class="context-evidence-ledger"></div>
+          </section>
+
+          <aside class="context-inspector-side">
+            <section class="context-inspector-panel" aria-labelledby="contextFidelityTitle">
+              <header><div><span class="eyebrow">Hard engineering gate</span><h3 id="contextFidelityTitle">Fidelity rail</h3></div></header>
+              <div id="contextFidelityRail" class="context-fidelity-rail" aria-live="polite"></div>
+            </section>
+            <section class="context-inspector-panel" aria-labelledby="contextPersonasTitle">
+              <header><div><span class="eyebrow">Swapped for this moment</span><h3 id="contextPersonasTitle">Actively engaged personas</h3></div><p>Project, local, premium and core personas are advisory lenses. They do not grant approval.</p></header>
+              <div id="contextActivePersonas" class="context-active-personas" aria-live="polite"></div>
+            </section>
+            <section class="context-inspector-panel context-authority" aria-labelledby="contextAuthorityTitle">
+              <header><div><span class="eyebrow">Authority boundary</span><h3 id="contextAuthorityTitle">No automated permission</h3></div></header>
+              <p>Context preparation cannot approve Build or Manual QA, accept risk, certify quality, deploy or release.</p>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="startersView" class="dashboard-view starters-view" hidden aria-labelledby="startersTitle">
+        <header class="starters-heading">
+          <div>
+            <span class="eyebrow">Governed project foundation</span>
+            <h2 id="startersTitle">Starter Packs</h2>
+            <p>Review one immutable summary, then add only missing content across the configured repositories.</p>
+          </div>
+          <div id="starterSummary" class="starter-summary" aria-live="polite"></div>
+        </header>
+        <div id="starterNotice" class="starter-notice" role="note"></div>
+        <div id="starterStatus" class="starter-status" aria-live="polite" hidden></div>
+        <section class="starter-section" aria-labelledby="starterPersonasTitle">
+          <header><div><span class="eyebrow">Current lenses</span><h3 id="starterPersonasTitle">Actively engaged personas</h3></div><p>Personas advise; the named approver decides.</p></header>
+          <div id="starterPersonas" class="starter-personas"></div>
+        </section>
+        <section class="starter-section" aria-labelledby="starterPrepareTitle">
+          <header><div><span class="eyebrow">Immutable preview</span><h3 id="starterPrepareTitle">Prepare a Starter Pack</h3></div><p>Adapters are trusted local packages registered with the CLI. The browser never receives their path or executable.</p></header>
+          <div id="starterPrepare" class="starter-prepare"></div>
+        </section>
+        <section class="starter-section" aria-labelledby="starterAttemptsTitle">
+          <header><div><span class="eyebrow">Approval and recovery</span><h3 id="starterAttemptsTitle">Materialisation attempts</h3></div><p>No existing destination is overwritten, merged or deleted.</p></header>
+          <div id="starterAttempts" class="starter-attempts"></div>
+        </section>
+      </section>
+
+      <section id="hooksView" class="dashboard-view hooks-view" hidden aria-labelledby="hooksTitle">
+        <header class="hooks-heading">
+          <div>
+            <span class="eyebrow">Project lifecycle handoff</span>
+            <h2 id="hooksTitle">Hooks</h2>
+            <p>EWAI records the milestone first. Handlers are notified afterwards.</p>
+          </div>
+          <div id="hooksSummary" class="hooks-summary" aria-live="polite"></div>
+        </header>
+        <div id="hooksNotice" class="hooks-notice" role="status" aria-live="polite" hidden></div>
+        <section class="hooks-register" aria-labelledby="handlersTitle">
+          <header><div><span class="eyebrow">Trusted local packages</span><h3 id="handlersTitle">Connected handlers</h3></div><p>Install and enable handlers with the CLI. The browser never accepts executable paths or credentials.</p></header>
+          <div id="hookHandlers" class="hook-handlers"></div>
+        </section>
+        <section class="hooks-ledger" aria-labelledby="ledgerTitle">
+          <header class="hooks-ledger-heading">
+            <div><span class="eyebrow">Milestone → Handler → Delivery</span><h3 id="ledgerTitle">Handoff ledger</h3></div>
+            <div class="hook-filters">
+              <label><span>Status</span><select id="hookStatusFilter"><option value="">All statuses</option><option value="queued">Queued</option><option value="retrying">Retrying</option><option value="succeeded">Delivered</option><option value="exhausted">Exhausted</option><option value="rejected">Rejected</option><option value="incompatible">Incompatible</option><option value="disabled">Disabled</option></select></label>
+              <label><span>Event</span><select id="hookEventFilter"><option value="">All events</option></select></label>
+              <label><span>Handler</span><select id="hookHandlerFilter"><option value="">All handlers</option></select></label>
+            </div>
+          </header>
+          <div id="hookLedger" class="hook-ledger-list" aria-live="polite"></div>
+        </section>
+        <aside id="hookDetail" class="hook-detail" aria-live="polite"></aside>
+      </section>
+
+      <section id="policiesView" class="dashboard-view policy-view" hidden aria-labelledby="policiesTitle">
+        <header class="policy-heading">
+          <div>
+            <span class="eyebrow">Optional design-time assurance</span>
+            <h2 id="policiesTitle">Organisation policy gates</h2>
+            <p>Test proposed designs against an approved Organisation Blueprint before Build.</p>
+          </div>
+          <div class="policy-view-toggle" role="group" aria-label="Policy workspace audience">
+            <button type="button" class="active" data-policy-mode="business" aria-pressed="true">Business</button>
+            <button type="button" data-policy-mode="technical" aria-pressed="false">Technical</button>
+          </div>
+        </header>
+        <div id="policyAuthorityNotice" class="policy-authority-notice" role="note"></div>
+        <form id="policyIntentForm" class="policy-intent-form">
+          <label for="policyIntent"><span>Intent</span><input id="policyIntent" name="intent" maxlength="240" autocomplete="off" placeholder="domain/intent-slug"></label>
+          <button type="submit">Inspect design gate</button>
+        </form>
+        <div id="policyError" class="policy-error" role="alert" hidden></div>
+        <div id="policyStatus" class="policy-status" role="status" aria-live="polite"></div>
+        <div id="policyWorkspace" class="policy-workspace" aria-live="polite"></div>
+      </section>
+
+      <section id="securityView" class="dashboard-view security-view" hidden aria-labelledby="securityTitle">
+        <header class="security-heading">
+          <div>
+            <span class="eyebrow">Project assurance evidence</span>
+            <h2 id="securityTitle">Security validation</h2>
+            <p>Capability coverage, provider evidence and accountable human decisions.</p>
+          </div>
+          <div id="securitySummary" class="security-summary" aria-live="polite"></div>
+        </header>
+        <div id="securityNotice" class="security-assurance-notice" role="note"></div>
+        <div id="securityContractError" class="security-contract-error" role="alert" hidden></div>
+        <div id="securityStatus" class="security-status" aria-live="polite"></div>
+        <section class="security-section" aria-labelledby="securityProvidersTitle">
+          <header><div><span class="eyebrow">External systems</span><h3 id="securityProvidersTitle">Security providers</h3></div><p>EWAI links and interoperates. It does not install, license or certify provider products.</p></header>
+          <div id="securityProviders" class="security-card-grid"></div>
+        </section>
+        <section class="security-section" aria-labelledby="securityPersonasTitle">
+          <header><div><span class="eyebrow">Current lenses</span><h3 id="securityPersonasTitle">Active perspectives</h3></div><p>Personas advise; accountable people decide.</p></header>
+          <div id="securityPersonas" class="security-personas"></div>
+        </section>
+        <section class="security-section" aria-labelledby="securityCoverageTitle">
+          <header><div><span class="eyebrow">Required evidence</span><h3 id="securityCoverageTitle">Capability coverage</h3></div></header>
+          <div id="securityCoverage" class="security-coverage"></div>
+        </section>
+        <section class="security-section" aria-labelledby="securityRunsTitle">
+          <header><div><span class="eyebrow">Execution evidence</span><h3 id="securityRunsTitle">Recent runs</h3></div><p>Runs remain bound to their recorded revision and policy.</p></header>
+          <div id="securityRuns" class="security-runs"></div>
+        </section>
+        <section class="security-section" aria-labelledby="securityFindingsTitle">
+          <header><div><span class="eyebrow">Accountable review</span><h3 id="securityFindingsTitle">Findings and decisions</h3></div></header>
+          <div id="securityFindings" class="security-findings"></div>
+        </section>
+      </section>
+
+      <section id="teamHubView" class="dashboard-view team-hub-view" hidden aria-labelledby="teamHubTitle">
+        <header class="team-hub-heading">
+          <div>
+            <span class="eyebrow">Optional team visibility</span>
+            <h2 id="teamHubTitle">Team Hub</h2>
+            <p>Keep delivery local while deliberately publishing a bounded, read-only project snapshot to a separately operated hub.</p>
+          </div>
+          <span id="teamHubMode" class="team-hub-mode">Single contributor</span>
+        </header>
+        <div id="teamHubStatus" class="team-hub-status" role="status" aria-live="polite" hidden></div>
+        <div id="teamHubDisclosure" class="team-hub-disclosure" role="note"></div>
+
+        <div class="team-hub-grid">
+          <section class="team-hub-panel" aria-labelledby="teamHubConnectionTitle">
+            <header><span class="eyebrow">Local configuration</span><h3 id="teamHubConnectionTitle">Connection</h3></header>
+            <div id="teamHubConnection"></div>
+            <form id="teamHubConnectForm" class="team-hub-connect-form">
+              <label><span>Hub endpoint</span><input name="endpoint" type="url" required placeholder="https://team-hub.example.org"></label>
+              <label><span>Project identifier</span><input name="projectId" pattern="[a-z0-9]+(?:[.-][a-z0-9]+)*" placeholder="claims-platform"></label>
+              <label><span>Token environment variable</span><input name="tokenEnv" required pattern="[A-Z][A-Z0-9_]{2,100}" value="EWAI_TEAM_HUB_TOKEN"></label>
+              <label class="team-hub-acknowledgement"><input name="disclosureAcknowledged" type="checkbox" required><span>I have reviewed the exact disclosure contract below.</span></label>
+              <button type="submit" class="primary-action">Connect this project</button>
+            </form>
+            <div class="team-hub-actions">
+              <button type="button" class="primary-action" data-team-hub-sync>Publish current snapshot</button>
+              <button type="button" class="danger-action" data-team-hub-disconnect>Disconnect</button>
+            </div>
+          </section>
+
+          <section class="team-hub-panel" aria-labelledby="teamHubEvidenceTitle">
+            <header><span class="eyebrow">Transport evidence</span><h3 id="teamHubEvidenceTitle">Latest local record</h3></header>
+            <div class="team-hub-evidence">
+              <article id="teamHubLastAttempt"><strong>No sync attempt recorded</strong><p>An attempt appears only after an explicit publish action.</p></article>
+              <article id="teamHubAcceptedReceipt"><strong>No accepted receipt recorded</strong><p>A receipt proves transport acceptance, not approval or delivery completion.</p></article>
+            </div>
+          </section>
+        </div>
+
+        <section id="teamHubResources" class="team-hub-contract team-hub-resources" aria-labelledby="teamHubResourcesTitle">
+          <header class="team-hub-resource-heading">
+            <div><span class="eyebrow">Governed resource registry</span><h3 id="teamHubResourcesTitle">Available releases</h3></div>
+            <button type="button" class="primary-action" data-team-hub-resources-refresh>Refresh resources</button>
+          </header>
+          <p class="team-hub-resource-boundary">Nothing is downloaded automatically. Install makes a release available locally; Blueprint application or design-system selection remains a separate decision.</p>
+          <div class="team-hub-release-chain" aria-label="Resource release chain"><strong>Published</strong><span>→</span><strong>Downloaded</strong><span>→</span><strong>Verified</strong><span>→</span><strong>Installed</strong><span>→</span><strong>Select/apply separately</strong></div>
+          <div class="team-hub-resource-grid">
+            <div id="teamHubResourceList" class="team-hub-resource-list"><p>No remote catalogue loaded.</p></div>
+            <div id="teamHubResourceDetail" class="team-hub-resource-detail"><p>Refresh resources, then choose an exact release.</p></div>
+          </div>
+        </section>
+
+        <section class="team-hub-contract" aria-labelledby="teamHubContractTitle">
+          <header><span class="eyebrow">Closed allow-list</span><h3 id="teamHubContractTitle">What leaves this project</h3></header>
+          <div id="teamHubContractFields"></div>
+          <p id="teamHubAuthority"></p>
+        </section>
+      </section>
+
+      <section id="errorReportingView" class="dashboard-view error-reporting-view" hidden aria-labelledby="errorReportingTitle">
+        <header class="error-reporting-heading">
+          <div>
+            <span class="eyebrow">Local diagnostic custody</span>
+            <h2 id="errorReportingTitle">Error Reporting</h2>
+            <p>No report leaves this device automatically. Review, finalise and deliberately choose every handoff.</p>
+          </div>
+          <button type="button" class="primary-action" data-error-report-create-toggle>Create report</button>
+        </header>
+        <div id="errorReportStatus" class="error-report-status" role="status" aria-live="polite" hidden></div>
+        <div class="error-report-local-notice" role="note">
+          <strong>Local by default</strong>
+          <span>Drafts and ZIP packages stay under the Git-ignored EWAI operational folder. Email preparation is not sending.</span>
+          <label><input id="errorReportAutomaticDrafts" type="checkbox"> <span>Automatic local drafts</span></label>
+        </div>
+        <form id="errorReportCreateForm" class="error-report-create-form" hidden>
+          <header><div><span class="eyebrow">Human description</span><h3>Create a local draft</h3></div><p>Only bounded diagnostic facts and the text below are stored.</p></header>
+          <div class="error-report-form-grid">
+            <label><span>Area</span><input name="capability" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value="dashboard"></label>
+            <label><span>Public error code</span><input name="errorCode" required pattern="[A-Z][A-Z0-9-]{2,79}" value="EWAI-REPORT-MANUAL"></label>
+            <label><span>Command identity</span><input name="command" required value="ewai dashboard"></label>
+            <label class="wide"><span>Title</span><input name="title" required maxlength="500"></label>
+            <label class="wide"><span>Expected behaviour</span><textarea name="expected" maxlength="4000"></textarea></label>
+            <label class="wide"><span>Actual behaviour</span><textarea name="actual" maxlength="4000"></textarea></label>
+            <label class="wide"><span>Reproduction steps, one per line</span><textarea name="reproductionSteps" maxlength="8000"></textarea></label>
+          </div>
+          <footer><button type="submit" class="primary-action">Save local draft</button><button type="button" class="quiet-button" data-error-report-create-toggle>Cancel</button></footer>
+        </form>
+        <div class="error-reporting-layout">
+          <aside class="error-report-ledger" aria-labelledby="errorReportLedgerTitle">
+            <header><div><span class="eyebrow">Local reports</span><h3 id="errorReportLedgerTitle">Report ledger</h3></div><select id="errorReportFilter" aria-label="Filter reports by status"><option value="">All states</option><option value="draft">Drafts</option><option value="finalised">Finalised</option><option value="archived">Archived</option></select></header>
+            <div id="errorReportList"></div>
+          </aside>
+          <section id="errorReportViewer" class="error-report-viewer" aria-live="polite"></section>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="intentDialog" class="intent-dialog" aria-labelledby="drawerTitle">
+      <div class="intent-drawer">
+        <header class="drawer-header">
+          <div>
+            <p id="drawerEyebrow" class="eyebrow"></p>
+            <h2 id="drawerTitle">Intent</h2>
+            <p id="drawerMeta"></p>
+          </div>
+          <button id="closeDrawer" type="button" class="close-button" aria-label="Close intent details">×</button>
+        </header>
+        <nav id="drawerTabs" class="drawer-tabs" aria-label="Intent details" role="tablist">
+          <button type="button" class="active" data-tab="overview" role="tab" aria-controls="drawerContent" aria-selected="true">Overview</button>
+          <button type="button" data-tab="personas" role="tab" aria-controls="drawerContent" aria-selected="false">Personas</button>
+          <button type="button" data-tab="impact" role="tab" aria-controls="drawerContent" aria-selected="false">Impact</button>
+          <button type="button" data-tab="test-scenarios" role="tab" aria-controls="drawerContent" aria-selected="false">Test scenarios</button>
+          <button type="button" data-tab="intent" role="tab" aria-controls="drawerContent" aria-selected="false">Intent</button>
+          <button type="button" data-tab="prototype" role="tab" aria-controls="drawerContent" aria-selected="false">Prototype</button>
+          <button type="button" data-tab="progress" role="tab" aria-controls="drawerContent" aria-selected="false">Progress</button>
+          <button type="button" data-tab="materials" role="tab" aria-controls="drawerContent" aria-selected="false">Materials</button>
+          <button type="button" data-tab="activity" role="tab" aria-controls="drawerContent" aria-selected="false">Activity</button>
+        </nav>
+        <section id="drawerContent" class="drawer-content" role="tabpanel" tabindex="-1"></section>
+      </div>
+    </dialog>
+
+    <dialog id="actionDialog" class="action-dialog" aria-labelledby="actionTitle">
+      <form id="actionForm" class="action-sheet">
+        <header>
+          <div>
+            <p id="actionEyebrow" class="eyebrow">Move this forward</p>
+            <h2 id="actionTitle">Continue with EWAI</h2>
+            <p id="actionSummary"></p>
+          </div>
+          <button id="closeAction" type="button" class="close-button" aria-label="Close action">×</button>
+        </header>
+        <section id="actionBody" class="action-body"></section>
+        <p id="actionError" class="action-error" role="alert" hidden></p>
+        <footer>
+          <button id="cancelAction" type="button" class="secondary-action">Not now</button>
+          <button id="confirmAction" type="submit" class="primary-action">Continue</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="premiumSetupDialog" class="action-dialog" aria-labelledby="premiumSetupTitle">
+      <form id="premiumSetupForm" class="action-sheet premium-setup-form">
+        <header><div><h2 id="premiumSetupTitle">Set up premium personas</h2><p>Enter the key from My Account or your team invitation. We'll verify your licence and install the pack now.</p></div><button id="closePremiumSetup" type="button" class="close-button" aria-label="Close persona setup">×</button></header>
+        <section class="action-body">
+          <label for="premiumLicenceKey">Persona licence key</label>
+          <input id="premiumLicenceKey" type="password" required maxlength="512" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="premiumKeyHelp">
+          <p id="premiumKeyHelp">Your key is stored in private EWAI config, not this project or browser storage. Your own personas won't be changed.</p>
+          <p id="premiumSetupStatus" role="status" aria-live="polite"></p>
+        </section>
+        <footer><button id="cancelPremiumSetup" type="button" class="secondary-action">Not now</button><button id="submitPremiumSetup" type="submit" class="primary-action">Verify and install personas</button></footer>
+      </form>
+    </dialog>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

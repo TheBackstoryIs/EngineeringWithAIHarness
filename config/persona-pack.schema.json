@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/persona-pack-v1.json",
+  "title": "EWAI Persona Pack",
+  "type": "object",
+  "required": ["schema", "id", "version", "content"],
+  "properties": {
+    "schema": {"const": "ewai.persona-pack/v1"},
+    "id": {"const": "ewai.personas.professional"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"},
+    "content": {
+      "type": "object",
+      "required": ["personas"],
+      "properties": {
+        "personas": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

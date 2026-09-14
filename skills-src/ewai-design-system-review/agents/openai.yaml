@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Design System Review"
+  short_description: "Review surfaces against design receipts"
+  default_prompt: "Use $ewai-design-system-review to review this surface against its design-system receipt."

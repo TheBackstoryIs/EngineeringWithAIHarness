@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Persona Entitlement"
+  short_description: "Inspect and govern premium persona pack access"
+  default_prompt: "Use $ewai-persona-entitlement to inspect or safely operate premium persona entitlement for this EWAI project."

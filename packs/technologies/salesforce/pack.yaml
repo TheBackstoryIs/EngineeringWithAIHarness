@@ -1,0 +1,25 @@
+schema: ewai.pack/v1
+id: ewai.technology.salesforce
+name: Salesforce
+version: 0.1.0
+type: technology
+description: Safe local analysis of Salesforce Metadata API and Salesforce DX source exports.
+compatibility:
+  frameworks: [salesforce, salesforce-dx]
+detection:
+  any_files: [sfdx-project.json, package.xml, manifest/package.xml, unpackaged/package.xml]
+commands: {}
+source_map:
+  profiles:
+    - id: project-and-package
+      patterns: [sfdx-project.json, package.xml, manifest/package.xml, unpackaged/package.xml, '**/sfdx-project.json', '**/package.xml', '**/manifest/package.xml', '**/unpackaged/package.xml']
+      analyser: salesforce-metadata
+      classification: salesforce-metadata
+      priority: 200
+    - id: decomposed-metadata
+      patterns: ['**/*.object-meta.xml', '**/*.field-meta.xml', '**/*.permissionset-meta.xml', '**/*.profile-meta.xml', '**/*.flow-meta.xml', '**/*.cls-meta.xml', '**/lwc/**/*.js-meta.xml', '**/aura/**/*.cmp-meta.xml', '**/aura/**/*.app-meta.xml', '**/aura/**/*.evt-meta.xml']
+      analyser: salesforce-metadata
+      classification: salesforce-metadata
+      priority: 200
+deployment: []
+boilerplates: []

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/policy-evaluation-v1.json",
+  "oneOf": [
+    { "$ref": "#/$defs/evaluation" },
+    { "$ref": "#/$defs/review" },
+    { "$ref": "#/$defs/exception" }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "outcome": { "enum": ["allow", "deny", "review-required", "allow-with-controls", "unassessed"] },
+    "evidence": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+    "evaluation": {
+      "type": "object",
+      "required": ["schema", "revision", "intent", "policyDigest", "factsDigest", "governingOutcome", "consideredOutcomes", "matchedRules", "unmatchedPolicies", "controls", "requiredReviews", "limitations", "authority", "evaluationDigest"],
+      "properties": {
+        "schema": { "const": "ewai.policy-design-evaluation/v1" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "intent": { "type": "object" },
+        "policyDigest": { "$ref": "#/$defs/digest" },
+        "factsDigest": { "$ref": "#/$defs/digest" },
+        "evaluationDigest": { "$ref": "#/$defs/digest" },
+        "governingOutcome": { "$ref": "#/$defs/outcome" },
+        "consideredOutcomes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/outcome" } },
+        "matchedRules": { "type": "array", "items": { "type": "object" } },
+        "unmatchedPolicies": { "type": "array", "items": { "type": "object" } },
+        "controls": { "type": "array", "items": { "type": "object" } },
+        "requiredReviews": { "type": "array", "items": { "type": "object" } },
+        "limitations": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "authority": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "review": {
+      "type": "object",
+      "required": ["schema", "decisionDigest", "evaluationDigest", "intentReference", "ruleId", "reviewerRole", "reviewedBy", "decision", "rationale", "evidence", "controls", "reviewedAt", "authority"],
+      "properties": {
+        "schema": { "const": "ewai.policy-review/v1" },
+        "decisionDigest": { "$ref": "#/$defs/digest" },
+        "evaluationDigest": { "$ref": "#/$defs/digest" },
+        "intentReference": { "type": "string" },
+        "ruleId": { "type": "string" },
+        "reviewerRole": { "type": "string" },
+        "reviewedBy": { "type": "string", "minLength": 1 },
+        "decision": { "enum": ["allow", "deny", "allow-with-controls"] },
+        "rationale": { "type": "string", "minLength": 1 },
+        "evidence": { "$ref": "#/$defs/evidence" },
+        "controls": { "type": "array", "items": { "type": "string" } },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "authority": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "exception": {
+      "type": "object",
+      "required": ["schema", "decisionDigest", "evaluationDigest", "intentReference", "ruleId", "reviewerRole", "approvedBy", "owner", "scope", "rationale", "compensatingControls", "evidence", "expiresAt", "approvedAt", "authority"],
+      "properties": {
+        "schema": { "const": "ewai.policy-exception/v1" },
+        "decisionDigest": { "$ref": "#/$defs/digest" },
+        "evaluationDigest": { "$ref": "#/$defs/digest" },
+        "intentReference": { "type": "string" },
+        "ruleId": { "type": "string" },
+        "reviewerRole": { "type": "string" },
+        "approvedBy": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "scope": { "type": "object", "minProperties": 1 },
+        "rationale": { "type": "string", "minLength": 1 },
+        "compensatingControls": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "evidence": { "$ref": "#/$defs/evidence" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "authority": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

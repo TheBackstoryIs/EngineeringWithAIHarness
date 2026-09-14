@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Retrospective"
+  short_description: "Turn delivery feedback into durable improvements"
+  default_prompt: "Use $ewai-retro to close this delivery, capture what we learned, and refine the relevant SPECS and EWAI assets."

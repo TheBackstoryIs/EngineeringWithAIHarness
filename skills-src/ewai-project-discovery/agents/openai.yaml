@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Project Discovery"
+  short_description: "Interview and profile a new EWAI project"
+  default_prompt: "Use $ewai-project-discovery to interview me about this project and create its initial SPECS profile."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Solution Readiness"
+  short_description: "Prepare and review release-readiness evidence"
+  default_prompt: "Use $ewai-solution-readiness to prepare a governed readiness review for this delivery."

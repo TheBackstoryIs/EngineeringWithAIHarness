@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwithai.dev/schemas/security-scan-request.schema.json",
+  "title": "EWAI security scan request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "runId", "profile", "project", "scope"],
+  "properties": {
+    "schema": { "const": "ewai.security-scan-request/v1" },
+    "runId": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "capability"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+        "capability": { "$ref": "#/$defs/capability" }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision"],
+      "properties": { "revision": { "type": "string", "minLength": 1, "maxLength": 240 } }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["include", "exclude"],
+      "properties": {
+        "include": { "$ref": "#/$defs/projectPaths" },
+        "exclude": { "$ref": "#/$defs/projectPaths" }
+      }
+    },
+    "target": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "ref"],
+          "properties": {
+            "class": { "enum": ["local", "development", "test", "staging"] },
+            "ref": { "type": "string", "minLength": 1, "maxLength": 160 }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "capability": { "enum": ["source-static", "dependency-sbom", "secret-detection", "infrastructure-configuration", "llm-runtime-red-team"] },
+    "projectPaths": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240,
+        "not": { "pattern": "^(?:/|\\\\|[A-Za-z]:|\\.\\.(?:/|\\\\|$)|.*(?:/|\\\\)\\.\\.(?:/|\\\\|$))" }
+      }
+    }
+  }
+}

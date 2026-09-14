@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Design System Apply"
+  short_description: "Apply design systems to prototype work"
+  default_prompt: "Use $ewai-design-system-apply to apply the active design system to this UI delivery."

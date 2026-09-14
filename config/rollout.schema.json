@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/rollout-v1.json",
+  "type": "object",
+  "required": ["schema", "id", "name", "owner", "stale_after_days", "baselines", "cohorts"],
+  "properties": {
+    "schema": { "const": "ewai.rollout/v1" },
+    "id": { "$ref": "#/$defs/slug" },
+    "name": { "$ref": "#/$defs/name" },
+    "owner": { "$ref": "#/$defs/owner" },
+    "stale_after_days": { "type": "integer", "minimum": 1, "maximum": 3650 },
+    "baselines": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 25,
+      "items": { "$ref": "#/$defs/baseline" }
+    },
+    "cohorts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/cohort" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 100 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "owner": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "pack": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^org\\.[a-z0-9-]+\\.[a-z0-9.-]+$" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["id", "name", "owner", "pack"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "$ref": "#/$defs/name" },
+        "owner": { "$ref": "#/$defs/owner" },
+        "pack": { "$ref": "#/$defs/pack" }
+      },
+      "additionalProperties": false
+    },
+    "assignment": {
+      "type": "object",
+      "required": ["id", "owner"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "owner": { "$ref": "#/$defs/owner" },
+        "review_owner": { "$ref": "#/$defs/owner" }
+      },
+      "additionalProperties": false
+    },
+    "cohort": {
+      "type": "object",
+      "required": ["id", "name", "baseline", "owner", "review_by", "required_evidence", "projects"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "$ref": "#/$defs/name" },
+        "baseline": { "$ref": "#/$defs/slug" },
+        "owner": { "$ref": "#/$defs/owner" },
+        "review_by": { "type": "string", "format": "date" },
+        "required_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "enum": ["blueprint", "delivery", "standards", "manual-qa", "security"] }
+        },
+        "projects": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/assignment" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

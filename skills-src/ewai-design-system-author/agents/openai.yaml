@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Design System Author"
+  short_description: "Build governed reusable design-system packs"
+  default_prompt: "Use $ewai-design-system-author to build or evolve a governed design-system pack from project evidence."

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ewai": {
+      "command": "ewai",
+      "args": [
+        "mcp",
+        "--project",
+        "."
+      ]
+    }
+  }
+}

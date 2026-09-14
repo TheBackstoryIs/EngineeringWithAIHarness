@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Portfolio"
+  short_description: "Review project and portfolio evidence safely"
+  default_prompt: "Use $ewai-portfolio to review this project portfolio with explicit evidence classes and active persona lenses."

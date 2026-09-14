@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Intent"
+  short_description: "Create persona-grounded project intents"
+  default_prompt: "Use $ewai-intent to turn this idea into a project-local, persona-grounded EWAI intent."
