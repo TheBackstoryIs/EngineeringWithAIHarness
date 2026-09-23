@@ -3,6 +3,7 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { atomicJson, isWithin, now, sha256 } from './delivery-documents.mjs';
 import { writeTaskGraphCheck } from './task-graph.mjs';
 import { policyGateRequirementsForPhase, readPolicyEvidenceFreshness } from './policy-gate-integration.mjs';
+import { withIntentMutation, assertIntentMutation } from './runtime/intent-ownership.mjs';
 
 const taskGraphPhases = new Set([
   'plan', 'pattern-validation', 'test-plan', 'build', 'delivery',
@@ -236,6 +237,10 @@ export function assertCompletedEvidenceFresh(paths, state) {
 }
 
 export function recordPhaseGateAtPaths(paths, slug, phaseId, input = {}, options = {}) {
+  return withIntentMutation(paths.projectRoot, slug, { action: 'record-gate', phase: phaseId, input: { input, options }, ownership: input.ownership }, () => recordOwnedPhaseGateAtPaths(paths, slug, phaseId, input, options));
+}
+
+function recordOwnedPhaseGateAtPaths(paths, slug, phaseId, input, options) {
   let taskGraphCheck = null;
   if (taskGraphPhases.has(phaseId)) {
     taskGraphCheck = writeTaskGraphCheck(paths.deliveryRoot, phaseId, { slug });
@@ -288,8 +293,10 @@ export function recordPhaseGateAtPaths(paths, slug, phaseId, input = {}, options
     deterministic_gate_failures_found_by_external_review: input.deterministicGateFailures ?? [],
     generated_at: now(),
   };
-  atomicJson(gatePathFor(paths, phaseId), gate);
+  assertIntentMutation(paths.projectRoot, slug);
   if (gate.status === 'pass') validateGate(paths, phaseId, gate, options.providers ?? []);
+  assertIntentMutation(paths.projectRoot, slug);
+  atomicJson(gatePathFor(paths, phaseId), gate);
   return gate;
 }
 

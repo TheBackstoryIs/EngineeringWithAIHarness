@@ -13,6 +13,7 @@ import YAML from 'yaml';
 import { updateIntentDeliveryState, validateIntentStateCopies } from './intents.mjs';
 import { loadProjectConfig } from './project.mjs';
 import { readRuntimeIntent } from './runtime/intents.mjs';
+import { withIntentMutation, assertIntentMutation, intentOwnershipError } from './runtime/intent-ownership.mjs';
 import {
   addActivityEvent,
   finishActiveSession,
@@ -204,6 +205,7 @@ function lifecycleScope(state, phase = '') {
 }
 
 function publishDeliveryLifecycle(paths, state, eventName, input = {}) {
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   let personas = state.intent.personas;
   if (!Array.isArray(personas)) {
     try {
@@ -287,11 +289,15 @@ function restoreTransition(paths, snapshot) {
 }
 
 function persistTransition(paths, state) {
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   const snapshot = transitionSnapshot(paths, state);
   try {
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     state.updatedAt = now();
     const copies = syncIntentCopies(paths, state);
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     writeDeliveryDocuments(paths, state);
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     const item = syncOperationalProjection(paths, state);
     validateIntentStateCopies(paths.projectRoot, copies.markdownPath, {
       status: state.intent.status,
@@ -305,6 +311,7 @@ function persistTransition(paths, state) {
     return item;
   } catch (error) {
     try {
+      assertIntentMutation(paths.projectRoot, state.intent.id);
       restoreTransition(paths, snapshot);
     } catch (rollbackError) {
       error.rollbackError = rollbackError.message;
@@ -347,6 +354,7 @@ function finishCurrentRun(paths, state, status, summary) {
   run.status = status;
   run.completedAt = now();
   run.summary = summary;
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   atomicJson(runPath, run);
   finishCommandRun(paths.projectRoot, runId, {
     status,
@@ -483,12 +491,19 @@ export function readDeliveryState(projectRoot, slug) {
 }
 
 export function beginDelivery(projectRoot, slug, options = {}) {
+  const resolvedOptions = { ...options, tool: options.tool ?? process.env.EWAI_ORCHESTRATOR ?? 'manual' };
+  return withIntentMutation(projectRoot, slug, { action: 'begin-harness', provider: resolvedOptions.tool, input: resolvedOptions, ownership: options.ownership }, () => beginOwnedDelivery(projectRoot, slug, resolvedOptions));
+}
+
+function beginOwnedDelivery(projectRoot, slug, options) {
   const paths = deliveryPaths(projectRoot, slug);
-  if (existsSync(paths.statePath)) throw new Error(`Delivery already exists for ${slug}; continue the existing work instead.`);
+  if (existsSync(paths.statePath)) intentOwnershipError('intent-transition-conflict');
   const { config } = loadProjectConfig(paths.projectRoot);
   const intent = readRuntimeIntent(paths.projectRoot, slug);
   if (!intent) throw new Error(`Cannot begin delivery without an intent: ${slug}`);
-  const orchestrator = options.tool ?? process.env.EWAI_ORCHESTRATOR ?? 'manual';
+  const currentOwner = readWorkItemView(paths.projectRoot, intent.id)?.activity.session;
+  if (currentOwner && !currentOwner.endedAt) intentOwnershipError('intent-ownership-conflict');
+  const orchestrator = options.tool;
   const validation = effectiveValidationConfig(config, orchestrator);
   const providers = [...new Set(
     Object.values(validation.checkpoints).flatMap((checkpoint) => checkpoint.validators),
@@ -561,6 +576,7 @@ export function beginDelivery(projectRoot, slug, options = {}) {
     blockedReason: ''
   };
 
+  assertIntentMutation(paths.projectRoot, intent.id);
   mkdirSync(paths.runsRoot, { recursive: true });
   mkdirSync(paths.gatesRoot, { recursive: true });
   atomicJson(resolve(paths.runsRoot, `${run.id}.json`), run);
@@ -600,6 +616,10 @@ export function beginDelivery(projectRoot, slug, options = {}) {
 }
 
 export function recordPhaseGate(projectRoot, slug, phaseId, input = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'record-gate', phase: phaseId, input, ownership: input.ownership }, () => recordOwnedPhaseGate(projectRoot, slug, phaseId, input));
+}
+
+function recordOwnedPhaseGate(projectRoot, slug, phaseId, input) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   const phase = findTrackedPhase(state, phaseId);
@@ -609,6 +629,10 @@ export function recordPhaseGate(projectRoot, slug, phaseId, input = {}) {
 }
 
 export function recordExternalValidationCycle(projectRoot, slug, phaseId, input = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'record-validation', phase: phaseId, input, ownership: input.ownership }, () => recordOwnedExternalValidationCycle(projectRoot, slug, phaseId, input));
+}
+
+function recordOwnedExternalValidationCycle(projectRoot, slug, phaseId, input) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   const phase = findTrackedPhase(state, phaseId);
@@ -672,6 +696,7 @@ export function recordExternalValidationCycle(projectRoot, slug, phaseId, input 
   );
 
   const ledgerPath = resolve(paths.deliveryRoot, phaseId, 'validation-cycles.json');
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   atomicJson(ledgerPath, {
     schema: 'ewai.external-validation-cycles/v1',
     slug,
@@ -743,7 +768,11 @@ export function continueDelivery(projectRoot, slug) {
   };
 }
 
-export function startDeliveryPhase(projectRoot, slug, phaseId) {
+export function startDeliveryPhase(projectRoot, slug, phaseId, input = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'start-phase', phase: phaseId, input, ownership: input.ownership }, () => startOwnedDeliveryPhase(projectRoot, slug, phaseId));
+}
+
+function startOwnedDeliveryPhase(projectRoot, slug, phaseId) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   assertIntentCopiesConsistent(paths, state);
@@ -788,6 +817,10 @@ export function startDeliveryPhase(projectRoot, slug, phaseId) {
 }
 
 export function completeDeliveryPhase(projectRoot, slug, phaseId, options = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'complete-phase', phase: phaseId, input: options, ownership: options.ownership }, () => completeOwnedDeliveryPhase(projectRoot, slug, phaseId, options));
+}
+
+function completeOwnedDeliveryPhase(projectRoot, slug, phaseId, options) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   const phase = findTrackedPhase(state, phaseId);
@@ -868,6 +901,10 @@ export function completeDeliveryPhase(projectRoot, slug, phaseId, options = {}) 
 }
 
 export function resumeShelvedDelivery(projectRoot, slug, input = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'resume-shelf', input, ownership: input.ownership }, () => resumeOwnedShelvedDelivery(projectRoot, slug, input));
+}
+
+function resumeOwnedShelvedDelivery(projectRoot, slug, input) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   assertIntentCopiesConsistent(paths, state);
@@ -894,6 +931,7 @@ export function resumeShelvedDelivery(projectRoot, slug, input = {}) {
     completedAt: null,
     summary: 'Shelf-ready delivery resumed through mandatory FitCheck.'
   };
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   atomicJson(resolve(paths.runsRoot, `${run.id}.json`), run);
   startCommandRun(paths.projectRoot, state.intent.id, {
     runUuid: run.id,
@@ -916,6 +954,10 @@ export function resumeShelvedDelivery(projectRoot, slug, input = {}) {
 }
 
 export function ratifyDeliveryAmendments(projectRoot, slug, input = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'ratify-plan', input, ownership: input.ownership }, () => ratifyOwnedDeliveryAmendments(projectRoot, slug, input));
+}
+
+function ratifyOwnedDeliveryAmendments(projectRoot, slug, input) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   assertIntentCopiesConsistent(paths, state);
@@ -980,10 +1022,12 @@ export function ratifyDeliveryAmendments(projectRoot, slug, input = {}) {
     },
   ];
 
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   atomicJson(ratificationPath, ratification);
   try {
     persistTransition(paths, state);
   } catch (error) {
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     if (ratificationBefore.existed) atomicText(ratificationPath, ratificationBefore.content);
     else rmSync(ratificationPath, { force: true });
     throw error;
@@ -1197,6 +1241,17 @@ function replayCompletedEvidenceAmendment(paths, state, receiptPath, input) {
 }
 
 export function ratifyCompletedEvidenceAmendment(projectRoot, slug, input = {}) {
+  try {
+    return withIntentMutation(projectRoot, slug, { action: 'ratify-evidence', input, ownership: input.ownership }, () => ratifyOwnedCompletedEvidenceAmendment(projectRoot, slug, input));
+  } catch (error) {
+    if (['intent-mutation-conflict', 'intent-ownership-conflict'].includes(error.code)) {
+      error.message = 'Another completed evidence amendment ratification is in progress. Preview again after it finishes.';
+    }
+    throw error;
+  }
+}
+
+function ratifyOwnedCompletedEvidenceAmendment(projectRoot, slug, input) {
   if (input.confirmed !== true) {
     throw new Error('Completed evidence amendment requires explicit confirmation.');
   }
@@ -1245,6 +1300,7 @@ function ratifyCompletedEvidenceAmendmentUnderLease(projectRoot, slug, paths, in
 
   const amendmentRoot = resolve(paths.deliveryRoot, 'evidence-amendments');
   const rootExisted = existsSync(amendmentRoot);
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   completedEvidenceAmendmentRoot(paths, { create: true });
   const ledgerSnapshots = assessment.internalPhases.map(({ ledgerPath }) => fileSnapshot(ledgerPath));
   const receiptSnapshot = fileSnapshot(receiptPath);
@@ -1278,16 +1334,19 @@ function ratifyCompletedEvidenceAmendmentUnderLease(projectRoot, slug, paths, in
 
   try {
     for (const amendment of assessment.internalPhases) {
+      assertIntentMutation(paths.projectRoot, state.intent.id);
       atomicText(amendment.ledgerPath, amendment.candidateRaw.toString('utf8'));
       validatePhaseGateAtPaths(paths, amendment.phase, JSON.parse(readFileSync(amendment.ledgerPath, 'utf8')), {
         providers: [...state.phases, ...state.adjuncts]
           .find((phase) => phase.id === amendment.phase)?.validation?.providers ?? state.providers ?? [],
       });
     }
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     atomicJson(receiptPath, receipt);
     input.afterAmendmentFilesWritten?.();
     persistTransition(paths, state);
   } catch (error) {
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     for (const snapshot of ledgerSnapshots) {
       if (snapshot.existed) atomicText(snapshot.path, snapshot.content);
       else rmSync(snapshot.path, { force: true });
@@ -1307,6 +1366,10 @@ function ratifyCompletedEvidenceAmendmentUnderLease(projectRoot, slug, paths, in
 }
 
 export function recordBuildApproval(projectRoot, slug, input = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'approve-build', input, ownership: input.ownership }, () => recordOwnedBuildApproval(projectRoot, slug, input));
+}
+
+function recordOwnedBuildApproval(projectRoot, slug, input) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   assertIntentCopiesConsistent(paths, state);
@@ -1330,6 +1393,7 @@ export function recordBuildApproval(projectRoot, slug, input = {}) {
   };
   const approvalPath = resolve(paths.gatesRoot, 'build/build-approval.json');
   const approvalBefore = fileSnapshot(approvalPath);
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   atomicJson(approvalPath, approval);
   state.approvals.build = {
     path: relative(paths.projectRoot, approvalPath).replaceAll('\\', '/'),
@@ -1341,6 +1405,7 @@ export function recordBuildApproval(projectRoot, slug, input = {}) {
   try {
     persistTransition(paths, state);
   } catch (error) {
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     if (approvalBefore.existed) atomicText(approvalPath, approvalBefore.content);
     else rmSync(approvalPath, { force: true });
     throw error;
@@ -1363,6 +1428,10 @@ export function recordBuildApproval(projectRoot, slug, input = {}) {
 }
 
 export function recordManualQaApproval(projectRoot, slug, input = {}) {
+  return withIntentMutation(projectRoot, slug, { action: 'approve-manual-qa', input, ownership: input.ownership }, () => recordOwnedManualQaApproval(projectRoot, slug, input));
+}
+
+function recordOwnedManualQaApproval(projectRoot, slug, input) {
   const paths = deliveryPaths(projectRoot, slug);
   const state = readDeliveryState(projectRoot, slug);
   assertIntentCopiesConsistent(paths, state);
@@ -1386,6 +1455,7 @@ export function recordManualQaApproval(projectRoot, slug, input = {}) {
   };
   const approvalPath = resolve(paths.gatesRoot, 'manual-qa/approval.json');
   const approvalBefore = fileSnapshot(approvalPath);
+  assertIntentMutation(paths.projectRoot, state.intent.id);
   atomicJson(approvalPath, approval);
   const gate = state.humanGates.find((candidate) => candidate.id === 'manual-qa');
   gate.status = 'approved';
@@ -1398,6 +1468,7 @@ export function recordManualQaApproval(projectRoot, slug, input = {}) {
   try {
     persistTransition(paths, state);
   } catch (error) {
+    assertIntentMutation(paths.projectRoot, state.intent.id);
     if (approvalBefore.existed) atomicText(approvalPath, approvalBefore.content);
     else rmSync(approvalPath, { force: true });
     throw error;
