@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, realpathSync } from 'node:fs';
 import YAML from 'yaml';
 import {DASHBOARD_VIEWS,readDashboardPreferences,saveDashboardPreferences} from './dashboard-preferences.mjs';
+import { readAutonomyPolicy, previewAutonomy, approveAutonomyGrant } from './autonomy.mjs';
 import { createInterface } from 'node:readline/promises';
 import { Writable } from 'node:stream';
 import { configureAndInstallPremiumPersonas } from './checkin.mjs';
@@ -496,6 +497,9 @@ Commands:
   ewai checkin [--project PATH]
   ewai dashboard [--project PATH]
   ewai dashboard preferences [--project PATH] [--json]
+  ewai autonomy status [--project PATH] [--json]
+  ewai autonomy preview [--intent DOMAIN/SLUG --action ACTION --provider PROVIDER --expires-at ISO --max-runtime-ms N --max-operation-ms N --max-attempts N --record] [--project PATH] [--json]
+  ewai autonomy approve --expected-digest DIGEST --approved-by NAME --yes [--project PATH] [--json]
   ewai dashboard configure --enable VIEW | --disable VIEW [--collapse | --expand] --expected-digest DIGEST --yes [--project PATH] [--json]
   ewai server start|status|stop [--project PATH]
   ewai mcp [--project PATH]
@@ -837,6 +841,42 @@ export async function run(args) {
       const result = await checkinProject(selectedProject(args), { installRoot });
       print(json ? result : formatCheckin(result, { verbose: has(args, '--verbose') }), json);
       return;
+    }
+
+    if (command === 'autonomy') {
+      const flags = {
+        status: { values: ['--project'], booleans: ['--json'] },
+        preview: { values: ['--project', '--intent', '--action', '--provider', '--expires-at', '--max-runtime-ms', '--max-operation-ms', '--max-attempts'], booleans: ['--json', '--record'] },
+        approve: { values: ['--project', '--expected-digest', '--approved-by'], booleans: ['--json', '--yes'] },
+      }[subcommand];
+      if (!flags) throw new Error('Unsupported autonomy operation.');
+      const seen = new Set();
+      for (let index = 2; index < args.length; index += 1) {
+        const flag = args[index];
+        if (seen.has(flag) && !['--intent', '--action', '--provider'].includes(flag)) throw new Error('Duplicate autonomy option.');
+        seen.add(flag);
+        if (flags.values.includes(flag)) {
+          if (!args[index + 1] || args[index + 1].startsWith('--')) throw new Error('An autonomy option is missing its value.');
+          index += 1;
+        } else if (!flags.booleans.includes(flag)) throw new Error('Unsupported autonomy option.');
+      }
+      const root = selectedProject(args);
+      let result;
+      if (subcommand === 'status') result = readAutonomyPolicy(root);
+      else if (subcommand === 'approve') result = approveAutonomyGrant(root, {
+        expectedDigest: option(args, '--expected-digest'), approvedBy: option(args, '--approved-by'), confirmed: has(args, '--yes'),
+      });
+      else {
+        const scopeFlags = flags.values.filter(flag => flag !== '--project');
+        const proposal = scopeFlags.some(flag => has(args, flag)) ? {
+          intentIds: options(args, '--intent'), actions: options(args, '--action'), providers: options(args, '--provider'),
+          expiresAt: option(args, '--expires-at'), limits: { maxConcurrentIntents: 1,
+            maxRuntimeMs: Number(option(args, '--max-runtime-ms')), maxOperationMs: Number(option(args, '--max-operation-ms')),
+            maxAttempts: Number(option(args, '--max-attempts')) },
+        } : undefined;
+        result = previewAutonomy(root, { ...(proposal ? { proposal } : {}), record: has(args, '--record') });
+      }
+      print(json ? result : JSON.stringify(result, null, 2), json); return;
     }
 
     if (command === 'dashboard' && ['preferences','configure'].includes(subcommand)) {
