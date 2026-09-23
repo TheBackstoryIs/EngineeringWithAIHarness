@@ -1,4 +1,6 @@
 import test from 'node:test';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -15,6 +17,7 @@ import {
 import { createPersona } from '../src/personas.mjs';
 import { promoteMeetingEvidence, recordMeetingReview, registerMeetingSource } from '../src/meeting-evidence.mjs';
 import { initProject } from '../src/project.mjs';
+import { acquireIntentOwnership, releaseIntentOwnership } from '../src/runtime/intent-ownership.mjs';
 import {
   dispatchEligibleLifecycleDeliveries,
   LIFECYCLE_EVENT_CATALOGUE,
@@ -26,6 +29,31 @@ import {
 function digest(value) {
   return createHash('sha256').update(value).digest('hex');
 }
+
+test('expiry during the transition snapshot cannot write canonical intent copies or publish phase entry', t => {
+  const root = fs.realpathSync(mkdtempSync(resolve(tmpdir(), 'ewai-fenced-hook-expiry-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  initProject(root, { name: 'Stale snapshot fixture' });
+  const intent = createIntent(root, { domain: 'product', slug: 'alpha' });
+  const before = readFileSync(intent.path, 'utf8');
+  const handle = acquireIntentOwnership(root, 'product/alpha', { ownerId: 'snapshot-fixture-owner' });
+  const originalRead = fs.readFileSync, originalNow = Date.now; let expired = false;
+  fs.readFileSync = function(path, ...args) {
+    const result = originalRead.call(this, path, ...args);
+    if (path === intent.path && new Error().stack.includes('fileSnapshot')) {
+      expired = true; Date.now = () => handle.expiresAt + 1;
+    }
+    return result;
+  };
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => beginDelivery(root, 'alpha', { tool: 'codex', ownership: handle }), error => error.code === 'intent-ownership-stale');
+    assert.equal(expired, true);
+    assert.equal(originalRead(intent.path, 'utf8'), before);
+    assert.equal(existsSync(resolve(root, 'SPECS/6.Build/alpha/delivery-state.json')), false);
+    assert.equal(readLifecycleHookWorkspace(root).events.some(event => event.name === 'ewai.delivery.phase.entered'), false);
+  } finally { fs.readFileSync = originalRead; syncBuiltinESMExports(); Date.now = originalNow; releaseIntentOwnership(root, handle); }
+});
 
 function createKnowledgeFixture(root) {
   const sourceRoot = resolve(root, 'SPECS/3.Evidence/retros');
