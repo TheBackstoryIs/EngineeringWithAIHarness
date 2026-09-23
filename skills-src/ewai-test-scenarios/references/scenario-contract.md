@@ -83,6 +83,12 @@ Status means:
 
 JSON is authoritative. Never parse or manually edit Markdown to repair scenario state.
 
+New briefs and records carry `sourceDigestVersion: intent-content-v2`. Intent fingerprints cover the complete body and all parsed metadata except the five workflow fields `status`, `delivery_status`, `current_phase`, `delivery_state_path` and `updated_at`. Do not treat excerpts as the fingerprint boundary. Other evidence retains whole-file fingerprints, so genuine source changes still require review. Unsupported digest versions fail closed.
+
+Require at least one recognised intent source (captured Problem, Desired outcome or Constraints, or a listed Journey or Acceptance criterion), even when planning documents exist. Without it, preparation and recording fail closed and historical packs cannot claim current intent coverage. Content fingerprints accept only plain mappings, arrays and JSON scalar metadata; reject typed YAML dates, sets, ordered maps, binary values, non-finite numbers and cyclic aliases instead of silently erasing their meaning. Ordinary quoted date strings and repeated non-cyclic aliases remain supported. Do not convert unsupported sources or rewrite accepted evidence without the appropriate owner review.
+
+Legacy unversioned pairs remain readable with their original whole-file checks. An exact replay through `record`, while those sources are still current, may add the immutable `test-scenarios.source-baseline.json` compatibility receipt. It is bound to the original record digest and reviewed sources; both accepted evidence files remain byte-identical. Preparation and status remain read-only. Never bypass an already-stale legacy record, replace its pair, or edit the receipt manually. Keep the receipt alongside its pair; malformed, unsafe or mismatched receipt evidence is invalid. This is a fingerprint compatibility operation, not a revised-scenario approval or a way to accept changed requirements.
+
 ## Human evidence boundary
 
 Manual QA remains an explicit named human gate. Specialist assurance requires an accountable practitioner. Representative-user validation requires real representative participants. Persona simulation may improve the question set but may not complete any of those routes.

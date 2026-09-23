@@ -1,9 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   existsSync,
+  linkSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync
@@ -17,6 +20,9 @@ import { selectContextualPersonas } from './runtime/persona-engagement.mjs';
 const BRIEF_SCHEMA = 'ewai.persona-test-brief/v1';
 const SCENARIO_SCHEMA = 'ewai.persona-test-scenarios/v1';
 const WORKSPACE_SCHEMA = 'ewai.persona-test-workspace/v1';
+const SOURCE_DIGEST_VERSION = 'intent-content-v2';
+const BASELINE_SCHEMA = 'ewai.scenario-source-baseline/v1';
+const lifecycleMetadata = new Set(['status', 'delivery_status', 'current_phase', 'delivery_state_path', 'updated_at']);
 const scenarioIdPattern = /^PTS-[0-9]{3}$/;
 const sourceIdPattern = /^[a-z0-9][a-z0-9:._-]{2,159}$/i;
 const allowedTypes = new Set([
@@ -52,6 +58,22 @@ function canonical(value) {
 
 function canonicalJson(value) {
   return JSON.stringify(canonical(value));
+}
+
+function assertFingerprintMetadata(value, ancestors = new Set()) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Intent metadata contains a non-finite number');
+    return;
+  }
+  if (typeof value !== 'object' || (!Array.isArray(value)
+    && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) {
+    throw new Error('Intent metadata contains an unsupported value; use plain mappings, arrays and JSON scalar values');
+  }
+  if (ancestors.has(value)) throw new Error('Intent metadata contains a cyclic value');
+  ancestors.add(value);
+  for (const child of Object.values(value)) assertFingerprintMetadata(child, ancestors);
+  ancestors.delete(value);
 }
 
 function relativePath(root, path) {
@@ -260,13 +282,33 @@ function briefDigest(sources, contextualEvidence) {
   }));
 }
 
-export function preparePersonaTestScenarioBrief(projectRoot, slug, options = {}) {
+function prepareBrief(projectRoot, slug, options = {}, sourceDigestVersion = SOURCE_DIGEST_VERSION) {
   const root = resolve(projectRoot);
   const focus = cleanText(options.focus, 'Focus', MAX_FOCUS, false);
   const intent = findIntent(root, cleanText(slug, 'Intent slug', 100));
   const paths = deliveryPaths(root, slug);
+  const intentEvidence = intentSources(root, intent);
+  // A planning source alone cannot carry the complete intent fingerprint.
+  if (!intentEvidence.length) {
+    throw new Error('A recognised intent source is required: capture Problem, Desired outcome, Constraints, or a listed Journey or Acceptance criterion');
+  }
+  const rawIntentDigest = sha256(intent.content);
+  // Both policies describe the same captured intent bytes, even if a later read changes.
+  for (const source of intentEvidence) source.digest = rawIntentDigest;
+  if (sourceDigestVersion === SOURCE_DIGEST_VERSION) {
+    if (!intent.metadata || typeof intent.metadata !== 'object' || Array.isArray(intent.metadata)) {
+      throw new Error('Intent metadata must be a mapping');
+    }
+    const metadata = Object.fromEntries(Object.entries(intent.metadata).filter(([key]) => !lifecycleMetadata.has(key)));
+    // Reject values canonical() cannot represent faithfully before it can erase their type/content.
+    assertFingerprintMetadata(metadata);
+    // Cover the complete body and every other metadata value, never the bounded excerpts.
+    const content = canonicalJson({ metadata, body: intent.body });
+    const digest = sha256(content);
+    for (const source of intentEvidence) source.digest = digest;
+  }
   const authoritativeSources = [
-    ...intentSources(root, intent),
+    ...intentEvidence,
     ...planSources(root, paths.deliveryRoot),
     ...standardSources(root, intent.specsRoot)
   ];
@@ -283,11 +325,15 @@ export function preparePersonaTestScenarioBrief(projectRoot, slug, options = {})
     limit: 4
   });
   const sourceDigest = briefDigest(authoritativeSources, contextualEvidence);
+  const legacySourceDigest = briefDigest(authoritativeSources.map((source) => source.kind.startsWith('intent-')
+    ? { ...source, digest: rawIntentDigest } : source), contextualEvidence);
   return {
     schema: BRIEF_SCHEMA,
     slug,
     focus,
     sourceDigest,
+    legacySourceDigest,
+    ...(sourceDigestVersion ? { sourceDigestVersion } : {}),
     authoritativeSources,
     contextualEvidence,
     activePersonas,
@@ -305,6 +351,11 @@ export function preparePersonaTestScenarioBrief(projectRoot, slug, options = {})
       premiumSyncAttempted: false
     }
   };
+}
+
+export function preparePersonaTestScenarioBrief(projectRoot, slug, options = {}) {
+  const { legacySourceDigest: _legacySourceDigest, ...brief } = prepareBrief(projectRoot, slug, options);
+  return brief;
 }
 
 function textList(value, label, { required = true } = {}) {
@@ -394,6 +445,7 @@ function scenarioPayload(slug, brief, input, reviewer) {
     schema: SCENARIO_SCHEMA,
     slug,
     preparedSourceDigest: brief.sourceDigest,
+    ...(brief.sourceDigestVersion ? { sourceDigestVersion: brief.sourceDigestVersion } : {}),
     reviewer,
     focus: brief.focus,
     sources: brief.authoritativeSources.map(({ id, kind, label, path, digest, authority }) => ({ id, kind, label, path, digest, authority })),
@@ -510,26 +562,126 @@ function writePair(projectRoot, slug, jsonContent, markdownContent, options = {}
   return { jsonPath, markdownPath };
 }
 
+function evidenceFile(root, path, label, maximum = Infinity) {
+  let stat;
+  try { stat = lstatSync(path); } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  }
+  if (!stat.isFile() || stat.isSymbolicLink() || !isWithin(realpathSync(root), realpathSync(path)) || stat.size > maximum) {
+    throw new Error(`${label} must be a bounded regular file inside the project`);
+  }
+  return true;
+}
+
+function readRecordedPair(root, paths, slug) {
+  const jsonPath = resolve(paths.deliveryRoot, 'test-scenarios.json');
+  const markdownPath = resolve(paths.deliveryRoot, 'test-scenarios.md');
+  const hasJson = evidenceFile(root, jsonPath, 'Scenario JSON');
+  const hasMarkdown = evidenceFile(root, markdownPath, 'Scenario Markdown');
+  if (!hasJson && !hasMarkdown) return null;
+  if (!hasJson || !hasMarkdown) throw new Error('Existing persona test-scenario evidence is incomplete and will not be overwritten');
+  const record = readJson(jsonPath, 'Persona test-scenario evidence');
+  if (record.schema !== SCENARIO_SCHEMA || record.slug !== slug) throw new Error('Persona test-scenario JSON schema or slug is invalid');
+  if (record.sourceDigestVersion !== undefined && record.sourceDigestVersion !== SOURCE_DIGEST_VERSION) {
+    throw new Error('Unsupported persona test-scenario source digest version');
+  }
+  if (sha256(canonicalJson(recordDigestPayload(record))) !== record.contentDigest) throw new Error('Persona test-scenario content digest does not match');
+  if (sha256(readFileSync(markdownPath, 'utf8')) !== record.markdownDigest) throw new Error('Persona test-scenario Markdown digest does not match');
+  return record;
+}
+
+function readSourceBaseline(root, paths, record) {
+  const path = resolve(paths.deliveryRoot, 'test-scenarios.source-baseline.json');
+  if (!evidenceFile(root, path, 'Scenario source baseline', 8192)) return null;
+  const baseline = readJson(path, 'Scenario source baseline');
+  const { digest, ...payload } = baseline;
+  const keys = ['schema', 'slug', 'recordDigest', 'legacySourceDigest', 'sourceDigestVersion', 'sourceDigest', 'reviewedBy', 'recordedAt', 'digest'];
+  if (Object.keys(baseline).sort().join() !== keys.sort().join()
+    || baseline.schema !== BASELINE_SCHEMA || baseline.slug !== record.slug
+    || record.sourceDigestVersion !== undefined
+    || baseline.recordDigest !== record.contentDigest || baseline.legacySourceDigest !== record.preparedSourceDigest
+    || baseline.sourceDigestVersion !== SOURCE_DIGEST_VERSION || !/^[a-f0-9]{64}$/.test(baseline.sourceDigest)
+    || baseline.reviewedBy !== record.reviewer || typeof baseline.recordedAt !== 'string' || !Number.isFinite(Date.parse(baseline.recordedAt))
+    || digest !== sha256(canonicalJson(payload))) {
+    throw new Error('Scenario source baseline is invalid or bound to different accepted evidence');
+  }
+  return baseline;
+}
+
+function writeSourceBaseline(root, paths, record, brief) {
+  const path = resolve(paths.deliveryRoot, 'test-scenarios.source-baseline.json');
+  const existing = readSourceBaseline(root, paths, record);
+  if (existing) {
+    if (existing.sourceDigest !== brief.sourceDigest) throw new Error('Scenario source baseline is stale');
+    return existing;
+  }
+  if (!isWithin(realpathSync(root), realpathSync(paths.deliveryRoot))) throw new Error('Scenario source baseline is outside the project');
+  const payload = {
+    schema: BASELINE_SCHEMA, slug: record.slug, recordDigest: record.contentDigest,
+    legacySourceDigest: record.preparedSourceDigest, sourceDigestVersion: SOURCE_DIGEST_VERSION,
+    sourceDigest: brief.sourceDigest, reviewedBy: record.reviewer, recordedAt: new Date().toISOString()
+  };
+  const baseline = { ...payload, digest: sha256(canonicalJson(payload)) };
+  const stage = `${path}.${process.pid}-${randomUUID()}.tmp`;
+  try {
+    writeFileSync(stage, `${JSON.stringify(baseline, null, 2)}\n`, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    // A hard-link publish is atomic and cannot overwrite a competing or historical receipt.
+    try { linkSync(stage, path); } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const concurrent = readSourceBaseline(root, paths, record);
+      if (!concurrent || concurrent.sourceDigest !== brief.sourceDigest) throw new Error('Conflicting scenario source baseline');
+      return concurrent;
+    }
+  } finally { rmSync(stage, { force: true }); }
+  return baseline;
+}
+
 export function recordPersonaTestScenarios(projectRoot, slug, input = {}, options = {}) {
   const root = resolve(projectRoot);
+  findIntent(root, slug);
   cleanTransaction(root, slug);
   const reviewer = cleanText(options.reviewedBy ?? input.reviewedBy, 'Named reviewer', 160);
+  if (input.sourceDigestVersion !== undefined && input.sourceDigestVersion !== SOURCE_DIGEST_VERSION) {
+    throw new Error('Unsupported persona test-scenario source digest version');
+  }
   const catalogue = Array.isArray(options.personas) ? options.personas : Array.isArray(options.personaCatalogue) ? options.personaCatalogue : [];
-  const brief = preparePersonaTestScenarioBrief(root, slug, { focus: input.focus ?? options.focus ?? '', personas: catalogue });
-  // Path validation needs the project root while the brief itself remains a safe projection.
-  brief.projectRoot = root;
-  const payload = scenarioPayload(slug, brief, input, reviewer);
-  delete brief.projectRoot;
-  const contentDigest = sha256(canonicalJson(payload));
+  const prepareOptions = { focus: input.focus ?? options.focus ?? '', personas: catalogue };
+  const { legacySourceDigest, ...brief } = prepareBrief(root, slug, prepareOptions);
   const paths = deliveryPaths(root, slug);
   const jsonPath = resolve(paths.deliveryRoot, 'test-scenarios.json');
   const markdownPath = resolve(paths.deliveryRoot, 'test-scenarios.md');
-  if (existsSync(jsonPath) || existsSync(markdownPath)) {
-    if (!existsSync(jsonPath) || !existsSync(markdownPath)) throw new Error('Existing persona test-scenario evidence is incomplete and will not be overwritten');
-    const existing = readJson(jsonPath, 'Existing persona test-scenario evidence');
-    const existingDigest = sha256(canonicalJson(recordDigestPayload(existing)));
-    if (existing.contentDigest === contentDigest && existingDigest === contentDigest && sha256(readFileSync(markdownPath, 'utf8')) === existing.markdownDigest) {
-      return { schema: 'ewai.persona-test-recording/v1', status: 'recorded', digest: contentDigest, jsonPath: relativePath(root, jsonPath), markdownPath: relativePath(root, markdownPath), idempotent: true };
+  const existing = readRecordedPair(root, paths, slug);
+  if (!existing && evidenceFile(root, resolve(paths.deliveryRoot, 'test-scenarios.source-baseline.json'), 'Scenario source baseline', 8192)) {
+    throw new Error('Scenario source baseline has no accepted evidence pair');
+  }
+  const baseline = existing ? readSourceBaseline(root, paths, existing) : null;
+  let validationBrief = brief;
+  let validationInput = input;
+  if (existing && existing.sourceDigestVersion === undefined) {
+    const currentDigest = baseline ? brief.sourceDigest : legacySourceDigest;
+    if (currentDigest !== (baseline?.sourceDigest ?? existing.preparedSourceDigest)) {
+      throw new Error('Existing accepted scenario sources are stale; legacy evidence cannot be silently rebound');
+    }
+    if (![existing.preparedSourceDigest, brief.sourceDigest].includes(input.preparedSourceDigest)) {
+      throw new Error('Prepared source digest is stale or does not match this intent');
+    }
+    // Compare the reviewed payload exactly, retaining its historical source and reviewer metadata.
+    validationBrief = { ...brief, sourceDigest: existing.preparedSourceDigest, authoritativeSources: existing.sources, contextualEvidence: existing.contextualEvidence };
+    delete validationBrief.sourceDigestVersion;
+    validationInput = { ...input, preparedSourceDigest: existing.preparedSourceDigest };
+  }
+  const payload = scenarioPayload(slug, { ...validationBrief, projectRoot: root }, validationInput, reviewer);
+  const contentDigest = sha256(canonicalJson(payload));
+  if (existing) {
+    if (existing.contentDigest === contentDigest) {
+      const legacy = existing.sourceDigestVersion === undefined;
+      if (legacy) writeSourceBaseline(root, paths, existing, brief);
+      return {
+        schema: 'ewai.persona-test-recording/v1', status: 'recorded', digest: contentDigest,
+        jsonPath: relativePath(root, jsonPath), markdownPath: relativePath(root, markdownPath), idempotent: true,
+        ...(legacy ? { sourceBaselinePath: relativePath(root, resolve(paths.deliveryRoot, 'test-scenarios.source-baseline.json')) } : {})
+      };
     }
     throw new Error('Conflicting accepted persona test-scenario evidence already exists and will not be overwritten');
   }
@@ -601,21 +753,22 @@ export function readPersonaTestScenarioWorkspace(projectRoot, slug, options = {}
   }
   let record;
   try {
-    record = readJson(jsonPath, 'Persona test-scenario evidence');
-    if (record.schema !== SCENARIO_SCHEMA || record.slug !== safeSlug) throw new Error('Persona test-scenario JSON schema or slug is invalid');
-    if (sha256(canonicalJson(recordDigestPayload(record))) !== record.contentDigest) throw new Error('Persona test-scenario content digest does not match');
-    if (sha256(readFileSync(markdownPath, 'utf8')) !== record.markdownDigest) throw new Error('Persona test-scenario Markdown digest does not match');
+    record = readRecordedPair(root, paths, safeSlug);
   } catch (error) {
     return { schema: WORKSPACE_SCHEMA, slug: safeSlug, status: 'invalid', reason: error.message, activePersonas: [], sources: [], scenarios: [], gaps: [], evidenceRoutes: [], guidance: { readOnly: true } };
   }
   const catalogue = Array.isArray(options.personas) ? options.personas : Array.isArray(options.personaCatalogue) ? options.personaCatalogue : [];
   let current;
+  let expectedDigest = record.preparedSourceDigest;
   try {
-    current = preparePersonaTestScenarioBrief(root, safeSlug, { focus: record.focus, personas: catalogue });
+    const baseline = readSourceBaseline(root, paths, record);
+    current = prepareBrief(root, safeSlug, { focus: record.focus, personas: catalogue },
+      record.sourceDigestVersion ?? (baseline ? SOURCE_DIGEST_VERSION : null));
+    expectedDigest = baseline?.sourceDigest ?? expectedDigest;
   } catch (error) {
     return safeWorkspaceRecord(record, 'invalid', `Current authoritative sources cannot be read: ${error.message}`);
   }
-  if (current.sourceDigest !== record.preparedSourceDigest) {
+  if (current.sourceDigest !== expectedDigest) {
     return safeWorkspaceRecord(record, 'stale', 'Authoritative source evidence changed after this pack was reviewed. Prepare and review it again.');
   }
   return safeWorkspaceRecord(record, 'recorded');
