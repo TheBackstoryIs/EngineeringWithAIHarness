@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import {
@@ -8,6 +8,9 @@ import {
   invokeProvider,
   measureProviderPrompt,
   normaliseProviderUsage,
+  preparePhaseProvider,
+  verifyPhaseProviderConformance,
+  invokeRestrictedPhaseProvider,
 } from '../src/runtime/provider-adapters.mjs';
 
 test('builds bounded non-interactive CLI invocations for every AFK provider', () => {
@@ -63,6 +66,67 @@ test('keeps labelled estimates distinct from strict optional provider usage', ()
   });
   assert.equal(normaliseProviderUsage('claude', { input_tokens: -1, output_tokens: '12' }), null);
   assert.equal(normaliseProviderUsage('codex', {}), null);
+});
+
+test('unknown and proposal modes cannot silently select AFK implementation permissions', () => {
+  for (const provider of ['codex', 'claude', 'antigravity']) {
+    for (const mode of ['phase-proposal', 'prepare-phase', 'Review', '', null, {}, false]) {
+      assert.throws(() => buildProviderInvocation(provider, { cwd: '.', prompt: 'untrusted', mode }),
+        error => error.code === 'phase-provider-mode-unavailable');
+    }
+  }
+});
+
+test('direct AFK invocation rejects unknown modes before opening logs or spawning', t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-provider-mode-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const mode of ['phase-proposal', 'prepare-phase', '', null, false, {}]) {
+    assert.throws(() => invokeProvider({ mode, command: process.execPath, args: [], cwd: root,
+      prompt: '', logPath: resolve(root, 'never-opened', 'raw.log'), timeoutMs: 100 }),
+    error => error.code === 'phase-provider-mode-unavailable');
+  }
+  assert.equal(existsSync(resolve(root, 'never-opened')), false);
+});
+
+test('unverified provider modes and copied capability objects cannot invoke phase work (PTS-016)', async () => {
+  for (const provider of ['codex', 'antigravity', 'unknown', '', null, {}]) {
+    assert.equal(preparePhaseProvider(provider).status, 'unavailable');
+  }
+  const forged = { status: 'verified', provider: 'claude', command: process.execPath, args: ['-e', 'throw Error("unsafe")'] };
+  assert.equal((await verifyPhaseProviderConformance(forged)).status, 'unavailable');
+  assert.equal((await invokeRestrictedPhaseProvider(forged, { prompt: 'Draft', timeoutMs: 1000 })).status, 'unavailable');
+  for (const input of [null, [], false, 'Draft', 1, {}]) {
+    assert.equal((await invokeRestrictedPhaseProvider(forged, input)).code, 'phase-provider-input-invalid');
+  }
+});
+
+test('installed phase mode proves write prevention, no inherited tools, bounded output and real timeout (PTS-014 / PTS-016 / PTS-017)', async t => {
+  const capability = preparePhaseProvider('claude');
+  if (capability.status === 'unavailable') {
+    assert.equal(capability.requiresHuman, true);
+    t.skip(`Restriction conformance unavailable on this host: ${capability.code}; no mode was enabled.`);
+    return;
+  }
+  assert.equal(capability.status, 'requires-conformance');
+  assert.equal((await invokeRestrictedPhaseProvider(capability, { prompt: 'Draft', timeoutMs: 1000 })).status, 'unavailable');
+  const proof = await verifyPhaseProviderConformance(capability);
+  assert.equal(proof.status, 'verified');
+  assert.equal(proof.canonicalWritePrevented, true);
+  assert.equal(proof.outputBoundEnforced, true);
+  assert.equal(proof.timeoutEnforced, true);
+  assert.equal(proof.networkIsolated, true);
+  assert.equal(proof.childProcessPrevented, true);
+  assert.equal(proof.toolsExposed, 0);
+  assert.equal(proof.inheritedCapabilitiesBlocked, true);
+  assert.equal(proof.forgedToolRefused, true);
+  assert.equal(proof.fixtureServiceOnly, true);
+  assert.equal(JSON.stringify(proof).includes('EWAI_UNTRUSTED_INSTRUCTIONS_CANARY'), false);
+  assert.equal(JSON.stringify(proof).includes('ewai-fixture-not-a-real-key'), false);
+  for (const timeoutMs of [0, -1, 600001, 1.5, '1000']) {
+    assert.equal((await invokeRestrictedPhaseProvider(capability, { prompt: 'Draft', timeoutMs })).code, 'phase-provider-input-invalid');
+  }
+  assert.equal((await invokeRestrictedPhaseProvider({ ...capability }, { prompt: 'Draft', timeoutMs: 1000 })).status, 'unavailable');
+  t.diagnostic(JSON.stringify(proof));
 });
 
 test('terminates a provider that exceeds its bounded task timeout', async () => {
