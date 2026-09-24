@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, realpathSync } from 'node:fs';
 import YAML from 'yaml';
 import {DASHBOARD_VIEWS,readDashboardPreferences,saveDashboardPreferences} from './dashboard-preferences.mjs';
-import { readAutonomyPolicy, previewAutonomy, approveAutonomyGrant } from './autonomy.mjs';
+import { autonomyInterfaceAction, safeAutonomyInterfaceError } from './runtime/dashboard-actions.mjs';
+import { readAutonomyFile } from './runtime/autonomy-workspace.mjs';
 import { createInterface } from 'node:readline/promises';
 import { Writable } from 'node:stream';
 import { configureAndInstallPremiumPersonas } from './checkin.mjs';
@@ -497,9 +498,14 @@ Commands:
   ewai checkin [--project PATH]
   ewai dashboard [--project PATH]
   ewai dashboard preferences [--project PATH] [--json]
-  ewai autonomy status [--project PATH] [--json]
+  ewai autonomy status [--run ID] [--project PATH] [--json]
   ewai autonomy preview [--intent DOMAIN/SLUG --action ACTION --provider PROVIDER --expires-at ISO --max-runtime-ms N --max-operation-ms N --max-attempts N --record] [--project PATH] [--json]
   ewai autonomy approve --expected-digest DIGEST --approved-by NAME --yes [--project PATH] [--json]
+  ewai autonomy revoke --expected-digest DIGEST --revoked-by NAME --yes [--project PATH] [--json]
+  ewai autonomy run|service --expected-digest DIGEST --provider PROVIDER --yes [--project PATH] [--json]
+  ewai autonomy pause|resume|cancel|recover --run ID --expected-revision N --yes [--project PATH] [--json]
+  ewai autonomy control --action pause|resume|cancel|revoke|recover --run ID --expected-revision N --yes [--revoked-by NAME] [--project PATH] [--json]
+  ewai autonomy answer --input PROJECT_RELATIVE_JSON --yes [--project PATH] [--json]
   ewai dashboard configure --enable VIEW | --disable VIEW [--collapse | --expand] --expected-digest DIGEST --yes [--project PATH] [--json]
   ewai server start|status|stop [--project PATH]
   ewai mcp [--project PATH]
@@ -844,16 +850,23 @@ export async function run(args) {
     }
 
     if (command === 'autonomy') {
+      const controlAlias = ['pause', 'resume', 'cancel', 'recover'].includes(subcommand);
+      const action = controlAlias ? 'control' : subcommand;
       const flags = {
-        status: { values: ['--project'], booleans: ['--json'] },
-        preview: { values: ['--project', '--intent', '--action', '--provider', '--expires-at', '--max-runtime-ms', '--max-operation-ms', '--max-attempts'], booleans: ['--json', '--record'] },
+        status: { values: ['--project', '--run'], booleans: ['--json'] },
+        preview: { values: ['--project', '--intent', '--action', '--provider', '--expires-at', '--max-runtime-ms', '--max-operation-ms', '--max-attempts'], booleans: ['--json', '--record', '--yes'] },
         approve: { values: ['--project', '--expected-digest', '--approved-by'], booleans: ['--json', '--yes'] },
-      }[subcommand];
+        revoke: { values: ['--project', '--expected-digest', '--revoked-by'], booleans: ['--json', '--yes'] },
+        run: { values: ['--project', '--expected-digest', '--provider'], booleans: ['--json', '--yes'] },
+        service: { values: ['--project', '--expected-digest', '--provider'], booleans: ['--json', '--yes'] },
+        control: { values: ['--project', '--run', '--expected-revision', '--revoked-by', ...(controlAlias ? [] : ['--action'])], booleans: ['--json', '--yes'] },
+        answer: { values: ['--project', '--input'], booleans: ['--json', '--yes'] },
+      }[action];
       if (!flags) throw new Error('Unsupported autonomy operation.');
       const seen = new Set();
       for (let index = 2; index < args.length; index += 1) {
         const flag = args[index];
-        if (seen.has(flag) && !['--intent', '--action', '--provider'].includes(flag)) throw new Error('Duplicate autonomy option.');
+        if (seen.has(flag) && !(action === 'preview' && ['--intent', '--action', '--provider'].includes(flag))) throw new Error('Duplicate autonomy option.');
         seen.add(flag);
         if (flags.values.includes(flag)) {
           if (!args[index + 1] || args[index + 1].startsWith('--')) throw new Error('An autonomy option is missing its value.');
@@ -861,12 +874,8 @@ export async function run(args) {
         } else if (!flags.booleans.includes(flag)) throw new Error('Unsupported autonomy option.');
       }
       const root = selectedProject(args);
-      let result;
-      if (subcommand === 'status') result = readAutonomyPolicy(root);
-      else if (subcommand === 'approve') result = approveAutonomyGrant(root, {
-        expectedDigest: option(args, '--expected-digest'), approvedBy: option(args, '--approved-by'), confirmed: has(args, '--yes'),
-      });
-      else {
+      let input = {};
+      if (action === 'preview') {
         const scopeFlags = flags.values.filter(flag => flag !== '--project');
         const proposal = scopeFlags.some(flag => has(args, flag)) ? {
           intentIds: options(args, '--intent'), actions: options(args, '--action'), providers: options(args, '--provider'),
@@ -874,8 +883,22 @@ export async function run(args) {
             maxRuntimeMs: Number(option(args, '--max-runtime-ms')), maxOperationMs: Number(option(args, '--max-operation-ms')),
             maxAttempts: Number(option(args, '--max-attempts')) },
         } : undefined;
-        result = previewAutonomy(root, { ...(proposal ? { proposal } : {}), record: has(args, '--record') });
+        // --record is existing explicit consent to persist a preview, never a grant.
+        input = { ...(proposal ? { proposal } : {}), record: has(args, '--record'), confirmed: has(args, '--record') || has(args, '--yes') };
+      } else if (action === 'answer') {
+        const path = option(args, '--input'); if (!path) throw new Error('Answer input is required.');
+        const parsed = JSON.parse(readAutonomyFile(root, resolve(root, path)));
+        if (!parsed || Object.getPrototypeOf(parsed) !== Object.prototype) throw new Error('Answer input must be an object.');
+        input = { ...parsed, confirmed: has(args, '--yes') };
+      } else {
+        for (const [flag, key] of [['--expected-digest', 'expectedDigest'], ['--approved-by', 'approvedBy'], ['--revoked-by', 'revokedBy'],
+          ['--provider', 'provider'], ['--run', 'runId'], ['--expected-revision', 'expectedRevision'], ['--action', 'action']]) {
+          if (has(args, flag)) input[key] = key === 'expectedRevision' ? Number(option(args, flag)) : option(args, flag);
+        }
+        if (action !== 'status') input.confirmed = has(args, '--yes');
+        if (controlAlias) input.action = subcommand;
       }
+      const result = await autonomyInterfaceAction(root, action, input);
       print(json ? result : JSON.stringify(result, null, 2), json); return;
     }
 
@@ -2455,6 +2478,10 @@ export async function run(args) {
       } catch {
         // Reporting must never replace or mask the original command failure.
       }
+    }
+    if (command === 'autonomy') {
+      const safe = safeAutonomyInterfaceError(error);
+      console.error(json ? JSON.stringify(safe) : safe.error); process.exitCode = 1; return;
     }
     const suppliedRolloutProject = option(args, '--project');
     const rolloutError = command === 'rollout'

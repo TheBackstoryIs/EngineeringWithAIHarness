@@ -13,6 +13,75 @@ import {
   startAfkRun,
 } from './afk-conductor.mjs';
 import { queueDashboardHandoff } from './dashboard-handoffs.mjs';
+import { readAutonomyPolicy, previewAutonomy, approveAutonomyGrant, revokeAutonomyGrant } from '../autonomy.mjs';
+import { readAutonomyRun, runAutonomyOnce, startAutonomyService, controlAutonomyRun, answerAutonomyQuestion } from './autonomy-supervisor.mjs';
+import { autonomyError, autonomyRunIds } from './autonomy-workspace.mjs';
+
+// All three transports retain the complete request until this closed validator
+// accepts it. No adapter may strip unknown authority-bearing fields first.
+export const AUTONOMY_INTERFACE_FIELDS = Object.freeze({
+  status: ['runId'], preview: ['proposal', 'record', 'confirmed'],
+  approve: ['expectedDigest', 'approvedBy', 'confirmed'], revoke: ['expectedDigest', 'revokedBy', 'confirmed'],
+  run: ['expectedDigest', 'provider', 'confirmed'], service: ['expectedDigest', 'provider', 'confirmed'],
+  control: ['runId', 'action', 'expectedRevision', 'confirmed', 'revokedBy'],
+  answer: ['runId', 'questionId', 'expectedRevision', 'answeredBy', 'answer', 'confirmed'],
+});
+
+export function safeAutonomyInterfaceError(error) {
+  const code = /^(?:autonomy|phase)-[a-z0-9-]{1,100}$/.test(error?.code ?? '') ? error.code : 'autonomy-invalid-input';
+  const statusCode = [400, 403, 404, 405, 409, 413, 415, 422].includes(error?.statusCode) ? error.statusCode : 400;
+  return { code, statusCode, error: `Autonomy cannot continue: ${code}. Refresh the preview or resolve the recorded prerequisite.` };
+}
+
+function validateAutonomyInterfaceInput(action, input) {
+  const fields = AUTONOMY_INTERFACE_FIELDS[action];
+  if (!fields || !input || Object.getPrototypeOf(input) !== Object.prototype || Array.isArray(input)
+    || Object.keys(input).some(key => !fields.includes(key))) autonomyError('autonomy-invalid-input', 400);
+  const checks = {
+    confirmed: value => typeof value === 'boolean', record: value => typeof value === 'boolean',
+    expectedDigest: value => typeof value === 'string' && /^sha256:[a-f0-9]{64}$/.test(value),
+    runId: value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value),
+    expectedRevision: value => Number.isSafeInteger(value) && value > 0,
+    questionId: value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
+    provider: value => ['codex', 'claude', 'antigravity'].includes(value),
+    action: value => ['pause', 'resume', 'cancel', 'revoke', 'recover'].includes(value),
+    answer: value => typeof value === 'string' && !!value.trim() && Buffer.byteLength(value) <= 16384,
+    proposal: value => !!value && Object.getPrototypeOf(value) === Object.prototype,
+  };
+  const named = value => typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= 120 && !/[\x00-\x1f\x7f]/.test(value);
+  for (const key of ['approvedBy', 'revokedBy', 'answeredBy']) checks[key] = named;
+  for (const [key, value] of Object.entries(input)) if (!checks[key]?.(value)) autonomyError('autonomy-invalid-input', 400);
+  if (action !== 'status' && action !== 'preview' && input.confirmed !== true
+    || action === 'preview' && input.record === true && input.confirmed !== true) autonomyError('autonomy-confirmation-required', 409);
+  const required = { approve: ['expectedDigest', 'approvedBy'], revoke: ['expectedDigest', 'revokedBy'],
+    run: ['expectedDigest', 'provider'], service: ['expectedDigest', 'provider'], control: ['runId', 'action', 'expectedRevision'],
+    answer: ['runId', 'questionId', 'expectedRevision', 'answeredBy', 'answer'] }[action] ?? [];
+  if (required.some(key => input[key] === undefined)) autonomyError('autonomy-invalid-input', 400);
+}
+
+export async function autonomyInterfaceAction(projectRoot, action, input = {}) {
+  try {
+    validateAutonomyInterfaceInput(action, input);
+    const { confirmed, ...data } = input;
+    if (action === 'status') {
+      if (input.runId) return readAutonomyRun(projectRoot, input.runId);
+      const policy = readAutonomyPolicy(projectRoot), runs = autonomyRunIds(projectRoot).map(id => readAutonomyRun(projectRoot, id));
+      return { ...policy, runs, serviceStarted: runs.some(run => run.mode === 'service' && run.lifetime.ownerProcessAlive
+        && ['starting', 'running', 'cancel-requested'].includes(run.status)) };
+    }
+    if (action === 'preview') return previewAutonomy(projectRoot, data);
+    if (action === 'approve') return approveAutonomyGrant(projectRoot, input);
+    if (action === 'revoke') return revokeAutonomyGrant(projectRoot, input);
+    if (action === 'run') return await runAutonomyOnce(projectRoot, data);
+    if (action === 'service') return startAutonomyService(projectRoot, input);
+    if (action === 'control') return await controlAutonomyRun(projectRoot, input);
+    if (action === 'answer') return answerAutonomyQuestion(projectRoot, data);
+    autonomyError('autonomy-invalid-input', 400);
+  } catch (error) {
+    const safe = safeAutonomyInterfaceError(error);
+    autonomyError(safe.code, safe.statusCode);
+  }
+}
 
 function requireConfirmation(input, action) {
   if (input?.confirmed !== true) throw new Error(`${action} requires explicit confirmation.`);

@@ -2,6 +2,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod/v4';
+import { AUTONOMY_INTERFACE_FIELDS, autonomyInterfaceAction, safeAutonomyInterfaceError } from './dashboard-actions.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { premiumPersonaRoot } from '../checkin.mjs';
@@ -155,6 +156,43 @@ function result(value) {
     content: [{ type: 'text', text: JSON.stringify(value ?? null, null, 2) }],
     structuredContent: value ?? null
   };
+}
+
+const autonomyFieldGuidance = Object.freeze({
+  runId: 'UUID of an existing supervisor run. Status accepts this alone to read one run.',
+  proposal: 'Closed object: intentIds (nonempty DOMAIN/SLUG string array), actions (nonempty array of begin-harness, prepare-phase, afk-build), providers (nonempty array of codex, claude, antigravity), expiresAt (future ISO UTC timestamp with milliseconds), limits (object with maxConcurrentIntents: 1, maxRuntimeMs: positive integer up to 86400000, maxOperationMs: positive integer no greater than maxRuntimeMs, maxAttempts: integer from 1 to 100). No extra keys.',
+  record: 'Boolean. true persists the preview as evidence; this never approves the proposal.',
+  confirmed: 'Boolean. true explicitly confirms a mutation, including a recorded preview.',
+  expectedDigest: 'Current sha256: followed by 64 lowercase hexadecimal characters, obtained from the preview or grant.',
+  approvedBy: 'Nonempty human name, trimmed, at most 120 characters, without control characters.',
+  revokedBy: 'Nonempty human name, trimmed, at most 120 characters, without control characters.',
+  provider: 'One of codex, claude, antigravity; must be within the current grant.',
+  action: 'One of pause, resume, cancel, revoke, recover; subject to the current run state.',
+  expectedRevision: 'Current positive safe integer revision of the run, read from status.',
+  questionId: '64 lowercase hexadecimal characters identifying an open human question.',
+  answeredBy: 'Nonempty human name, trimmed, at most 120 characters, without control characters.',
+  answer: 'Nonempty private answer string, at most 16384 UTF-8 bytes. Never place it in a shell argument.',
+});
+const autonomyRequiredGuidance = Object.freeze({
+  status: 'none; runId is optional', preview: 'none; proposal is needed for a new grant and record: true needs confirmed: true',
+  approve: 'expectedDigest, approvedBy, confirmed', revoke: 'expectedDigest, revokedBy, confirmed',
+  run: 'expectedDigest, provider, confirmed', service: 'expectedDigest, provider, confirmed',
+  control: 'runId, action, expectedRevision, confirmed',
+  answer: 'runId, questionId, expectedRevision, answeredBy, answer, confirmed',
+});
+
+for (const [action, fields] of Object.entries(AUTONOMY_INTERFACE_FIELDS)) {
+  server.registerTool(`ewai_autonomy_${action}`, {
+    title: `EWAI autonomy ${action}`,
+    description: `Use the configured project only. Required fields: ${autonomyRequiredGuidance[action]}. ${action === 'status' || action === 'preview' ? 'Reading or previewing cannot launch a provider or approve work.' : 'Mutations require confirmed: true; they never grant Build, Manual QA or release approval.'} Unknown fields are rejected by the shared engine; refresh status or preview before acting on a current digest or revision.`,
+    // Preserve the complete input for the shared closed validator, including
+    // unknown fields. SDK stripping would hide attempted root overrides.
+    inputSchema: z.object(Object.fromEntries(fields.map(key => [key, z.unknown().optional().describe(autonomyFieldGuidance[key])]))).passthrough(),
+    annotations: { readOnlyHint: action === 'status', destructiveHint: false, openWorldHint: false },
+  }, async input => {
+    try { return result(await autonomyInterfaceAction(paths.projectRoot, action, input)); }
+    catch (error) { return { ...result(safeAutonomyInterfaceError(error)), isError: true }; }
+  });
 }
 
 function portfolioPersonas() {
