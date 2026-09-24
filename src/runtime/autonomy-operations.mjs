@@ -165,6 +165,19 @@ export function inspectAutonomyOperation(root, intentId, operation) {
   return state;
 }
 
+// Recovery may acknowledge an already completed synchronous mutation, but
+// cannot infer provider termination or repeat a side effect from parent death.
+export function recoverCompletedAutonomyOperation(root, operationId, expected) {
+  const paths = operationPaths(root, operationId), attempt = readAttempts(paths, operationId).at(-1);
+  if (!attempt || expected?.action !== 'begin-harness' || ['action', 'intentId', 'grantDigest'].some(key => attempt[key] !== expected[key])) {
+    return { status: 'recovery-required', operationId, requiresHuman: true };
+  }
+  const reconciled = reconcileAutonomyOperation(root, operationId);
+  if (reconciled.status !== 'completed' || reconciled.receipt.action !== attempt.action) return { status: 'recovery-required', operationId, requiresHuman: true };
+  recoverStoppedIntentOwnership(root, attempt.owner, attempt.intentId);
+  return { status: 'completed', operationId, requiresHuman: false };
+}
+
 // A new identifier is not a recovery decision. Completed receipts may be
 // historical, but an uncertain attempt still owns the intent's recovery work.
 export function assertNoUnresolvedIntentOperation(root, intentId, operationId) {

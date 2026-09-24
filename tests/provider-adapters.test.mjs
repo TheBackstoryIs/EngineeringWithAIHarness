@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import {
@@ -144,4 +144,120 @@ test('terminates a provider that exceeds its bounded task timeout', async () => 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+const seatbeltAvailable = process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec');
+const seatbeltOnly = { skip: !seatbeltAvailable && 'The production restriction primitive requires macOS Seatbelt.' };
+
+async function privateTransport({ root = null, uncertainProbe = false, signalsDenied = false, onReady = null } = {}) {
+  const url = new URL('../src/runtime/provider-adapters.mjs', import.meta.url);
+  // Test-only exposure of the shipped internal process path; no executable
+  // override, fixture flag or process-control callback is added to public APIs.
+  let source = readFileSync(url, 'utf8').replace(/from (['"])(\.[^'"]+)\1/g,
+    (_match, _quote, specifier) => `from ${JSON.stringify(new URL(specifier, url).href)}`);
+  if (root) source = source.replace("import { release, tmpdir } from 'node:os';",
+    `import { release } from 'node:os'; const tmpdir = () => ${JSON.stringify(root)};`);
+  if (uncertainProbe || signalsDenied) source = `const process = Object.create(globalThis.process); process.kill = (pid, signal) => {
+    if (${signalsDenied} || signal === 0) throw Object.assign(new Error('probe unavailable'), {code:'EPERM'});
+    return globalThis.process.kill(pid, signal);
+  };\n` + source;
+  // Observe only children launched by this module. The fixture announces
+  // readiness after installing its handler; no timing guess or PID search.
+  source = source.replace("import { spawn, spawnSync } from 'node:child_process';",
+    `import { spawn as nativeSpawn, spawnSync } from 'node:child_process';
+    const owned = []; let readyObserver;
+    const observeReady = observer => { readyObserver = observer; };
+    const spawn = (...args) => { const child = nativeSpawn(...args); owned.push(child);
+      child.stdout?.on('data', chunk => { if (chunk.toString().includes('FIXTURE_READY')) readyObserver?.(child); });
+      return child; };`);
+  const api = await import('data:text/javascript;base64,' + Buffer.from(source + `\nexport { captureRestrictedProcess, owned, observeReady };\n// ${Math.random()}`).toString('base64'));
+  api.observeReady(onReady); return api;
+}
+async function privateCapture(options) { return (await privateTransport(options)).captureRestrictedProcess; }
+
+test('restricted cancellation before dispatch prevents spawning and never discloses its reason (PTS-021)', async () => {
+  const capture = await privateCapture(), controller = new AbortController();
+  controller.abort('private-cancellation-reason');
+  const result = await capture({ sandbox: '/usr/bin/sandbox-exec', executable: process.execPath },
+    { prompt: '', timeoutMs: 3000, maxBytes: 1024, signal: controller.signal },
+    { command: process.execPath, args: ['-e', 'process.stdout.write("should-not-run")'] });
+  assert.equal(result.status, 'cancelled');
+  assert.equal(result.executionStopped, true); assert.equal(result.spawned, false);
+  assert.equal(result.output, ''); assert.equal(JSON.stringify(result).includes('private-cancellation-reason'), false);
+});
+
+test('restricted active cancellation terminates a TERM-resistant process and confirms stop (PTS-021)', seatbeltOnly, async () => {
+  const controller = new AbortController();
+  const capture = await privateCapture({ onReady: () => controller.abort('private-cancellation-reason') });
+  const pending = capture({ sandbox: '/usr/bin/sandbox-exec', executable: process.execPath },
+    { prompt: '', timeoutMs: 5000, maxBytes: 1024, signal: controller.signal },
+    { command: process.execPath, args: ['-e', 'process.on("SIGTERM",()=>{});process.stdout.write("FIXTURE_READY");setInterval(()=>{},1000)'] });
+  const result = await pending;
+  assert.equal(result.status, 'cancelled'); assert.equal(result.executionStopped, true);
+  assert.equal(result.signal, 'SIGKILL'); assert.equal(result.output, '');
+  assert.equal(JSON.stringify(result).includes('private-cancellation-reason'), false);
+});
+
+test('uncertain process-group verification is not a confirmed cancellation and preserves scratch', seatbeltOnly, async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-cancel-uncertain-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const capture = await privateCapture({ root, uncertainProbe: true }), controller = new AbortController();
+  const pending = capture({ sandbox: '/usr/bin/sandbox-exec', executable: process.execPath },
+    { prompt: '', timeoutMs: 5000, maxBytes: 1024, signal: controller.signal },
+    { command: process.execPath, args: ['-e', 'setInterval(()=>{},1000)'] });
+  const timer = setTimeout(() => controller.abort(), 250);
+  let result; try { result = await pending; } finally { clearTimeout(timer); }
+  assert.equal(result.status, 'unknown'); assert.equal(result.executionStopped, false);
+  assert.equal(result.output, ''); assert.equal(readdirSync(root).length, 1, 'uncertain scratch must be retained');
+});
+
+test('late cancellation cannot rewrite an already settled provider result', seatbeltOnly, async () => {
+  const capture = await privateCapture(), controller = new AbortController();
+  const result = await capture({ sandbox: '/usr/bin/sandbox-exec', executable: process.execPath },
+    { prompt: '', timeoutMs: 3000, maxBytes: 1024, signal: controller.signal },
+    { command: process.execPath, args: ['-e', 'process.stdout.write("settled")'] });
+  assert.equal(result.status, 'complete'); assert.equal(result.executionStopped, true);
+  controller.abort(); assert.equal(result.status, 'complete'); assert.equal(result.output, 'settled');
+});
+
+for (const restricted of [true, false]) test(`${restricted ? 'restricted' : 'AFK'} failed termination returns unknown within its deadline and retains its owned child`,
+  restricted ? seatbeltOnly : { skip: process.platform === 'win32' && 'POSIX signal fault fixture.' }, async t => {
+    const root = mkdtempSync(resolve(tmpdir(), 'ewai-cancel-denied-')), controller = new AbortController();
+    const api = await privateTransport({ root, signalsDenied: true, onReady: () => controller.abort() });
+    t.after(async () => {
+      for (const child of api.owned) {
+        const closed = new Promise(done => child.once('close', done));
+        try { process.kill(-child.pid, 'SIGKILL'); await closed; } catch {}
+      }
+      rmSync(root, { recursive: true, force: true });
+    });
+    const args = ['-e', 'process.on("SIGTERM",()=>{});process.stdout.write("FIXTURE_READY");setInterval(()=>{},1000)'];
+    const started = performance.now();
+    const result = restricted ? await api.captureRestrictedProcess({ sandbox: '/usr/bin/sandbox-exec', executable: process.execPath },
+      { prompt: '', timeoutMs: 5000, maxBytes: 1024, signal: controller.signal }, { command: process.execPath, args })
+      : await api.invokeProvider({ provider: 'codex', command: process.execPath, args, cwd: root, prompt: '', timeoutMs: 5000,
+        logPath: resolve(root, 'provider.log') }, { signal: controller.signal });
+    assert.equal(controller.signal.aborted, true, 'fixture became ready before cancellation');
+    assert.equal(result.status, 'unknown'); assert.equal(result.executionStopped, false); assert.equal(result.output, '');
+    assert.ok(performance.now() - started < 4000, 'does not wait for an impossible close event');
+    assert.equal(api.owned.length, 1); assert.doesNotThrow(() => process.kill(api.owned[0].pid, 0), 'owned fixture is still alive');
+    if (restricted) assert.equal(readdirSync(root).length, 1, 'uncertain scratch is retained');
+  });
+
+test('AFK pre-cancellation prevents logging and spawning', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-pre-cancel-')); t.after(() => rmSync(root, { recursive: true, force: true }));
+  const controller = new AbortController(); controller.abort('private');
+  const result = await invokeProvider({ provider: 'codex', command: process.execPath, args: [], cwd: root,
+    prompt: '', timeoutMs: 100, logPath: resolve(root, 'never.log') }, { signal: controller.signal });
+  assert.equal(result.cancelled, true); assert.equal(result.executionStopped, true); assert.deepEqual(readdirSync(root), []);
+});
+
+test('restriction verification accepts only bounded host cancellation controls', async () => {
+  for (const control of [null, [], { signal: {} }, { timeoutMs: 99 }, { timeoutMs: 600001 }, { timeoutMs: '100' }, { command: 'unsafe' }]) {
+    assert.equal((await verifyPhaseProviderConformance({}, control)).code, 'phase-provider-input-invalid');
+  }
+  const controller = new AbortController(); controller.abort('private-reason');
+  const result = await verifyPhaseProviderConformance({}, { signal: controller.signal, timeoutMs: 100 });
+  assert.equal(result.code, 'phase-cancelled'); assert.equal(result.executionStopped, true);
+  assert.equal(JSON.stringify(result).includes('private-reason'), false);
 });
