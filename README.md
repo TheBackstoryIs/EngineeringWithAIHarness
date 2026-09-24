@@ -2,6 +2,23 @@
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
+## EWAI can now pick up the next ready piece of work
+
+If you’ve prepared several work items, you can choose which ones EWAI is allowed to take on. EWAI checks what’s ready, uses the priorities you’ve recorded to pick the next item, and starts its delivery workflow. Once you’ve separately approved the Build, it can run the approved build tasks, their tests and a fresh review.
+
+This `0.3.0-beta.0` release adds dashboard and command-line controls to preview the work, approve the exact list, set time and attempt limits, follow progress, and pause, cancel or recover a run. New work isn’t added to the list automatically. EWAI stops when it needs a decision from you.
+
+The final whole-delivery test stage, Manual QA and release preparation still happen through the normal EWAI workflow. This beta doesn’t approve or complete those steps for you. Manual QA for this beta is still pending, so treat it as an evaluation build.
+
+To try the beta in a disposable project without replacing a global stable installation, run:
+
+```bash
+npm install --save-dev @thebackstoryis/engineering-with-ai@beta
+npx ewai
+```
+
+To use the beta as your global EWAI version instead, run `npm install --global @thebackstoryis/engineering-with-ai@beta`. This replaces any globally installed stable version.
+
 ## Install and start
 
 You'll need Node.js 22.5 or newer, npm, and a supported AI command-line tool such as Codex or Claude Code, installed and signed in.

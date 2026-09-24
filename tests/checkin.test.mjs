@@ -131,6 +131,33 @@ test('checks the npm registry version for a packaged installation', async () => 
   }
 });
 
+test('an installed beta follows the npm beta channel rather than offering stable as an update', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-framework-beta-'));
+  try {
+    writeFileSync(resolve(root, 'package.json'), JSON.stringify({
+      name: '@thebackstoryis/engineering-with-ai', version: '0.3.0-beta.0'
+    }));
+    const requested = [];
+    const fetchImpl = async url => {
+      requested.push(url);
+      return { ok: true, json: async () => ({ version: '0.3.0-beta.1' }) };
+    };
+    const available = await frameworkStatus(root, { fetchImpl });
+    assert.equal(requested[0], 'https://registry.npmjs.org/%40thebackstoryis%2Fengineering-with-ai/beta');
+    assert.deepEqual(available, {
+      status: 'update-available', source: 'npm', current: '0.3.0-beta.0', latest: '0.3.0-beta.1',
+      action: {
+        kind: 'offer-npm-update',
+        prompt: 'EWAI 0.3.0-beta.1 is available from npm. Would you like me to update the global package?',
+        command: 'npm install --global @thebackstoryis/engineering-with-ai@beta'
+      }
+    });
+    const older = await frameworkStatus(root, { fetchImpl: async () => ({ ok: true, json: async () => ({ version: '0.2.9-beta.9' }) }) });
+    assert.equal(older.status, 'current');
+    assert.equal(older.action, null);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test('does not mistake an npm package nested below an unrelated Git checkout for a Git installation', async () => {
   const ancestor = mkdtempSync(resolve(tmpdir(), 'ewai-framework-ancestor-'));
   try {

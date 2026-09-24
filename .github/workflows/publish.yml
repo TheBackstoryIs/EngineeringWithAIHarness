@@ -48,5 +48,9 @@ jobs:
       - name: Inspect package
         run: npm pack --dry-run
 
+      - name: Select npm release channel
+        id: release-channel
+        run: echo "tag=$(node scripts/publish-tag.mjs)" >> "$GITHUB_OUTPUT"
+
       - name: Publish
-        run: npm publish
+        run: npm publish --tag "${{ steps.release-channel.outputs.tag }}"
