@@ -2691,3 +2691,67 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .configuration-heading h2 { font-size: 25px; }
   .configuration-group header, .configuration-setting, .configuration-licence, .configuration-shortcuts { padding: 19px; }
 }
+
+/* Governed autonomy sits inside the existing views, never in a new navigation lane. */
+.autonomy-configuration > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.autonomy-mode { flex: 0 0 auto; padding: 7px 10px; border-radius: 4px; background: var(--canvas); color: var(--muted); font-size: 11px; }
+.autonomy-mode.delegated { background: var(--green-soft); color: var(--green); }
+.autonomy-mode.revoked { background: var(--red-soft); color: var(--red); }
+.autonomy-configuration-body { display: grid; gap: 17px; min-width: 0; padding: 24px; }
+.autonomy-configuration fieldset { min-width: 0; margin: 0; padding: 15px; border: 1px solid var(--line); border-radius: 5px; }
+.autonomy-configuration legend { padding: 0 5px; font-weight: 750; }
+.autonomy-configuration fieldset > p { margin: 0 0 12px; font-size: 12px; }
+.autonomy-pool { display: grid; gap: 8px; margin-top: 12px; }
+.autonomy-pool-choice { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 9px; align-items: center; min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); text-align: left; cursor: pointer; }
+.autonomy-pool-choice[aria-checked="true"] { border-color: var(--green); background: var(--green-soft); }
+.autonomy-pool-mark { grid-row: span 2; display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--line-strong); border-radius: 3px; color: transparent; font-size: 12px; }
+.autonomy-pool-choice[aria-checked="true"] .autonomy-pool-mark { border-color: var(--green); background: var(--green); color: white; }
+.autonomy-pool-choice span, .autonomy-pool-choice small { min-width: 0; overflow-wrap: anywhere; }
+.autonomy-pool-choice small { color: var(--muted); }
+.autonomy-actions-field { display: grid; gap: 7px; }
+.autonomy-actions-field button { min-height: 44px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); text-align: left; cursor: pointer; }
+.autonomy-actions-field button[aria-checked="true"] { border-color: var(--green); background: var(--green-soft); color: var(--green); font-weight: 750; }
+.autonomy-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.autonomy-limits label { display: grid; gap: 5px; font-weight: 700; }
+.autonomy-limits input, .autonomy-limits select, .autonomy-dialog input, .autonomy-dialog select, .autonomy-dialog textarea { width: 100%; min-width: 0; min-height: 44px; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); color: var(--ink); }
+.autonomy-dialog textarea { min-height: 120px; resize: vertical; }
+.autonomy-boundary { padding: 13px 15px; border-left: 4px solid var(--amber); background: var(--amber-soft); color: var(--ink) !important; }
+.autonomy-button-row, .autonomy-card-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.autonomy-button-row button, .autonomy-card-actions button, .autonomy-dialog button { min-height: 44px; font-size: 12px; }
+.autonomy-proposal-summary { padding: 13px 15px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-2); overflow-wrap: anywhere; }
+#autonomyConfigurationStatus { font-weight: 700; }
+.autonomy-companion, .autonomy-live { margin: 20px 24px 28px; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.autonomy-companion > header, .autonomy-live > header { margin-bottom: 18px; }
+.autonomy-companion h3, .autonomy-live h3 { margin: 0 0 6px; font-size: 19px; }
+.autonomy-companion h4, .autonomy-live h4 { margin: 0 0 9px; font-size: 14px; }
+.autonomy-companion header p, .autonomy-live header p { margin: 0; color: var(--muted); line-height: 1.5; }
+.autonomy-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.autonomy-columns > section, .autonomy-blocked-section { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-2); }
+.autonomy-columns > section:nth-child(2) { border-top: 3px solid var(--amber); }
+.autonomy-blocked-section { margin-top: 16px; }
+.autonomy-candidate, .autonomy-run, .autonomy-empty { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); overflow-wrap: anywhere; }
+.autonomy-candidate + .autonomy-candidate, .autonomy-run + .autonomy-run { margin-top: 9px; }
+.autonomy-candidate h5 { margin: 0 0 4px; font-size: 14px; }
+.autonomy-candidate small, .autonomy-run small { color: var(--muted); overflow-wrap: anywhere; }
+.autonomy-candidate p, .autonomy-run p, .autonomy-empty p { margin: 10px 0; line-height: 1.5; }
+.autonomy-question-context { padding: 10px 12px; border-left: 3px solid var(--amber); background: var(--amber-soft); color: var(--ink); overflow-wrap: anywhere; }
+.autonomy-reasons { color: var(--amber); font-weight: 700; }
+.autonomy-candidate .autonomy-card-actions, .autonomy-run .autonomy-card-actions { margin-top: 12px; }
+.autonomy-intent-detail { margin-top: 18px; padding: 16px; border-left: 4px solid var(--green); background: var(--surface-2); }
+.autonomy-intent-detail h3 { margin: 0 0 7px; }
+.autonomy-intent-detail p { margin: 7px 0; overflow-wrap: anywhere; }
+.autonomy-dialog .action-body { display: grid; gap: 9px; }
+.autonomy-dialog .action-body label { font-weight: 700; }
+.autonomy-dialog .action-body p { margin: 0 0 8px; }
+.autonomy-dialog .close-button { width: 44px; min-width: 44px; height: 44px; padding: 0; }
+.autonomy-dialog-error:not(:empty) { padding: 10px 12px; border-left: 3px solid var(--red); background: var(--red-soft); color: var(--red); }
+.autonomy-dialog :focus-visible, .autonomy-configuration :focus-visible, .autonomy-companion :focus-visible, .autonomy-live :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 720px) {
+  .autonomy-configuration > header { flex-direction: column; }
+  .autonomy-configuration-body { padding: 18px; }
+  .autonomy-limits, .autonomy-columns { grid-template-columns: minmax(0, 1fr); }
+  .autonomy-companion, .autonomy-live { margin: 16px 12px; padding: 16px; }
+  .autonomy-button-row { flex-direction: column; }
+  .autonomy-button-row button { width: 100%; }
+  .autonomy-dialog .action-sheet > footer { flex-wrap: wrap; }
+}

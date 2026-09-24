@@ -19,6 +19,7 @@ const meetingEvidenceDisclaimer = 'Security validation is evidence, not certific
 const knowledgeProposalDisclaimer = 'Security validation is evidence, not certification or proof that this system is secure. Tools can miss vulnerabilities and produce false positives. A qualified human must review the scope, findings, limitations and residual risk before release.';
 
 import {createDashboardNavigation} from './dashboard-navigation.js';
+import {configureAutonomyDashboard, loadAutonomyState, renderAutonomyIntentDetail} from './autonomy.js';
 
 const state = {
   project: null,
@@ -1313,6 +1314,7 @@ function renderDrawer() {
     button.setAttribute('tabindex', active ? '0' : '-1');
   });
   element('drawerContent').innerHTML = renderers[state.selectedTab](state.selected);
+  if (state.selectedTab === 'overview') renderAutonomyIntentDetail(state.selected.item);
 }
 
 function activateDrawerTab(tab, { focus = false } = {}) {
@@ -3814,6 +3816,7 @@ async function refreshRuntime() {
   if (state.view === 'companion' && !state.companionLoading) await loadCompanion();
   if (state.view === 'portfolio' && !state.portfolioLoading) await loadPortfolio();
   if (state.view === 'rollout' && !state.rolloutLoading) await loadRollout();
+  if (['configuration', 'companion', 'live'].includes(state.view) || element('intentDialog').open) await loadAutonomyState();
   element('pollStatus').textContent = 'Updated just now · refreshing every 5 seconds';
   if (state.selected && element('intentDialog').open) {
     const previous = state.selected;
@@ -3878,6 +3881,7 @@ function setView(view) {
   if (view === 'companion') loadCompanion().catch(console.error);
   if (view === 'portfolio') loadPortfolio().catch(console.error);
   if (view === 'rollout') loadRollout().catch(console.error);
+  if (['configuration', 'companion', 'live'].includes(view)) loadAutonomyState().catch(console.error);
   if (!state.pollTimer) state.pollTimer = window.setInterval(() => refreshRuntime().catch(console.error), 5000);
   refreshRuntime().catch(console.error);
 }
@@ -4734,6 +4738,7 @@ element('showDone').addEventListener('change', (event) => {
   renderBoard();
 });
 element('refresh').addEventListener('click', () => {
+  if (['configuration', 'companion', 'live'].includes(state.view)) loadAutonomyState().catch(console.error);
   if (state.view === 'hooks') loadHooks().catch(console.error);
   else if (state.view === 'policies') loadPolicy().catch(console.error);
   else if (state.view === 'security') loadSecurity().catch(console.error);
@@ -4888,7 +4893,9 @@ element('premiumSetupForm').addEventListener('submit', async event => {
 });
 
 const navigation=createDashboardNavigation({api,onSelect:setView,onManageLicence:()=>element('premiumSetup').click()});
+configureAutonomyDashboard({api,getItems:()=>state.items,openIntent:openItem,showView:setView});
 Promise.all([navigation.refresh(),loadBoard()]).then(() => {
+  loadAutonomyState().catch(console.error);
   if (!state.pollTimer) state.pollTimer = window.setInterval(() => refreshRuntime().catch(console.error), 5000);
 }).catch((error) => {
   element('runtimeStatus').textContent = error.message;
