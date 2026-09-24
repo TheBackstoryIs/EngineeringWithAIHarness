@@ -175,7 +175,11 @@ test('packed consumer starts off and recovers a controlled interrupted run', { t
     assert.equal(existsSync(resolve(projectRoot, 'knowledge/6.Build/beta/gates/manual-qa/gate-ledger.json')), false);
     const status = json(cli(['autonomy', 'status', '--project', projectRoot, '--json']));
     assert.equal(JSON.stringify(status).includes('Review this separately'), false);
-    assert.deepEqual(readFileSync(marker, 'utf8').trim().split('\n'), ['--version'], 'human pause cannot invoke the provider');
+    if (process.platform === 'darwin') {
+      assert.deepEqual(readFileSync(marker, 'utf8').trim().split('\n'), ['--version'], 'human pause cannot invoke the provider');
+    } else {
+      assert.equal(existsSync(marker), false, 'human pause cannot invoke the provider on an unsupported host');
+    }
   } finally {
     process.env.PATH = oldPath;
     for (const started of [service, humanService].filter(Boolean)) {
