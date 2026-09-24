@@ -1,0 +1,4 @@
+interface:
+  display_name: "EWAI Autonomy"
+  short_description: "Govern exact-pool autonomous intent delivery"
+  default_prompt: "Use $ewai-autonomy to review this project's autonomous delivery status and bounded next action."
