@@ -15,7 +15,7 @@ test('the public beta has a visible release note and a distinct prerelease versi
   const metadata = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
   const lock = JSON.parse(readFileSync(resolve('package-lock.json'), 'utf8'));
   const readme = readFileSync(resolve('README.md'), 'utf8');
-  assert.equal(metadata.version, '0.3.0-beta.0');
+  assert.equal(metadata.version, '0.3.0-beta.1');
   assert.equal(lock.version, metadata.version);
   assert.equal(lock.packages[''].version, metadata.version);
   assert.match(readme, /EWAI can now pick up the next ready piece of work/);

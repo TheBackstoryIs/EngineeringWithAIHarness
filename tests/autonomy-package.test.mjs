@@ -41,7 +41,11 @@ async function packedConsumer(t, options = {}) {
   // let the engine's script policy become the disposable consumer's policy.
   const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^npm_config_/i.test(name)));
   const installed = execute('npm', ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--no-package-lock', '--no-save', tarball], {
-    cwd: consumerRoot, timeout: 120000, env: { ...cleanEnv, npm_config_update_notifier: 'false' },
+    cwd: consumerRoot, timeout: 120000, env: {
+      ...cleanEnv,
+      npm_config_cache: resolve(root, 'npm-cache'),
+      npm_config_update_notifier: 'false',
+    },
   });
   assert.equal(installed.status, 0, installed.stderr || installed.stdout);
   const packageRoot = resolve(consumerRoot, 'node_modules/@thebackstoryis/engineering-with-ai');
@@ -120,9 +124,14 @@ test('packed consumer starts off and recovers a controlled interrupted run', { t
       await new Promise(resolveWait => setTimeout(resolveWait, 40)); current = readAutonomyRun(projectRoot, service.id);
     }
     assert.equal(current.status, 'blocked');
-    assert.equal(current.code, 'phase-provider-version-unverified');
+    assert.equal(current.code, process.platform === 'darwin'
+      ? 'phase-provider-version-unverified' : 'phase-provider-mode-unavailable');
     assert.equal(current.counters.providerAttempts, 0);
-    assert.deepEqual(readFileSync(marker, 'utf8').trim().split('\n'), ['--version'], 'no provider work may start');
+    if (process.platform === 'darwin') {
+      assert.deepEqual(readFileSync(marker, 'utf8').trim().split('\n'), ['--version'], 'no provider work may start');
+    } else {
+      assert.equal(existsSync(marker), false, 'unsupported platforms must not invoke the provider');
+    }
 
     json(cli(['intent', 'create', 'beta', '--domain', 'product', '--title', 'Human checkpoint fixture', '--project', projectRoot, '--json']));
     updateIntentDeliveryState(projectRoot, resolve(projectRoot, 'knowledge/2.Purpose/intents/product/beta.md'), { status: 'ready' });

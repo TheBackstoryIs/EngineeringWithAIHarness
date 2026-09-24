@@ -6,7 +6,7 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 If you’ve prepared several work items, you can choose which ones EWAI is allowed to take on. EWAI checks what’s ready, uses the priorities you’ve recorded to pick the next item, and starts its delivery workflow. Once you’ve separately approved the Build, it can run the approved build tasks, their tests and a fresh review.
 
-This `0.3.0-beta.0` release adds dashboard and command-line controls to preview the work, approve the exact list, set time and attempt limits, follow progress, and pause, cancel or recover a run. New work isn’t added to the list automatically. EWAI stops when it needs a decision from you.
+This `0.3.0-beta.1` release adds dashboard and command-line controls to preview the work, approve the exact list, set time and attempt limits, follow progress, and pause, cancel or recover a run. New work isn’t added to the list automatically. EWAI stops when it needs a decision from you.
 
 The final whole-delivery test stage, Manual QA and release preparation still happen through the normal EWAI workflow. This beta doesn’t approve or complete those steps for you. Manual QA for this beta is still pending, so treat it as an evaluation build.
 
