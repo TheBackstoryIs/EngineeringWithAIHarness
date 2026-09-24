@@ -84,6 +84,15 @@ export function autonomyFiles(root, directory) {
   };
   visit(directory, 0); return files;
 }
+export function autonomyRunIds(root) {
+  return autonomyGuard(() => {
+    const paths = autonomyPaths(root), directory = resolve(paths.controlRoot, 'supervisor/runs');
+    const ids = [...new Set(autonomyFiles(paths.projectRoot, directory).map(path => relative(directory, path).split('/')[0]))];
+    if (ids.length > 256) autonomyError('autonomy-run-evidence-limit');
+    if (ids.some(id => !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id))) autonomyError('autonomy-run-evidence-invalid');
+    return ids.sort();
+  });
+}
 export function writeAutonomyRecord(root, path, value) {
   safeAutonomyPath(root, path); mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   safeAutonomyPath(root, path);

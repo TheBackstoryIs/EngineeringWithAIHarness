@@ -42,6 +42,8 @@ import {
   safeContextManifest,
 } from './context-assembly.mjs';
 import {
+  autonomyInterfaceAction,
+  safeAutonomyInterfaceError,
   approveBuildFromDashboard,
   controlAfkFromDashboard,
   dashboardAfkRuns,
@@ -420,6 +422,26 @@ const server = createServer(async (request, response) => {
 
   const url = new URL(request.url ?? '/', `http://${host}`);
   try {
+    if (url.pathname === '/api/autonomy' || url.pathname.startsWith('/api/autonomy/')) {
+      if (![ `127.0.0.1:${requestedPort}`, `localhost:${requestedPort}` ].includes(host)) {
+        return json(response, 403, safeAutonomyInterfaceError({ code: 'autonomy-host-invalid', statusCode: 403 }));
+      }
+      const action = url.pathname === '/api/autonomy' ? 'status' : url.pathname.slice('/api/autonomy/'.length);
+      if (!['status', 'preview', 'approve', 'revoke', 'run', 'service', 'control', 'answer'].includes(action)) {
+        return json(response, 404, safeAutonomyInterfaceError({ code: 'autonomy-route-not-found', statusCode: 404 }));
+      }
+      if (request.method !== (action === 'status' ? 'GET' : 'POST')) {
+        return json(response, 405, safeAutonomyInterfaceError({ code: 'autonomy-method-not-allowed', statusCode: 405 }));
+      }
+      if ([...url.searchParams.keys()].some(key => action !== 'status' || key !== 'runId') || url.searchParams.getAll('runId').length > 1) {
+        return json(response, 400, safeAutonomyInterfaceError({ code: 'autonomy-invalid-input', statusCode: 400 }));
+      }
+      if (action !== 'status' && String(request.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+        return json(response, 415, safeAutonomyInterfaceError({ code: 'autonomy-json-required', statusCode: 415 }));
+      }
+      const input = action === 'status' ? (url.searchParams.has('runId') ? { runId: url.searchParams.get('runId') } : {}) : await readJson(request);
+      return json(response, 200, await autonomyInterfaceAction(projectRoot, action, input));
+    }
     if (request.method === 'GET' && url.pathname === '/api/health') {
       return json(response, 200, {
         ok: true,
@@ -1205,6 +1227,9 @@ const server = createServer(async (request, response) => {
     if (request.method === 'GET' && serveStatic(response, url.pathname)) return;
     return json(response, 404, { error: 'Not found' });
   } catch (error) {
+    if (url.pathname === '/api/autonomy' || url.pathname.startsWith('/api/autonomy/')) {
+      const safe = safeAutonomyInterfaceError(error); return json(response, safe.statusCode, safe);
+    }
     if (!url.pathname.startsWith('/api/error-reports')) {
       try {
         captureErrorReportFailure(projectRoot, {
