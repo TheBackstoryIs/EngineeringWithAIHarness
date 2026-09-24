@@ -4,6 +4,7 @@ import { resolve, relative, dirname, isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import YAML from 'yaml';
+import { execFileSync } from 'node:child_process';
 import { projectPaths } from '../paths.mjs';
 import { deriveExecutionState } from '../execution-state.mjs';
 import { ORGANISATION_POLICY_BASELINE_PATH } from '../organisation-policies.mjs';
@@ -143,6 +144,37 @@ export function readAutonomySnapshot(root) {
   const temporary = realpathSync(mkdtempSync(resolve(tmpdir(), 'ewai-autonomy-canonical-')));
   try { return readSnapshot(root, temporary); }
   finally { rmSync(temporary, { recursive: true, force: true }); }
+}
+
+export function readAutonomyRepositoryState(root, ownedFiles = []) {
+  const paths = autonomyPaths(root), config = YAML.parse(readAutonomyFile(paths.projectRoot, paths.configPath));
+  const repositories = config.repositories;
+  if (!Array.isArray(repositories) || !repositories.length) autonomyError('autonomy-repository-config-invalid');
+  const roots = [], records = [], reasons = [];
+  for (const repository of repositories) {
+    if (typeof repository.path !== 'string') autonomyError('autonomy-repository-config-invalid');
+    const configured = resolve(paths.projectRoot, repository.path); safeAutonomyPath(paths.projectRoot, configured);
+    let actual, status;
+    try {
+      actual = realpathSync(execFileSync('git', ['-C', configured, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim());
+      if (actual !== realpathSync(configured)) autonomyError('autonomy-repository-root-mismatch');
+      status = execFileSync('git', ['-C', actual, 'status', '--porcelain=v1', '--untracked-files=all', '-z'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch { autonomyError('autonomy-repository-unavailable'); }
+    if (roots.some(other => actual === other || actual.startsWith(other + '/') || other.startsWith(actual + '/'))) reasons.push('autonomy-repository-topology-overlap');
+    roots.push(actual);
+    // Only exact, unchanged files from this supervisor's canonical receipt may
+    // be carried into its next action. Staged edits, renames and deletions block.
+    const dirty = status.split('\0').filter(Boolean).some(entry => {
+      if (!['??', ' M'].includes(entry.slice(0, 2))) return true;
+      const path = resolve(actual, entry.slice(3)), rel = relative(paths.projectRoot, path);
+      const owned = ownedFiles.find(file => file.path === rel);
+      return !owned || autonomyDigest(readAutonomyFile(paths.projectRoot, path)) !== owned.digest;
+    });
+    if (dirty) reasons.push('autonomy-repository-dirty');
+    const identity = execFileSync('git', ['-C', actual, 'rev-parse', 'HEAD', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    records.push({ root: relative(paths.projectRoot, actual), identity });
+  }
+  return { status: reasons.length ? 'blocked' : 'ready', reasons: [...new Set(reasons)], digest: autonomyDigest(records), records };
 }
 function readSnapshot(root, temporary) {
   const paths = autonomyPaths(root);

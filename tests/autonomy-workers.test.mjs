@@ -35,7 +35,7 @@ async function workerFixture(t, options = {}) {
   finishActiveSession(root, 'product/alpha', { tool: 'claude', summary: 'Fixture setup complete.' });
   const url = new URL('../src/runtime/autonomy-workers.mjs', import.meta.url);
   const stub = `export async function invokeRestrictedPhaseProvider(adapter,input) {
-    const request=JSON.parse(input.prompt); await adapter.observe?.(request);
+    const request=JSON.parse(input.prompt); await adapter.observe?.(request, input.signal);
     return adapter.result ?? {status:'complete',exitCode:0,executionStopped:true,output:JSON.stringify({
       schema:'ewai.autonomy-phase-proposal/v1',phase:request.contract.phase,contractDigest:request.contract.digest,
       artifacts:[{path:request.contract.paths[0],content:'Useful draft: clarify the accepted outcome and unresolved evidence.',sourceRefs:['accepted-intent']}]
@@ -65,6 +65,50 @@ test('a worker proposal cannot author approval or checker receipts', async t => 
   assert.equal(existsSync(checker), false, 'proposal execution must prevent checker writes');
   assert.equal(denied, true, 'broad AFK transport must reject proposal execution');
   assert.equal(existsSync(resolve(root, 'unsafe-provider.log')), false, 'no raw proposal log may be opened');
+});
+
+test('host cancellation is forwarded privately and rejects late proposal acceptance (PTS-021)', async t => {
+  const fixture = await workerFixture(t), controller = new AbortController();
+  let observed = null;
+  fixture.adapter.observe = (request, signal) => {
+    observed = signal; assert.equal(JSON.stringify(request).includes('private-cancel-reason'), false);
+  };
+  const contract = fixture.api.prepareAutonomyPhase(fixture.root, 'product/alpha', 'intent');
+  const result = await fixture.api.invokePhaseProposal(contract, fixture.adapter, { signal: controller.signal });
+  assert.equal(observed, controller.signal, 'trusted cancellation signal must reach the adapter');
+  assert.equal(result.status, 'draft-ready');
+  controller.abort('private-cancel-reason');
+  const accepted = fixture.api.acceptPhaseProposal(fixture.root, contract.operationId, result);
+  assert.equal(accepted.status, 'blocked'); assert.equal(accepted.code, 'phase-cancelled');
+  assert.equal(existsSync(resolve(fixture.root, result.proposalRoot, 'intent-summary.md')), true);
+  assert.equal(existsSync(resolve(fixture.root, 'knowledge/3.Evidence/autonomy/phase-workers', contract.operationId, 'assessment.json')), false);
+  assert.equal(JSON.stringify(accepted).includes('private-cancel-reason'), false);
+});
+
+test('pre-aborted and serialised cancellation controls cannot dispatch a phase worker', async t => {
+  const fixture = await workerFixture(t), controller = new AbortController(); controller.abort();
+  let calls = 0; fixture.adapter.observe = () => { calls += 1; };
+  const contract = fixture.api.prepareAutonomyPhase(fixture.root, 'product/alpha', 'intent');
+  assert.equal((await fixture.api.invokePhaseProposal(contract, fixture.adapter, { signal: controller.signal })).code, 'phase-cancelled');
+  assert.equal(calls, 0);
+  for (const control of [{ signal: { aborted: true } }, { pid: process.pid }, { command: 'kill' }]) {
+    assert.equal((await fixture.api.invokePhaseProposal(contract, fixture.adapter, control)).code, 'phase-control-invalid');
+  }
+  assert.equal(calls, 0);
+});
+
+test('cancellation during a late valid proposal retains unaccepted work without leaking reasons', async t => {
+  const fixture = await workerFixture(t), controller = new AbortController();
+  fixture.adapter.observe = (_request, signal) => {
+    assert.equal(signal, controller.signal); controller.abort('private-cancel-reason');
+  };
+  const contract = fixture.api.prepareAutonomyPhase(fixture.root, 'product/alpha', 'intent');
+  const result = await fixture.api.invokePhaseProposal(contract, fixture.adapter, { signal: controller.signal });
+  assert.equal(result.status, 'unaccepted-draft'); assert.equal(result.code, 'phase-cancelled');
+  assert.equal(fixture.api.acceptPhaseProposal(fixture.root, contract.operationId, result).status, 'blocked');
+  const directory = resolve(fixture.root, 'knowledge/3.Evidence/autonomy/phase-workers', contract.operationId);
+  assert.equal(existsSync(resolve(directory, 'drafts/intent-summary.md')), true);
+  for (const file of ['dispatch.json', 'outcome.json']) assert.equal(readFileSync(resolve(directory, file), 'utf8').includes('private-cancel-reason'), false);
 });
 
 const boundContract = phase => ({ phase, digest: `sha256:${'a'.repeat(64)}`,

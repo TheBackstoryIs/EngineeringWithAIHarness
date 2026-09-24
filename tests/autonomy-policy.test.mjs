@@ -20,7 +20,7 @@ import { evaluatePolicyGate, readPolicyEvidenceFreshness } from '../src/policy-g
 import { updateWorkItem } from '../src/runtime/work.mjs';
 import { deriveExecutionState } from '../src/execution-state.mjs';
 import { readRuntimeIntent } from '../src/runtime/intents.mjs';
-import { readAutonomyPolicy, previewAutonomy, approveAutonomyGrant } from '../src/autonomy.mjs';
+import { readAutonomyPolicy, previewAutonomy, approveAutonomyGrant, revokeAutonomyGrant } from '../src/autonomy.mjs';
 
 function fixture(t, specsRoot = 'knowledge') {
   const root = realpathSync(mkdtempSync(resolve(tmpdir(), 'ewai-autonomy-policy-')));
@@ -54,6 +54,51 @@ function inventory(root) {
 const codes = item => item.reasons.map(reason => reason.code);
 const previewPath = (root, digest) => resolve(root, '.ewai-pipeline/runtime/autonomy/previews',
   readdirSync(resolve(root, '.ewai-pipeline/runtime/autonomy/previews')).find(name => name.endsWith(`${digest.slice(7)}.json`)));
+
+test('named revocation survives runtime rebuild and only fresh approval can restore delegation', t => {
+  const root = fixture(t); intent(root, 'alpha');
+  const grant = approve(root, proposal(['product/alpha']));
+  const displayed = previewAutonomy(root, { proposal: proposal(['product/alpha']), record: true });
+  const revocation = revokeAutonomyGrant(root, { expectedDigest: grant.digest, revokedBy: 'Fixture owner', confirmed: true });
+  const policy = readAutonomyPolicy(root);
+  assert.equal(policy.mode, 'off'); assert.equal(policy.status, 'revoked');
+  assert.deepEqual(policy.grant, grant); assert.deepEqual(policy.revocation, revocation);
+  assert.notEqual(policy.digest, grant.digest);
+  const before = inventory(root), preview = previewAutonomy(root);
+  assert.equal(preview.executable.length, 0);
+  assert.ok(codes(preview.blocked[0]).includes('grant-revoked'));
+  assert.deepEqual(inventory(root), before, 'shadow does not rewrite canonical revocation');
+  assert.throws(() => approveAutonomyGrant(root, { expectedDigest: displayed.digest, approvedBy: 'Owner', confirmed: true }), { code: 'autonomy-preview-stale' });
+  assert.throws(() => revokeAutonomyGrant(root, { expectedDigest: grant.digest, revokedBy: 'Owner', confirmed: true }), { code: 'autonomy-policy-stale' });
+  assert.deepEqual(revokeAutonomyGrant(root, { expectedDigest: policy.digest, revokedBy: 'Owner', confirmed: true }), revocation);
+  rmSync(resolve(root, '.ewai-pipeline/data'), { recursive: true });
+  rmSync(resolve(root, '.ewai-pipeline/runtime/autonomy'), { recursive: true });
+  assert.equal(readAutonomyPolicy(root).status, 'revoked');
+  const successor = approve(root, proposal(['product/alpha']));
+  assert.equal(successor.revision, 2); assert.equal(successor.previousDigest, grant.digest);
+  assert.equal(readAutonomyPolicy(root).status, 'current');
+  assert.equal(readAutonomyPolicy(root).revocation, null);
+  assert.equal(inventory(resolve(root, 'knowledge/3.Evidence/autonomy/grants', grant.id, 'revocations')).length, 1);
+});
+
+test('revocation rejects stale supplied authority, malformed evidence and unsafe storage', t => {
+  const root = fixture(t); intent(root, 'alpha'); const grant = approve(root, proposal(['product/alpha']));
+  const valid = { expectedDigest: grant.digest, revokedBy: 'Owner', confirmed: true };
+  for (const changes of [{ confirmed: false }, { revokedBy: '' }, { revokedBy: 'Owner\nother' }, { action: 'approve-build' }, { expectedDigest: 'stale' }]) {
+    assert.throws(() => revokeAutonomyGrant(root, { ...valid, ...changes }));
+    assert.equal(readAutonomyPolicy(root).status, 'current');
+  }
+  const outside = resolve(root, 'outside'); mkdirSync(outside);
+  const revocations = resolve(root, 'knowledge/3.Evidence/autonomy/grants', grant.id, 'revocations');
+  symlinkSync(outside, revocations);
+  assert.throws(() => revokeAutonomyGrant(root, valid), { code: 'autonomy-unsafe-path' });
+  assert.deepEqual(readdirSync(outside), []); rmSync(revocations);
+  const record = revokeAutonomyGrant(root, valid);
+  const file = resolve(revocations, `${grant.revision}-${record.digest.slice(7)}.json`);
+  writeFileSync(file, JSON.stringify({ ...record, grantDigest: `sha256:${'a'.repeat(64)}` }));
+  assert.throws(() => readAutonomyPolicy(root), { code: 'autonomy-revocation-invalid' });
+  assert.throws(() => previewAutonomy(root), { code: 'autonomy-revocation-invalid' });
+});
 
 // PTS-002 / PTS-003: the complete positive flow, not a missing-module assertion.
 test('exact approved pool excludes new intents and shadow never invokes delivery', t => {
@@ -414,7 +459,7 @@ test('AUT-R07 shadow preserves genuinely current completed organisation-policy e
     const candidate = preview.blocked.find(item => item.intentId === 'product/alpha');
     assert.equal(codes(candidate).includes('completed-evidence-stale'), false);
     assert.equal(candidate.action, 'prepare-phase');
-    assert.ok(codes(candidate).includes('restricted-phase-contract-unavailable'));
+    assert.deepEqual(codes(candidate), ['repository-ownership-conflict'], 'available draft contract must still respect the existing interactive owner');
     assert.deepEqual(inventory(root), before);
   } finally { database.close(); }
 });

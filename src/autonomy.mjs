@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { getAutonomyPhaseContract } from './autonomy-phase-contracts.mjs';
 import { autonomyError, autonomyGuard, autonomyDigest, autonomyPaths, autonomyFiles, readAutonomyFile,
   writeAutonomyRecord, withAutonomyLock, readAutonomySnapshot } from './runtime/autonomy-workspace.mjs';
 
@@ -33,7 +34,8 @@ export function validateAutonomyScope(input) {
 }
 function readPolicy(root) {
   const paths = autonomyPaths(root);
-  const records = autonomyFiles(paths.projectRoot, resolve(paths.authorityRoot, 'grants')).filter(path => path.includes('/revisions/')).map(path => {
+  const files = autonomyFiles(paths.projectRoot, resolve(paths.authorityRoot, 'grants'));
+  const records = files.filter(path => path.includes('/revisions/')).map(path => {
     const record = JSON.parse(readAutonomyFile(paths.projectRoot, path));
     keys(record, ['schema', 'id', 'revision', 'previousDigest', 'digest', 'proposalDigest', 'approvedBy', 'approvedAt', 'scope', 'humanExclusions', 'configDigest', 'projectIdentity']);
     const { digest, ...body } = record;
@@ -50,9 +52,25 @@ function readPolicy(root) {
       || index > 0 && record.id !== records[0].id) autonomyError('autonomy-grant-history-invalid', 422);
   });
   const grant = records.at(-1) ?? null;
-  const status = !grant ? 'absent' : Date.parse(grant.scope.expiresAt) <= Date.now() ? 'expired' : 'current';
+  const revokedRevisions = new Set();
+  const revocations = files.filter(path => path.includes('/revocations/')).map(path => {
+    const record = JSON.parse(readAutonomyFile(paths.projectRoot, path));
+    keys(record, ['schema', 'id', 'grantRevision', 'grantDigest', 'revokedBy', 'revokedAt', 'projectIdentity', 'digest']);
+    const { digest, ...body } = record;
+    const source = records.find(candidate => candidate.revision === record.grantRevision);
+    if (record.schema !== 'ewai.autonomy-revocation/v1' || !source || record.id !== source.id
+      || record.grantDigest !== source.digest || record.projectIdentity !== source.projectIdentity
+      || !validApprover(record.revokedBy) || !Number.isFinite(Date.parse(record.revokedAt))
+      || Date.parse(record.revokedAt) < Date.parse(source.approvedAt)
+      || digest !== autonomyDigest(body) || revokedRevisions.has(record.grantRevision)
+      || !path.endsWith(`/grants/${record.id}/revocations/${record.grantRevision}-${digest.slice(7)}.json`)) autonomyError('autonomy-revocation-invalid', 422);
+    revokedRevisions.add(record.grantRevision); return record;
+  });
+  const revocation = revocations.find(record => record.grantDigest === grant?.digest) ?? null;
+  const status = !grant ? 'absent' : revocation ? 'revoked' : Date.parse(grant.scope.expiresAt) <= Date.now() ? 'expired' : 'current';
   return { schema: 'ewai.autonomy-policy/v1', mode: status === 'current' ? 'delegated' : 'off', status, grant,
-    digest: grant?.digest ?? autonomyDigest({ mode: 'off', project: paths.projectRoot }),
+    revocation, digest: revocation ? autonomyDigest({ grant: grant.digest, revocation: revocation.digest })
+      : grant?.digest ?? autonomyDigest({ mode: 'off', project: paths.projectRoot }),
     humanExclusions: [...AUTONOMY_HUMAN_EXCLUSIONS], serviceStarted: false };
 }
 export function readAutonomyPolicy(root) { return autonomyGuard(() => readPolicy(root)); }
@@ -66,6 +84,7 @@ function classify(item, scope, policy, snapshot, isProposal) {
   if (!state.valid) state.blockers.forEach(blocker => add(/^[a-z0-9-]{1,100}$/.test(blocker.code) ? blocker.code : 'canonical-evidence-invalid'));
   if (!scope) add('autonomy-off');
   else if (Date.parse(scope.expiresAt) <= Date.now()) add('grant-expired');
+  if (!isProposal && policy.status === 'revoked') add('grant-revoked');
   if (!isProposal && policy.grant && policy.grant.configDigest !== snapshot.configDigest) add('grant-policy-changed');
   if (phase === 'manual-qa') { add('manual-qa-required'); human = true; }
   else if (phase === 'ui-design') { add('prototype-selection-required'); human = true; }
@@ -75,9 +94,10 @@ function classify(item, scope, policy, snapshot, isProposal) {
     action = 'afk-build';
     for (const blocker of actions.enterBuild.blockers ?? []) if (/^intent-dependency-/.test(blocker.code)) add(blocker.code);
     if (!actions.acquireTask.permitted) add('afk-preflight-required');
-    add('afk-handoff-unavailable'); // T-004 supplies guarded handoff, never inferred from a label.
+    if (!actions.enterBuild.permitted) add('build-approval-required');
   } else if (actions.continueHarness.permitted && ['intent', 'reconcile', 'plan', 'pattern-validation', 'test-plan'].includes(phase)) {
-    action = 'prepare-phase'; add('restricted-phase-contract-unavailable'); // T-003 installs verified contracts.
+    action = 'prepare-phase';
+    if (getAutonomyPhaseContract(phase).status !== 'available') add('restricted-phase-contract-unavailable');
   } else add('autonomy-phase-unavailable');
   if (action && !scope?.actions.includes(action)) add('action-not-approved');
   if (item.repositoryBusy) add('repository-ownership-conflict');
@@ -151,6 +171,29 @@ export function approveAutonomyGrant(root, input) {
       if (createPreview(root, { proposal: displayed.proposal }, displayed.previewRevision).digest !== current.digest) autonomyError('autonomy-preview-stale');
       writeAutonomyRecord(paths.projectRoot, resolve(paths.authorityRoot, 'grants', grant.id, 'revisions', `${grant.revision}-${grant.digest.slice(7)}.json`), grant);
       return grant;
+    });
+  });
+}
+
+// Revocation is canonical evidence bound to one exact grant revision. Runtime
+// rebuilds cannot restore it, and a successor needs a fresh named approval.
+export function revokeAutonomyGrant(root, input) {
+  return autonomyGuard(() => {
+    keys(input, ['expectedDigest', 'revokedBy', 'confirmed']);
+    if (input.confirmed !== true || !validApprover(input.revokedBy) || !digestPattern.test(input.expectedDigest)) autonomyError('autonomy-revocation-required', 400);
+    const paths = autonomyPaths(root);
+    return withAutonomyLock(paths, () => {
+      const policy = readPolicy(root), grant = policy.grant;
+      if (policy.digest !== input.expectedDigest) autonomyError('autonomy-policy-stale');
+      if (!grant) autonomyError('autonomy-grant-required');
+      if (policy.revocation) return policy.revocation;
+      const body = { schema: 'ewai.autonomy-revocation/v1', id: grant.id, grantRevision: grant.revision,
+        grantDigest: grant.digest, revokedBy: input.revokedBy, revokedAt: new Date().toISOString(), projectIdentity: grant.projectIdentity };
+      if (Date.parse(body.revokedAt) < Date.parse(grant.approvedAt)) autonomyError('autonomy-clock-rollback');
+      const record = { ...body, digest: autonomyDigest(body) };
+      writeAutonomyRecord(paths.projectRoot, resolve(paths.authorityRoot, 'grants', grant.id,
+        'revocations', `${grant.revision}-${record.digest.slice(7)}.json`), record);
+      return record;
     });
   });
 }
