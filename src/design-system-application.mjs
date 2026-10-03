@@ -13,6 +13,9 @@ import { prepareContextPack } from './runtime/context-assembly.mjs';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const sha256Pattern = /^sha256:[a-f0-9]{64}$/;
+// Disposable acceleration only: every use still performs fresh pack validation.
+// One small entry bounds retained source bodies across projects and revisions.
+let recentResolution = null;
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -66,12 +69,37 @@ function deliveryWorkspace(projectRoot, slug) {
   return { project, root, state };
 }
 
+function resolutionIdentity(projectRoot, selection) {
+  const pin = ({ id, version, digest, sourceClass }) => ({ id, version, digest, sourceClass });
+  return canonical({ project: realpathSync(projectRoot), root: pin(selection.root),
+    packs: selection.packs.map(pin), effectiveDigest: selection.effectiveDigest });
+}
+
+function smallResolution(resolved) {
+  if (resolved.packs.length > 8) return false;
+  let bytes = 0, count = 0;
+  for (const pack of resolved.packs) {
+    for (const item of pack.design_system.contributions) {
+      bytes += Buffer.byteLength(item.content);
+      if (++count > 256 || bytes > 256 * 1024) return false;
+    }
+  }
+  return true;
+}
+
 function resolvedSelection(projectRoot, options = {}) {
   const status = designSystemStatus(projectRoot, options);
   if (status.status !== 'ready') throw new Error(`Project design system is ${status.status}; re-resolve and select it before application`);
+  const identity = resolutionIdentity(projectRoot, status);
+  if (recentResolution?.identity === identity) return { status, resolved: recentResolution.resolved };
+  recentResolution = null;
   const { config } = loadProjectConfig(projectRoot);
   const catalogue = listDesignSystems({ ...options, projectRoot });
   const resolved = resolveDesignSystem(config.design_system?.root?.id ?? DEFAULT_DESIGN_SYSTEM_ID, catalogue);
+  // A cold resolution must describe the exact source that passed validation,
+  // including provenance; otherwise a changed pack could inherit old approval.
+  if (resolutionIdentity(projectRoot, resolved) !== identity) throw new Error('Design-system source changed during preparation; re-resolve before application');
+  if (smallResolution(resolved)) recentResolution = { identity, resolved };
   return { status, resolved };
 }
 

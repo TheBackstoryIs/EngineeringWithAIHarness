@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ewai.autonomy-scope/v1",
+  "title": "Explicit autonomous intent delegation scope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["intentIds", "actions", "providers", "expiresAt", "limits"],
+  "properties": {
+    "intentIds": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "type": "string", "maxLength": 160, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$" } },
+    "actions": { "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": { "enum": ["begin-harness", "prepare-phase", "afk-build"] } },
+    "providers": { "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": { "enum": ["codex", "claude", "antigravity"] } },
+    "expiresAt": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z$" },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["maxConcurrentIntents", "maxRuntimeMs", "maxOperationMs", "maxAttempts"],
+      "properties": {
+        "maxConcurrentIntents": { "const": 1 },
+        "maxRuntimeMs": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+        "maxOperationMs": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+        "maxAttempts": { "type": "integer", "minimum": 1, "maximum": 100 }
+      },
+      "$comment": "The domain additionally requires maxOperationMs <= maxRuntimeMs. No hard money or token cap is promised."
+    }
+  }
+}

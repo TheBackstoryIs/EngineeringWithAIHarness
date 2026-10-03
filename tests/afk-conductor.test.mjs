@@ -8,7 +8,7 @@ import YAML from 'yaml';
 import { createIntent, updateIntentDeliveryState } from '../src/intents.mjs';
 import { configureExternalValidation, initProject } from '../src/project.mjs';
 import {
-  afkRunStatus, cancelAfkRun, pauseAfkRun, preflightAfkRun, selectExecutableTaskIds, startAfkRun,
+  afkRunStatus, cancelAfkRun, pauseAfkRun, preflightAfkRun, resumeAfkRun, selectExecutableTaskIds, startAfkRun,
 } from '../src/runtime/afk-conductor.mjs';
 import { listExecutionLeases } from '../src/runtime/execution-leases.mjs';
 
@@ -70,7 +70,7 @@ function seed(root, options = {}) {
 async function fakeProvider(invocation, options = {}) {
   options.onStart?.(999999);
   if (invocation.mode === 'review') {
-    return { exitCode: 0, timedOut: false, output: 'Tests reviewed first. The change is scoped and correct.\nVERDICT: PASS\n', logPath: invocation.logPath };
+    return { exitCode: 0, timedOut: false, executionStopped: true, output: 'Tests reviewed first. The change is scoped and correct.\nVERDICT: PASS\n', logPath: invocation.logPath };
   }
   const root = invocation.cwd;
   mkdirSync(resolve(root, 'src'), { recursive: true });
@@ -79,7 +79,7 @@ async function fakeProvider(invocation, options = {}) {
   writeFileSync(resolve(root, 'test/output.test.mjs'), "import test from 'node:test'; import assert from 'node:assert/strict'; import { message } from '../src/output.mjs'; test('ready',()=>assert.equal(message,'ready'));\n");
   mkdirSync(resolve(invocation.logPath, '..'), { recursive: true });
   writeFileSync(invocation.logPath, 'fake provider completed\n');
-  return { exitCode: 0, timedOut: false, output: 'done', logPath: invocation.logPath };
+  return { exitCode: 0, timedOut: false, executionStopped: true, output: 'done', logPath: invocation.logPath };
 }
 
 function prepareProject(root) {
@@ -272,16 +272,21 @@ test('cancellation abandons leases and does not integrate late worker output', a
   try {
     const bin = prepareProject(root);
     process.env.PATH = `${bin}${delimiter}${oldPath}`;
+    let entered;
+    const providerEntered = new Promise(resolvePromise => { entered = resolvePromise; });
     const delayedProvider = async (...args) => {
+      entered();
       await new Promise((done) => setTimeout(done, 40));
       return fakeProvider(...args);
     };
     const pending = startAfkRun(root, 'safe-change', {
       provider: 'codex', foreground: true, dependencies: { invokeProvider: delayedProvider },
     });
-    await new Promise((done) => setTimeout(done, 10));
+    await providerEntered;
     const active = afkRunStatus(root)[0];
-    cancelAfkRun(root, active.id);
+    const requested = cancelAfkRun(root, active.id);
+    assert.equal(requested.status, 'cancel-requested', 'acknowledgement is not termination evidence');
+    assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 1, 'retain ownership until execution settles');
     const run = await pending;
     assert.equal(run.status, 'cancelled');
     assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 0);
@@ -291,4 +296,124 @@ test('cancellation abandons leases and does not integrate late worker output', a
     process.env.PATH = oldPath;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('unknown cancellation retains active leases and refuses integration', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-cancel-unknown-')), oldPath = process.env.PATH;
+  try {
+    const bin = prepareProject(root); process.env.PATH = `${bin}${delimiter}${oldPath}`;
+    let entered;
+    const ready = new Promise(done => { entered = done; });
+    const pending = startAfkRun(root, 'safe-change', { provider: 'codex', foreground: true, dependencies: {
+      invokeProvider: (invocation, options) => new Promise(done => {
+        options.onStart(999998); entered();
+        options.signal.addEventListener('abort', () => done({ cancelled: true, executionStopped: false, exitCode: -1,
+          output: '', logPath: invocation.logPath }), { once: true });
+      }),
+    } });
+    await ready; const active = afkRunStatus(root)[0]; cancelAfkRun(root, active.id);
+    const result = await pending;
+    assert.equal(result.status, 'cancel-unknown'); assert.equal(result.cancellation.status, 'unknown');
+    assert.equal(result.executionStopped, false); assert.equal(result.activeWorkers.length, 1);
+    assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 1);
+    assert.equal(git(root, ['status', '--porcelain']), '');
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+});
+
+test('autonomous AFK needs a live authority guard and rechecks it before review and integration', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-authority-')), oldPath = process.env.PATH;
+  try {
+    const bin = prepareProject(root); process.env.PATH = `${bin}${delimiter}${oldPath}`;
+    const autonomy = { runId: '11111111-1111-1111-1111-111111111111', grantDigest: `sha256:${'a'.repeat(64)}` };
+    assert.throws(() => startAfkRun(root, 'safe-change', { provider: 'codex', autonomy }), /foreground authority/);
+    let runId, allowed = true; const boundaries = [], providers = [];
+    const result = await startAfkRun(root, 'safe-change', { provider: 'codex', foreground: true, autonomy, dependencies: {
+      onRun: run => { runId = run.id; assert.deepEqual(run.autonomy, autonomy); },
+      authority: boundary => { boundaries.push(boundary); if (!allowed) throw new Error('Fixture grant revoked.'); },
+      invokeProvider: async (invocation, options) => {
+        providers.push(invocation.mode); const value = await fakeProvider(invocation, options);
+        if (invocation.mode === 'review') allowed = false;
+        return value;
+      },
+    } });
+    assert.equal(runId, result.id); assert.equal(result.status, 'blocked'); assert.equal(result.executionStopped, true);
+    assert.deepEqual(providers, ['implementation', 'review']);
+    assert.ok(boundaries.some(value => value.stage === 'accept' && value.mode === 'implementation'));
+    assert.equal(boundaries.some(value => value.stage === 'integrate'), false, 'revoked review result cannot integrate');
+    assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 0);
+    assert.equal(git(root, ['status', '--porcelain']), '');
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+});
+
+test('a real conductor crash cannot resume over its surviving tracked provider (T004-R03)', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-crash-')), oldPath = process.env.PATH;
+  let conductorPid, providerPid;
+  const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  try {
+    const bin = prepareProject(root); process.env.PATH = `${bin}${delimiter}${oldPath}`;
+    const marker = resolve(root, '.ewai-pipeline/fixture-provider-ready');
+    writeFileSync(resolve(bin, 'codex'), `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)},String(process.pid));process.stdin.resume();setInterval(()=>{},1000);\n`);
+    git(root, ['add', '.test-bin/codex']); git(root, ['commit', '-m', 'controlled live process fixture']);
+    const run = startAfkRun(root, 'safe-change', { provider: 'codex', timeoutMs: 20000 }); conductorPid = run.pid;
+    let active, deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      active = afkRunStatus(root, run.id);
+      try { providerPid = Number(readFileSync(marker, 'utf8')); } catch {}
+      if (providerPid && active.activeWorkers.some(worker => worker.pid === providerPid)) break;
+      await new Promise(done => setTimeout(done, 25));
+    }
+    assert.ok(providerPid && alive(providerPid), 'fixture provider is demonstrably alive');
+    assert.equal(active.executionStopped, false, 'uncertainty was durable before spawning');
+    assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 1);
+    process.kill(conductorPid, 'SIGKILL');
+    deadline = Date.now() + 5000;
+    while (alive(conductorPid) && Date.now() < deadline) await new Promise(done => setTimeout(done, 25));
+    assert.equal(alive(conductorPid), false); assert.equal(alive(providerPid), true);
+    assert.throws(() => resumeAfkRun(root, run.id), /verified recovery/);
+    assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 1);
+    assert.equal(afkRunStatus(root, run.id).activeWorkers.some(worker => worker.pid === providerPid), true);
+  } finally {
+    for (const pid of [providerPid, conductorPid]) if (pid) try { process.kill(-pid, 'SIGKILL'); } catch {}
+    process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('changes appearing during post-merge checks are not staged or deleted (T004-R01)', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-integration-conflict-')), oldPath = process.env.PATH;
+  try {
+    const bin = prepareProject(root); process.env.PATH = `${bin}${delimiter}${oldPath}`;
+    const graphPath = resolve(root, 'SPECS/6.Build/safe-change/task-graph.json'), graph = JSON.parse(readFileSync(graphPath));
+    const command = `node -e "require('node:fs').writeFileSync('human-edit.txt','preserve unrelated work')"`;
+    graph.tasks[0].merge.post_merge_checks = [command]; graph.tasks[0].allowed_commands.push(command);
+    writeFileSync(graphPath, JSON.stringify(graph)); git(root, ['add', '-A']); git(root, ['commit', '-m', 'post-merge conflict fixture']);
+    const before = git(root, ['rev-parse', 'HEAD']);
+    const run = await startAfkRun(root, 'safe-change', { provider: 'codex', foreground: true, dependencies: { invokeProvider: fakeProvider } });
+    assert.equal(run.status, 'blocked'); assert.equal(git(root, ['rev-parse', 'HEAD']), before);
+    assert.equal(readFileSync(resolve(root, 'human-edit.txt'), 'utf8'), 'preserve unrelated work');
+    assert.equal(git(root, ['ls-files', 'human-edit.txt']), '');
+    assert.ok(git(root, ['rev-parse', '--verify', 'MERGE_HEAD']), 'conflicting checkout is retained for human recovery');
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+});
+
+test('a branch change before integration never aborts the owners unrelated merge (T004-R07)', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-owner-merge-')), oldPath = process.env.PATH;
+  try {
+    const bin = prepareProject(root); process.env.PATH = `${bin}${delimiter}${oldPath}`;
+    let mergeHead, index, head;
+    const run = await startAfkRun(root, 'safe-change', { provider: 'codex', foreground: true,
+      dependencies: { invokeProvider: async (...args) => {
+        const result = await fakeProvider(...args);
+        if (args[0].mode === 'review') {
+          git(root, ['switch', '-c', 'owner-side']); writeFileSync(resolve(root, 'owner.txt'), 'preserve owner merge');
+          git(root, ['add', 'owner.txt']); git(root, ['commit', '-m', 'owner work']);
+          git(root, ['switch', '-c', 'owner-integration', 'feature/safe-change']);
+          git(root, ['merge', '--no-ff', '--no-commit', 'owner-side']);
+          mergeHead = git(root, ['rev-parse', 'MERGE_HEAD']); index = git(root, ['write-tree']); head = git(root, ['rev-parse', 'HEAD']);
+        }
+        return result;
+      } } });
+    assert.equal(run.status, 'blocked'); assert.equal(git(root, ['branch', '--show-current']), 'owner-integration');
+    assert.equal(git(root, ['rev-parse', 'HEAD']), head); assert.equal(git(root, ['rev-parse', 'MERGE_HEAD']), mergeHead);
+    assert.equal(git(root, ['write-tree']), index); assert.equal(readFileSync(resolve(root, 'owner.txt'), 'utf8'), 'preserve owner merge');
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
 });

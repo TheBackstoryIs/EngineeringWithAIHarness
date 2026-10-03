@@ -45,6 +45,24 @@ export {
 
 const execFileAsync = promisify(execFile);
 const moduleDir = dirname(fileURLToPath(import.meta.url));
+const betaVersionPattern = /^(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$/;
+
+function betaVersionParts(version) {
+  const match = betaVersionPattern.exec(String(version ?? ''));
+  if (!match) return null;
+  const parts = match.slice(1).map(Number);
+  return parts.every(Number.isSafeInteger) ? parts : null;
+}
+
+function newerBetaVersion(current, candidate) {
+  const currentParts = betaVersionParts(current);
+  const candidateParts = betaVersionParts(candidate);
+  if (!currentParts || !candidateParts) return null;
+  for (let index = 0; index < currentParts.length; index++) {
+    if (candidateParts[index] !== currentParts[index]) return candidateParts[index] > currentParts[index];
+  }
+  return false;
+}
 
 export async function frameworkStatus(installRoot, options = {}) {
   if (!installRoot || !existsSync(resolve(installRoot, 'package.json'))) {
@@ -55,16 +73,17 @@ export async function frameworkStatus(installRoot, options = {}) {
   if (!metadata.name) {
     return { status: 'unknown', source: 'npm', current: currentVersion, reason: 'The npm registry cannot be checked from this runtime.' };
   }
+  const channel = betaVersionParts(currentVersion) ? 'beta' : 'latest';
   let latest = null;
   try {
     if (options.fetchImpl) {
-      const response = await options.fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(metadata.name)}/latest`);
+      const response = await options.fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(metadata.name)}/${channel}`);
       if (!response.ok) {
         return { status: 'unknown', source: 'npm', current: currentVersion, reason: `The npm registry returned HTTP ${response.status}.` };
       }
       latest = (await response.json()).version ?? null;
     } else {
-      const npm = await execFileAsync('npm', ['view', `${metadata.name}@latest`, 'version', '--json'], {
+      const npm = await execFileAsync('npm', ['view', `${metadata.name}@${channel}`, 'version', '--json'], {
         timeout: 8000,
         maxBuffer: 1024 * 1024,
         env: process.env
@@ -73,16 +92,21 @@ export async function frameworkStatus(installRoot, options = {}) {
       latest = Array.isArray(parsed) ? parsed.at(-1) : parsed;
     }
     if (!latest) return { status: 'unknown', source: 'npm', current: currentVersion, reason: 'The npm registry did not return a latest version.' };
+    const betaAvailable = channel === 'beta' ? newerBetaVersion(currentVersion, latest) : null;
+    if (channel === 'beta' && betaAvailable === null) {
+      return { status: 'unknown', source: 'npm', current: currentVersion, reason: 'The npm beta tag did not resolve to a beta version.' };
+    }
+    const updateAvailable = channel === 'beta' ? betaAvailable : currentVersion !== latest;
     return {
-      status: currentVersion === latest ? 'current' : 'update-available',
+      status: updateAvailable ? 'update-available' : 'current',
       source: 'npm',
       current: currentVersion,
       latest,
-      action: currentVersion === latest ? null : {
+      action: updateAvailable ? {
         kind: 'offer-npm-update',
         prompt: `EWAI ${latest} is available from npm. Would you like me to update the global package?`,
-        command: `npm install --global ${metadata.name}@latest`
-      }
+        command: `npm install --global ${metadata.name}@${channel}`
+      } : null
     };
   } catch {
     return { status: 'unknown', source: 'npm', current: currentVersion, reason: 'The npm update check did not finish. Check your connection and try again.' };

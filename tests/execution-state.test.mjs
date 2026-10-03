@@ -1,4 +1,7 @@
 import test from 'node:test';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +12,7 @@ import { createIntent } from '../src/intents.mjs';
 import { initProject } from '../src/project.mjs';
 import { readRuntimeIntent } from '../src/runtime/intents.mjs';
 import { listWorkItems } from '../src/runtime/work.mjs';
+import { openRuntimeDatabase } from '../src/runtime/database.mjs';
 
 test('derives permitted actions from durable delivery evidence rather than a ready flag', () => {
   const root = mkdtempSync(resolve(tmpdir(), 'ewai-execution-state-'));
@@ -56,6 +60,54 @@ test('projects state drift as blocked instead of silently falling back to a stat
     assert.equal(item.execution.blockers.some((blocker) => blocker.code === 'intent-state-drift'), true);
     assert.equal(item.execution.actions.continueHarness.permitted, false);
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('projection derives canonical evidence before taking its SQLite write transaction', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-execution-transaction-'));
+  const originalExec = DatabaseSync.prototype.exec, originalRead = fs.readFileSync, writers = new Set();
+  try {
+    initProject(root, { name: 'Projection transaction test' });
+    createIntent(root, { domain: 'product', slug: 'alpha' }); beginDelivery(root, 'alpha', { tool: 'codex' });
+    let readsUnderWriteTransaction = 0;
+    DatabaseSync.prototype.exec = function (sql) {
+      const result = originalExec.call(this, sql);
+      if (/^BEGIN IMMEDIATE/i.test(sql)) writers.add(this);
+      if (/^(?:COMMIT|ROLLBACK)/i.test(sql)) writers.delete(this);
+      return result;
+    };
+    fs.readFileSync = function (path, ...args) {
+      if (String(path).endsWith('/delivery-state.json') && writers.size) readsUnderWriteTransaction += 1;
+      return originalRead.call(this, path, ...args);
+    };
+    syncBuiltinESMExports();
+    const [item] = listWorkItems(root);
+    assert.equal(item.execution.valid, true);
+    assert.equal(readsUnderWriteTransaction, 0, 'canonical readers may open their own SQLite connection');
+  } finally {
+    DatabaseSync.prototype.exec = originalExec; fs.readFileSync = originalRead; syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runtime migration failure closes its allocated SQLite connection', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-execution-close-'));
+  const originalExec = DatabaseSync.prototype.exec, originalClose = DatabaseSync.prototype.close;
+  let owner;
+  try {
+    initProject(root, { name: 'Migration lifetime test' });
+    owner = openRuntimeDatabase(root); owner.exec('BEGIN IMMEDIATE;');
+    let closed = 0;
+    DatabaseSync.prototype.exec = function (sql) {
+      return originalExec.call(this, this !== owner && /busy_timeout/.test(sql) ? 'PRAGMA busy_timeout = 0;' : sql);
+    };
+    DatabaseSync.prototype.close = function () { if (this !== owner) closed += 1; return originalClose.call(this); };
+    assert.throws(() => openRuntimeDatabase(root), /locked/);
+    assert.equal(closed, 1);
+  } finally {
+    DatabaseSync.prototype.exec = originalExec; DatabaseSync.prototype.close = originalClose;
+    if (owner) { owner.exec('ROLLBACK;'); owner.close(); }
     rmSync(root, { recursive: true, force: true });
   }
 });

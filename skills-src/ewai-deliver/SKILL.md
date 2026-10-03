@@ -7,6 +7,8 @@ description: Deliver or resume an EWAI intent through the complete fourteen-stag
 
 This skill is the only supported route from an EWAI intent into planning, Build, delivery, and learning. A host AI's generic planning mode is not an EWAI Plan and cannot replace a pipeline phase.
 
+When an owner asks for bounded delegation across an exact pool of existing intents, use `$ewai-autonomy` for the off-by-default preview, named grant, run controls and human questions. Keep `$ewai-deliver` as the phase-work route. An autonomy grant cannot replace existing human Build approval, the canonical gate ledger, standards sweep, or separate Manual QA approval.
+
 Resolve the workspace and SPECS root from `.ewai-pipeline/project.json`; all logical `SPECS/...` paths in this contract are relative to that configured root. Never assume the workspace itself or the repository being changed owns SPECS.
 
 ## Delivery contract

@@ -174,7 +174,10 @@ test('works without premium personas and exposes the standard LLM baseline', () 
     initProject(root, { name: 'Portfolio host' });
     writeChild(root);
     write(resolve(root, 'SPECS/1.Scope/portfolio.yaml'), YAML.stringify(portfolio(), { lineWidth: 0 }));
-    const workspace = readPortfolioWorkspace(root, { personas: personas.filter((persona) => persona.tier !== 'premium') });
+    const workspace = readPortfolioWorkspace(root, {
+      personas: personas.filter((persona) => persona.tier !== 'premium'),
+      now: '2026-08-23T12:00:00.000Z',
+    });
 
     assert.equal(workspace.status, 'ready');
     assert.equal(workspace.personaAvailability.premium.installed, false);

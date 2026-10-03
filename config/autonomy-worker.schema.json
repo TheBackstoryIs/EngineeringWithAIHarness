@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineeringwith.ai/schemas/autonomy-worker.schema.json",
+  "title": "EWAI phase worker proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "contractDigest",
+    "phase",
+    "artifacts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ewai.autonomy-phase-proposal/v1"
+    },
+    "contractDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "phase": {
+      "enum": [
+        "intent",
+        "reconcile",
+        "plan",
+        "pattern-validation",
+        "test-plan"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "content",
+          "sourceRefs"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[a-z0-9]+(?:[-/][a-z0-9]+)*\\.md$"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32768
+          },
+          "sourceRefs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9_.-]*$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

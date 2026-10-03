@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import YAML from 'yaml';
@@ -32,6 +32,21 @@ import { readLifecycleHookWorkspace } from '../src/runtime/lifecycle-hooks.mjs';
 function promoteIntent(root, path) {
   updateIntentDeliveryState(root, path, { status: 'ready' });
 }
+
+test('legacy project locators retain default SPECS canonical delivery support', t => {
+  const root = realpathSync(mkdtempSync(resolve(tmpdir(), 'ewai-legacy-fenced-delivery-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  initProject(root, { name: 'Legacy default SPECS consumer' });
+  const locatorPath = resolve(root, '.ewai-pipeline/project.json');
+  const locator = JSON.parse(readFileSync(locatorPath)); delete locator.specsRoot;
+  const locatorText = JSON.stringify(locator); writeFileSync(locatorPath, locatorText);
+  const intent = createIntent(root, { domain: 'product', slug: 'legacy' });
+  promoteIntent(root, intent.path);
+  const result = beginDelivery(root, 'legacy', { tool: 'codex' });
+  assert.equal(result.state.currentPhase, 'intent');
+  assert.equal(readDeliveryState(root, 'legacy').intent.id, 'product/legacy');
+  assert.equal(readFileSync(locatorPath, 'utf8'), locatorText);
+});
 
 function evidenceFor(root, slug, phase) {
   const path = resolve(root, `SPECS/6.Build/${slug}/evidence/${phase}.md`);

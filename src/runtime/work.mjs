@@ -5,6 +5,7 @@ import { validatePrototypeManifest } from '../delivery-artifacts.mjs';
 import { projectPaths } from '../paths.mjs';
 import { openRuntimeDatabase } from './database.mjs';
 import { readRuntimeIntent, syncIntentIndex } from './intents.mjs';
+import { withIntentMutation, assertIntentMutation } from './intent-ownership.mjs';
 
 const lanes = ['backlog', 'ready', 'active', 'qa', 'blocked', 'done'];
 
@@ -184,13 +185,17 @@ export function syncWorkItems(projectRoot, suppliedDatabase = null) {
         title = excluded.title, status = 'active'
     `);
 
+    // Evidence readers may open their own database connection. Derive before
+    // taking the projection writer, avoiding self-contention and false stale
+    // results. Canonical mutations revalidate under their intent ownership.
+    const derivedItems = intents.map(intent => deriveExecutionState(projectRoot, intentFromRow(intent), {
+      intentCatalog: execution.catalog,
+      leases: execution.leases.get(intent.id) ?? [],
+    }));
     database.exec('BEGIN IMMEDIATE;');
     try {
       intents.forEach((intent, index) => {
-        const derived = deriveExecutionState(projectRoot, intentFromRow(intent), {
-          intentCatalog: execution.catalog,
-          leases: execution.leases.get(intent.id) ?? [],
-        });
+        const derived = derivedItems[index];
         const defaults = derived.projection;
         insertItem.run(
           intent.id,
@@ -394,6 +399,10 @@ export function resolvePrototypeAsset(projectRoot, reference, artefactId, assetP
 }
 
 export function updateWorkItem(projectRoot, reference, input) {
+  return withIntentMutation(projectRoot, reference, { action: 'update-projection', input, ownership: input.ownership }, () => updateOwnedWorkItem(projectRoot, reference, input));
+}
+
+function updateOwnedWorkItem(projectRoot, reference, input) {
   return withDatabase(projectRoot, null, (database) => {
     syncWorkItems(projectRoot, database);
     const item = findItem(database, reference);
@@ -419,6 +428,7 @@ export function updateWorkItem(projectRoot, reference, input) {
         if (key === 'completionPercent') return Math.max(0, Math.min(100, Number(value)));
         return value;
       });
+      assertIntentMutation(projectRoot, reference);
       database.prepare(`UPDATE work_items SET ${entries.map(([key]) => `${allowed[key]} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
         .run(...values, item.id);
     }
@@ -427,6 +437,10 @@ export function updateWorkItem(projectRoot, reference, input) {
 }
 
 export function setPhase(projectRoot, reference, phaseKey, input = {}) {
+  return withIntentMutation(projectRoot, reference, { action: 'update-phase-projection', phase: phaseKey, input, ownership: input.ownership }, () => setOwnedPhase(projectRoot, reference, phaseKey, input));
+}
+
+function setOwnedPhase(projectRoot, reference, phaseKey, input) {
   return withDatabase(projectRoot, null, (database) => {
     syncWorkItems(projectRoot, database);
     const item = findItem(database, reference);
@@ -434,6 +448,7 @@ export function setPhase(projectRoot, reference, phaseKey, input = {}) {
     const existing = database.prepare(`
       SELECT status, iteration_count FROM pipeline_phases WHERE work_item_id = ? AND phase_key = ?
     `).get(item.id, phaseKey);
+    assertIntentMutation(projectRoot, reference);
     database.prepare(`
       INSERT INTO pipeline_phases (work_item_id, phase_key, status, started_at, completed_at, artefact_path, iteration_count, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -525,6 +540,7 @@ function recordActivity(projectRoot, reference, input, mode) {
     database.exec('BEGIN IMMEDIATE;');
     try {
       const existingSession = database.prepare('SELECT * FROM active_sessions WHERE work_item_id = ?').get(item.id);
+      if (mode === 'start') assertIntentMutation(projectRoot, reference, database);
       if (mode === 'start' && existingSession && existingSession.ended_at === null) {
         const requestedOwner = String(input.ownerId ?? '').trim();
         const requestedTool = String(input.tool ?? '').trim();
@@ -606,7 +622,7 @@ function recordActivity(projectRoot, reference, input, mode) {
 }
 
 export function startActiveSession(projectRoot, reference, input = {}) {
-  return recordActivity(projectRoot, reference, input, 'start');
+  return withIntentMutation(projectRoot, reference, { action: 'start-session', input, ownership: input.ownership }, () => recordActivity(projectRoot, reference, input, 'start'));
 }
 
 export function addActivityEvent(projectRoot, reference, input = {}) {

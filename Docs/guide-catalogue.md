@@ -20,6 +20,7 @@ Choose the section that matches your job. The optional team tools aren't prerequ
 - [Facilitate project Discovery](guided-discovery-facilitator-guide.md)
 - [Create or revise an intent in Intent Studio](guided-intent-workspace-guide.md)
 - [Choose work with the Companion](context-aware-delivery-companion-user-guide.md)
+- [Delegate an exact pool of intents with guarded autonomy](autonomous-intent-delivery.md)
 - [Contribute information to work in progress](guided-phase-evidence-drafting-guide.md)
 - [Review evidence from meeting notes or transcripts](meeting-evidence-user-guide.md)
 - [Turn reviewed evidence into project documents](knowledge-proposals-user-guide.md)
@@ -34,6 +35,7 @@ Choose the section that matches your job. The optional team tools aren't prerequ
 ## Engineering and checking your own application
 
 - [Take an intent through delivery](developer-delivery-guide.md)
+- [Operate governed autonomous intent delivery](autonomous-intent-delivery.md)
 - [Assess what a change could affect](blast-radius-and-impact-routing-guide.md)
 - [Understand repository coverage and analysis limits](repository-source-map-guide.md)
 - [Choose and compare investigation depth](reproducible-archaeology-and-discovery-depth.md)

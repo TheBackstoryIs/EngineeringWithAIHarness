@@ -6,6 +6,8 @@ Conversation is the normal way to work with EWAI. Describe what you need in your
 
 For feature delivery, **`ewai-deliver` coordinates the full fourteen-stage workflow**, bringing in specialist skills as needed and resuming from the project's recorded state. You don't need to run each stage yourself. See the [delivery guide](developer-delivery-guide.md) for the stages and the decisions you'll be asked to make.
 
+If you want EWAI to act on an approved, exact pool of registered intents, read [governed autonomous intent delivery](autonomous-intent-delivery.md). It starts off, needs a named and bounded grant, and leaves human Build approval and Manual QA separate.
+
 ## New to EWAI?
 
 1. [Install EWAI](operations/installation-updating-and-entitlements.md) and open it in your project folder.

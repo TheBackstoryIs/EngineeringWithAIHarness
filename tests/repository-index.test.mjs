@@ -204,7 +204,7 @@ test('upgrades an existing repository index schema before creating Source Map in
 
     const reopened = openRuntimeDatabase(root);
     try {
-      assert.equal(reopened.prepare("SELECT value FROM runtime_meta WHERE key = 'schema_version'").get().value, '14');
+      assert.equal(reopened.prepare("SELECT value FROM runtime_meta WHERE key = 'schema_version'").get().value, '15');
       const columns = reopened.prepare('PRAGMA table_info(repo_files)').all().map((column) => column.name);
       assert.equal(columns.includes('analysis_outcome'), true);
       assert.equal(columns.includes('profile_id'), true);

@@ -1,17 +1,23 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { randomUUID } from 'node:crypto';
 import { runtimePaths } from './paths.mjs';
 
 export function openRuntimeDatabase(projectRoot) {
   const { databasePath } = runtimePaths(projectRoot);
   mkdirSync(dirname(databasePath), { recursive: true });
   const database = new DatabaseSync(databasePath);
-  database.exec('PRAGMA foreign_keys = ON;');
-  database.exec('PRAGMA busy_timeout = 5000;');
-  database.exec('PRAGMA journal_mode = WAL;');
-  migrateRuntimeDatabase(database);
-  return database;
+  try {
+    database.exec('PRAGMA foreign_keys = ON;');
+    database.exec('PRAGMA busy_timeout = 5000;');
+    database.exec('PRAGMA journal_mode = WAL;');
+    migrateRuntimeDatabase(database);
+    return database;
+  } catch (error) {
+    database.close();
+    throw error;
+  }
 }
 
 export function migrateRuntimeDatabase(database) {
@@ -20,6 +26,18 @@ export function migrateRuntimeDatabase(database) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS intent_ownership (
+      intent_id TEXT PRIMARY KEY,
+      epoch TEXT NOT NULL,
+      generation INTEGER NOT NULL,
+      owner_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('active', 'released')),
+      pid INTEGER NOT NULL,
+      process_instance TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS intents (
@@ -773,9 +791,10 @@ export function migrateRuntimeDatabase(database) {
 
   database.prepare(`
     INSERT INTO runtime_meta (key, value, updated_at)
-      VALUES ('schema_version', '14', CURRENT_TIMESTAMP)
+      VALUES ('schema_version', '15', CURRENT_TIMESTAMP)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
   `).run();
+  database.prepare("INSERT INTO runtime_meta (key, value) VALUES ('intent_ownership_epoch', ?) ON CONFLICT(key) DO NOTHING").run(randomUUID());
 }
 
 export function initializeRuntime(projectRoot) {
