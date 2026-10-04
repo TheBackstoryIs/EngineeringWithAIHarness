@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { doctorProject, initProject, loadProjectConfig } from '../src/project.mjs';
+import { doctorProject, initProject, loadProjectConfig, refreshCheckinInstructions } from '../src/project.mjs';
 import { createIntent } from '../src/intents.mjs';
 import { resolveProjectRoot } from '../src/paths.mjs';
 
@@ -146,6 +146,40 @@ test('refreshes managed check-in instructions without replacing project-authored
     assert.match(refreshed, /project-local pipeline dashboard/);
     assert.doesNotMatch(refreshed, /old dashboard/);
     assert.equal((refreshed.match(/EWAI-CHECKIN:START/g) ?? []).length, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installs concise decision guidance and upgrades both host files while preserving local instructions', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-guided-output-'));
+  try {
+    initProject(root, { name: 'Guided Output' });
+    for (const name of ['AGENTS.md', 'CLAUDE.md']) {
+      const path = resolve(root, name);
+      const instructions = readFileSync(path, 'utf8');
+      assert.match(instructions, /Prioritise correctness, fidelity and usefulness, then brevity/);
+      assert.match(instructions, /relevant action details and consequences/);
+      assert.match(instructions, /a recommendation with its reason/);
+      assert.match(instructions, /Provide a suggested response/);
+      assert.match(instructions, /never constitute approval/);
+      assert.match(instructions, /Lead with the recommended interpretation/);
+      assert.match(instructions, /when missing information materially changes/);
+      assert.match(instructions, /do not impose arbitrary word limits/);
+      writeFileSync(path, '# Local guidance\nKeep the project rules.\n\n<!-- EWAI-CHECKIN:START -->\nOld instructions\n<!-- EWAI-CHECKIN:END -->\n\nKeep the local footer.\n');
+    }
+
+    refreshCheckinInstructions(root);
+    for (const name of ['AGENTS.md', 'CLAUDE.md']) {
+      const refreshed = readFileSync(resolve(root, name), 'utf8');
+      assert.ok(refreshed.startsWith('# Local guidance\nKeep the project rules.\n\n'));
+      assert.ok(refreshed.endsWith('\n\nKeep the local footer.\n'));
+      assert.match(refreshed, /Lead with the recommended interpretation/);
+      assert.match(refreshed, /Follow mandatory check-in, status, consent and phase protocols/);
+      assert.doesNotMatch(refreshed, /Old instructions/);
+      assert.equal((refreshed.match(/EWAI-CHECKIN:START/g) ?? []).length, 1);
+    }
+    assert.deepEqual(refreshCheckinInstructions(root).created, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

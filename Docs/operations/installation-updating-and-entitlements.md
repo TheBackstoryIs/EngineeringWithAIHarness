@@ -46,6 +46,23 @@ npx --yes @thebackstoryis/engineering-with-ai@latest
 
 This asks npm to obtain and run the package. It doesn't create a standing global installation.
 
+## Try the beta channel
+
+The beta channel is an opt-in prerelease. Version `0.3.1-beta.0` adds [concise answers and guided decisions](../context-management-and-token-efficiency.md#concise-answers-and-guided-decisions); production remains `0.3.0`.
+
+For one project:
+
+```bash
+npm install --save-dev @thebackstoryis/engineering-with-ai@beta
+npx ewai
+```
+
+To pin this specific beta instead of following the beta channel, replace `@beta` with `@0.3.1-beta.0`. For a global beta installation, use `npm install --global @thebackstoryis/engineering-with-ai@beta`, then start EWAI in your project folder.
+
+Initialisation or normal check-in refreshes the EWAI-managed block in `AGENTS.md` and `CLAUDE.md`. Guidance outside that block is preserved. In an existing project, you can refresh explicitly with `npx ewai checkin --project . --json` for a project dependency, or `ewai checkin --project . --json` for a global installation. Start a fresh host conversation after refreshing so it reads the new instructions. Review changes to your project's package, lockfile and instruction files before committing them.
+
+Beta check-in offers updates from the beta channel. To return to production deliberately, install `@latest` using the same project-local or global scope, then run that version's check-in and start a fresh conversation. Review the instruction changes and use [dashboard recovery](troubleshooting-and-recovery.md#dashboard-will-not-start) if an older runtime is still running. Returning to production does not undo work already performed in your application.
+
 ## Start your project
 
 Open your project folder in the host and start EWAI. Agree where its SPECS folder should live before initialising it. For existing code, EWAI offers Archaeology to reconstruct missing project knowledge; you can accept or decline it.

@@ -2,6 +2,21 @@
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
+## Beta: concise answers and useful decision guidance
+
+Version `0.3.1-beta.0` adds communication guidance that prioritises correctness and usefulness, then brevity. Decision requests include action details, supporting guidance, a recommendation with its reason and a suggested response when useful. Query refinement leads with a recommended interpretation and explains consequential assumptions.
+
+To try this beta in one project:
+
+```bash
+npm install --save-dev @thebackstoryis/engineering-with-ai@beta
+npx ewai
+```
+
+Initialisation or the next check-in refreshes EWAI's managed instructions in `AGENTS.md` and `CLAUDE.md`, preserving project-authored guidance outside that block. Start a fresh host conversation after the refresh. See [the user guide](Docs/context-management-and-token-efficiency.md#concise-answers-and-guided-decisions) for examples and [beta installation and recovery](Docs/operations/installation-updating-and-entitlements.md#try-the-beta-channel) for other installation choices.
+
+This beta adds communication instructions and documentation. Tool-result compaction remains planned, and incremental token or cost savings have not been measured. Mandatory workflow and human approvals still apply. The production npm channel remains on `0.3.0`.
+
 ## EWAI can now pick up the next ready piece of work
 
 If you’ve prepared several work items, you can choose which ones EWAI is allowed to take on. EWAI checks what’s ready, uses the priorities you’ve recorded to pick the next item, and starts its delivery workflow. Once you’ve separately approved the Build, it can run the approved build tasks, their tests and a fresh review.
