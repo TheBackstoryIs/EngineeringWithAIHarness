@@ -14,6 +14,14 @@ npm run check
 
 Read the repository instructions and inspect your branch and uncommitted changes before editing. Keep test projects disposable and separate from active customer work. Don't install local changes over a global release as an incidental verification step.
 
+## Public development and release communication
+
+Commit messages, pull-request discussions, GitHub comments and release notes are externally visible. Describe the product behaviour, scope and verified checks. Keep credentials, customer information, private deliberations, internal correspondence and conversation-only research out of those records. Review staged files and the exact public text before committing or publishing. Release notes must distinguish shipped capability from planned work and report limitations without claiming unobserved acceptance or savings.
+
+## Native provider changes
+
+Bind unattended capability to the reviewed native CLI identity and verify coding, read-only review and restricted proposal modes separately. Grok fixtures use a synthetic loopback model and kernel confinement; they must never call paid model endpoints or load personal credentials. A passing fixture proves its boundary, not authentication, model quality or Manual QA. A version change requires renewed conformance evidence. Preserve default native model choice and stop when a requested restriction cannot be enforced.
+
 ## Development commands
 
 ```bash

@@ -4,6 +4,7 @@ import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 import {normaliseDashboardPreferences} from './dashboard-preferences.mjs';
+import {normaliseCodingProviders} from './coding-providers.mjs';
 import { projectPaths } from './paths.mjs';
 import { premiumPersonaLearningAction } from './companion-opening.mjs';
 import { initializeRuntime } from './runtime/database.mjs';
@@ -360,11 +361,11 @@ export function configureValidationCheckpoint(projectRoot, checkpoint, update) {
 }
 
 export function externalValidationStatus(config, orchestrator = 'manual') {
-  const effective = effectiveValidationConfig(config, orchestrator);
+  const effective = validationStatus(config, orchestrator);
   const selected = new Set(
     Object.values(effective.checkpoints).flatMap((checkpoint) => checkpoint.validators),
   );
-  return VALIDATION_PROVIDERS.map((validator) => ({
+  return Object.keys(effective.providers).map((validator) => ({
     validator,
     state: effective.providers[validator].state,
     enabled: effective.providers[validator].enabled,
@@ -374,6 +375,12 @@ export function externalValidationStatus(config, orchestrator = 'manual') {
 }
 
 export function validationStatus(config, orchestrator = 'manual') {
+  // Settings inspection has no coding-agent identity. Resolve independent
+  // roles only for an actual delivery host; phase dispatch still uses the
+  // strict effective configuration and cannot claim independence from manual.
+  if(orchestrator==='manual'&&config.coding_providers){
+    return {...effectiveValidationConfig(config.validation,orchestrator),roleResolution:'requires-orchestrator'};
+  }
   return effectiveValidationConfig(config, orchestrator);
 }
 
@@ -406,6 +413,7 @@ export function loadProjectConfig(projectRoot) {
   }
   config.validation = normaliseValidationConfig(config.validation);
   config.dashboard = normaliseDashboardPreferences(config.dashboard);
+  if(config.coding_providers!==undefined)config.coding_providers=normaliseCodingProviders(config.coding_providers);
   return { config, paths };
 }
 

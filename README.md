@@ -17,6 +17,12 @@ Initialisation or the next check-in refreshes EWAI's managed instructions in `AG
 
 This beta adds communication instructions and documentation. Tool-result compaction remains planned, and incremental token or cost savings have not been measured. Mandatory workflow and human approvals still apply. The production npm channel remains on `0.3.0`.
 
+## In development: coding providers and Grok Build
+
+The development branch adds native Grok Build companion launch, skill installation and project MCP setup, plus shared CLI/dashboard provider settings. Each CLI keeps its own model selection by default. These changes are not included in the published `0.3.1-beta.0` package.
+
+The branch includes isolated Grok coding, read-only review and restricted proposal workers, plus provider-policy enforcement in AFK and autonomy. Each mode must pass native conformance before dispatch. Human QA and release approval remain separate. See [provider settings](Docs/reference/cli-and-configuration.md#coding-provider-settings-in-development) for setup and recovery guidance.
+
 ## EWAI can now pick up the next ready piece of work
 
 If you’ve prepared several work items, you can choose which ones EWAI is allowed to take on. EWAI checks what’s ready, uses the priorities you’ve recorded to pick the next item, and starts its delivery workflow. Once you’ve separately approved the Build, it can run the approved build tasks, their tests and a fresh review.

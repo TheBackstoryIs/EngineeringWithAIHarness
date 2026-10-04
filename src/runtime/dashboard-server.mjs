@@ -8,6 +8,7 @@ import { attachPersonaToIntent, detachPersonaFromIntent } from '../intents.mjs';
 import { createPersona, listPersonas, personalPersonaRoot, projectPersonaRoot } from '../personas.mjs';
 import { loadProjectConfig } from '../project.mjs';
 import {readDashboardPreferences,saveDashboardPreferences,premiumPersonasActive} from '../dashboard-preferences.mjs';
+import {readCodingProviders,saveCodingProviders} from '../coding-providers.mjs';
 import { readPortfolioWorkspace } from '../portfolio.mjs';
 import { readCompanionGuidance } from '../companion-guidance.mjs';
 import {
@@ -455,6 +456,15 @@ const server = createServer(async (request, response) => {
         startedAt,
         intents: runtimeIntentSummary(projectRoot)
       });
+    }
+    if(url.pathname==='/api/coding-providers'){
+      if(url.search)return json(response,400,{error:'Provider settings do not accept query parameters.'});
+      if(request.method==='GET')return json(response,200,readCodingProviders(projectRoot));
+      if(request.method==='POST'){
+        if(String(request.headers['content-type']??'').split(';')[0].trim().toLowerCase()!=='application/json')return json(response,415,{error:'Provider settings require JSON.'});
+        const input=strictBody(await readJson(request),['confirmed','expectedDigest','policy'],'Provider settings');return json(response,200,saveCodingProviders(projectRoot,input));
+      }
+      return json(response,405,{error:'Use GET or POST for provider settings.'});
     }
     if (request.method === 'GET' && url.pathname === '/api/dashboard/preferences') {
       return json(response,200,guarded(()=>readDashboardPreferences(projectRoot)));

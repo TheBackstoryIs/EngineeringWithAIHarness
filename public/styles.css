@@ -2736,6 +2736,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .autonomy-candidate p, .autonomy-run p, .autonomy-empty p { margin: 10px 0; line-height: 1.5; }
 .autonomy-question-context { padding: 10px 12px; border-left: 3px solid var(--amber); background: var(--amber-soft); color: var(--ink); overflow-wrap: anywhere; }
 .autonomy-reasons { color: var(--amber); font-weight: 700; }
+.coding-providers-body { padding: 24px; display: grid; gap: 20px; }
+.coding-provider-notice, .coding-provider-preview { padding: 16px; border-left: 3px solid var(--green); background: var(--surface-2); }
+.coding-providers p { overflow-wrap: anywhere; }
+.coding-provider-notice p { margin-bottom: 0; }
+.coding-provider-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.coding-providers label { display: grid; gap: 8px; font-weight: 700; min-width: 0; }
+.coding-providers small { font-weight: 400; color: var(--muted); }
+.coding-providers input, .coding-providers select, .coding-providers textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; }
+.coding-providers textarea { resize: vertical; }
+.coding-provider-pool { display: flex; flex-wrap: wrap; gap: 20px; }
+.coding-provider-pool label { display: flex; align-items: center; min-height: 44px; }
+.coding-provider-pool input { width: 18px; min-height: 18px; }
+.coding-provider-pool button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.coding-provider-pool button::before { content: '□'; margin-right: 8px; }
+.coding-provider-pool button[aria-checked=true]::before { content: '✓'; color: var(--green); }
+.coding-model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.coding-providers summary { cursor: pointer; min-height: 44px; font-weight: 700; }
+.coding-provider-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.coding-providers output { display: block; overflow-wrap: anywhere; }
+.coding-providers :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 720px) { .coding-providers-body { padding: 18px; } .coding-provider-grid, .coding-model-grid { grid-template-columns: minmax(0, 1fr); } .coding-provider-actions button { flex-grow: 1; } }
 .autonomy-candidate .autonomy-card-actions, .autonomy-run .autonomy-card-actions { margin-top: 12px; }
 .autonomy-intent-detail { margin-top: 18px; padding: 16px; border-left: 4px solid var(--green); background: var(--surface-2); }
 .autonomy-intent-detail h3 { margin: 0 0 7px; }

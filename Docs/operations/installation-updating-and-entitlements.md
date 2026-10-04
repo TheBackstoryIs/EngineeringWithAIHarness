@@ -125,8 +125,29 @@ Check-in can start or reuse the dashboard, refresh derived state and check the p
 | Codex | `.agents/skills/` | `.codex/config.toml` |
 | Claude Code | `.claude/skills/` | `.mcp.json` |
 | Google Antigravity | `.agents/skills/` | `.agents/mcp_config.json` |
+| Grok Build (development branch) | `.grok/skills/` | `.grok/config.toml` |
 
 EWAI merges its entries with unrelated host configuration. Don't replace the entire file to update one entry. After an update, check that your other MCP servers are still present.
+
+Grok support is in development and is not in the published `0.3.1-beta.0` package. On that development branch, `EWAI_HOST=grok ewai` opens the native Grok companion without a model override. Install and authenticate the CLI through the [official Grok Build instructions](https://docs.x.ai/build/overview). CLI installation alone does not prove account access or project trust.
+
+For explicitly selected global skill installation, EWAI respects `GROK_HOME`; project installation uses `.grok/skills/`. Malformed, conflicting or unsafe TOML configuration stops MCP setup without rewriting that file. Resolve the reported configuration issue and retry; keep other MCP entries.
+
+### Grok Build (development branch)
+
+1. Install and authenticate Grok Build using its official instructions. For this branch's isolated unattended workers, the supported identity is `grok 1.0.44 (5b807183dd79) [stable]` on macOS. Other identities stop until their conformance contract is reviewed.
+2. Enable Grok with `ewai validation set grok available --enabled --project .`. For a new project, `ewai init --grok` records the same explicit availability choice.
+3. Choose providers in **Configuration → Coding providers**, or use `ewai providers set --primary grok --secondary codex --tertiary claude --pool grok,codex,claude --project .`. Enable and authenticate the selected reviewers too. Leave model fields blank for native selection.
+4. Before unattended work, supply `XAI_API_KEY` privately to the process launching EWAI. Interactive OAuth sessions can still use the native companion; isolated workers do not copy your personal authentication files. Never put keys in project YAML, command examples, commits or release notes.
+5. Run the usual AFK preflight or preview and approve an autonomy grant. Full automatic selection stays inside the approved scope and preserves Build approval, required review and Manual QA checkpoints.
+
+Grok coding, review and restricted proposal modes each verify the installed binary and their own offline confinement contract. The worker has a fresh private home and no inherited project instructions, hooks, skills, MCP servers or personal model configuration. EWAI supplies approved task context; Grok retains native model choice without a model override. Its bounded session-title metadata request is separate from the coding/proposal tools. Offline conformance makes no paid model requests and does not prove your account access or the quality of a real response.
+
+Coding copies declared task files into a disposable workspace. The worker may edit only that copy; EWAI checks scope, unchanged source predecessors and current authority before accepting changes. Review is read-only. EWAI's conductor runs approved commands and owns commits and integration. Snapshots accept regular files only, up to 900 KB per file, 256 files and 16 MiB overall. Root-wide globs and copied CLI/credential configuration are unsupported: narrow the task's file sets instead.
+
+For coding and review, the conductor includes the complete cited standards and recorded check outputs in mandatory task context. Review also receives the exact implementation commit diff. Git history and canonical SPECS remain outside the worker's filesystem. Evidence is bound to its task, source contents and revision, then checked again before dispatch and acceptance. Missing, changed or oversized evidence stops the run; restore the required evidence or narrow the approved task and prepare fresh context. Mandatory evidence is never silently truncated to fit a prompt.
+
+If a version, isolation check, unsupported system configuration, credential or model restriction blocks the run, inspect the recorded reason. Recommended: use the supported CLI identity, provide the private key, or remove an unsupported permitted-model restriction for native selection, as applicable, then repeat preflight. If source files changed, prepare a fresh task snapshot. Preserve partial edits and uncertain execution for recovery; do not blindly retry. No model setting is a token or spending cap.
 
 ## Premium personas
 

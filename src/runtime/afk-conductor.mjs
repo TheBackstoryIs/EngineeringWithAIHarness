@@ -18,9 +18,12 @@ import {
 } from './execution-leases.mjs';
 import { addActivityEvent } from './work.mjs';
 import {
-  AFK_PROVIDERS, buildProviderInvocation, commandAvailable, invokeProvider, providerCommand,
+  SUPPORTED_AFK_PROVIDERS, buildProviderInvocation, commandAvailable, invokeProvider, providerCommand, captureProviderIdentity, prepareGrokBuildProvider,
 } from './provider-adapters.mjs';
 import { prepareContextPack } from './context-assembly.mjs';
+import {readCodingPolicy, resolveCodingProviders, assertCodingPolicyFresh, assertModelPolicy} from '../coding-providers.mjs';
+import {readAutonomyPolicy} from '../autonomy.mjs';
+import {prepareGrokTaskEvidence,assertGrokTaskEvidenceFresh} from './grok-provider.mjs';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const workerPath = resolve(moduleDir, '../afk-worker.mjs');
@@ -101,9 +104,10 @@ function event(projectRoot, run, summary, details = '', eventType = 'progress', 
 
 function configuredProviders(config) {
   const status = validationStatus(config, 'manual');
-  return AFK_PROVIDERS.filter((provider) => {
+  return SUPPORTED_AFK_PROVIDERS.filter((provider) => {
     const setting = status.providers[provider];
-    return setting.state === 'available' && setting.enabled && commandAvailable(providerCommand(provider));
+    return setting?.state === 'available' && setting.enabled && commandAvailable(providerCommand(provider))
+      && (provider!=='grok'||prepareGrokBuildProvider('implementation').status==='requires-conformance');
   });
 }
 
@@ -283,15 +287,35 @@ export function preflightAfkRun(projectRoot, slug, options = {}) {
   if (!ready.length && !(graphCheck?.completedTasks?.length === graph?.tasks?.length)) failures.push('No AFK task is ready to execute.');
 
   const available = configuredProviders(config);
+  const coding=readCodingPolicy(root);
+  let approved=available;
+  if(options.autonomy&&coding.policy){const policy=readAutonomyPolicy(root);if(policy.status!=='current'||policy.grant.digest!==options.autonomy.grantDigest)failures.push('The approved autonomy grant changed.');
+    approved=available.filter(p=>policy.grant?.scope.providers.includes(p));}
   const requested = String(options.provider ?? 'auto');
-  const providers = requested === 'auto'
+  let providers = requested === 'auto'
     ? available
     : requested.split(',').map((value) => value.trim()).filter(Boolean);
   for (const provider of providers) {
-    if (!AFK_PROVIDERS.includes(provider)) failures.push(`Unknown AFK provider: ${provider}.`);
+    if (!SUPPORTED_AFK_PROVIDERS.includes(provider)) failures.push(`Unknown AFK provider: ${provider}.`);
     else if (!available.includes(provider)) failures.push(`${provider} is not both enabled in SPECS/pipeline.yaml and installed in this terminal.`);
   }
-  if (!providers.length) failures.push('No configured and installed Claude, Codex, or Antigravity CLI is available.');
+  let roles=null,providerIdentities=[],implementationProviders=[];
+  if(coding.policy){try{
+    if(requested!=='auto'&&coding.policy.primary!=='existing'&&coding.policy.primary!=='auto'
+      && !providers.includes(coding.policy.primary))throw new Error('The requested provider conflicts with the saved primary. Recommended: update provider settings or use --provider auto.');
+    providers=providers.filter(p=>coding.policy.pool.includes(p)&&approved.includes(p));
+    const first=resolveCodingProviders({...coding.policy,secondary:'off',tertiary:'off'},
+      {available,allowedProviders:approved,orchestrator:providers[0]});
+    roles=resolveCodingProviders(coding.policy,{available,allowedProviders:approved,orchestrator:first.primary??providers[0]});
+    implementationProviders=coding.policy.primary==='existing'?providers.filter(orchestrator=>{
+      try{resolveCodingProviders(coding.policy,{available,allowedProviders:approved,orchestrator});return true;}catch{return false;}
+    }):[roles.primary];
+    if(!implementationProviders.length)throw new Error('No eligible coding agent can satisfy the independent review roles. Recommended: choose a primary and distinct reviewers.');
+    providers=[...new Set([...implementationProviders,...roles.reviewers])];
+    if(providers.some(p=>!approved.includes(p)))throw new Error('The selected provider is outside the approved pool.');
+    for(const provider of providers){assertModelPolicy(provider,coding.policy);providerIdentities.push(captureProviderIdentity(provider));}
+  }catch(error){failures.push(error.message);}}
+  if (!providers.length) failures.push('No configured and installed coding CLI is available. Recommended: enable and install a provider, then repeat preflight.');
   const requestedParallel = Number(options.maxParallel ?? graph?.parallelism?.max_parallel_tasks ?? 1);
   if (!Number.isInteger(requestedParallel) || requestedParallel < 1) failures.push('maxParallel must be a positive integer.');
   const maxParallel = Math.max(1, Math.min(
@@ -308,6 +332,7 @@ export function preflightAfkRun(projectRoot, slug, options = {}) {
     parentBranch: graph?.parent_branch ?? '',
     topology,
     providers,
+    ...(coding.policy?{codingPolicy:coding.policy,codingPolicyDigest:coding.policyDigest,codingRoles:roles,implementationProviders,providerIdentities}:{}),
     readyTasks: ready,
     maxParallel,
     graphCheck,
@@ -365,6 +390,8 @@ export function startAfkRun(projectRoot, slug, options = {}) {
       status: 'starting',
       desiredState: 'running',
       providers: preflight.providers,
+      ...(preflight.codingPolicy?{codingPolicy:preflight.codingPolicy,codingPolicyDigest:preflight.codingPolicyDigest,
+        codingRoles:preflight.codingRoles,implementationProviders:preflight.implementationProviders,providerIdentities:preflight.providerIdentities}:{}),
       maxParallel: preflight.maxParallel,
       timeoutMs: Number(options.timeoutMs ?? 45 * 60 * 1000),
       createdAt: now(),
@@ -436,10 +463,12 @@ export function resumeAfkRun(projectRoot, runId, options = {}) {
     || options.autonomy?.runId !== run.autonomy.runId || options.autonomy?.grantDigest !== run.autonomy.grantDigest
     || typeof options.dependencies?.authority !== 'function')) throw new Error('Autonomous AFK resume requires the same bounded foreground authority context.');
   if (processAlive(run.pid)) throw new Error('AFK conductor is already running.');
+  assertRunProviderFresh(paths.projectRoot,run);
   const preflight = preflightAfkRun(paths.projectRoot, run.slug, {
     provider: run.providers.join(','),
     maxParallel: run.maxParallel,
     ignoreRunId: run.id,
+    autonomy: options.autonomy,
   });
   if (preflight.status !== 'ready') throw new Error(`AFK recovery preflight blocked: ${preflight.failures.join(' ')}`);
   if (run.autonomy) options.dependencies.authority({ stage: 'prepare', mode: 'command' });
@@ -479,9 +508,10 @@ export function prepareAfkContext(projectRoot, task, repository, options = {}) {
   const review = options.mode === 'review';
   const implementationCommit = String(options.implementationCommit ?? '').trim();
   const taskContent = JSON.stringify(task);
-  const rules = review
+  let rules = review
     ? `TESTS_FIRST Read tests before implementation. Read cited standards from ${specsRoot}. Review implementation commit ${implementationCommit}. Check the diff, exact task contract, write_set, desired outcome, stop conditions, test evidence, correctness, standards, security and scope. Do not edit files. End with exactly one line: VERDICT: PASS or VERDICT: FAIL.`
     : `You are an EWAI Build worker in an isolated Git worktree. Read standards from ${specsRoot} and tests before implementation. Repository ${repository.name} (${repository.role}). Work only inside write_set. Run only allowed_commands. Stop on every stop_condition. Make the smallest code and test change. Do not create SPECS records, commit, merge, change delivery state or update phase status. AUTHORITY_NONE. Finish with files changed and commands run.`;
+  if(options.evidenceCandidates?.length)rules += ' For this isolated Grok worker, read the complete source-standard and recorded-check sections supplied in this context. Host paths and Git history are inaccessible. Use the supplied exact commit diff for review. Do not execute commands: the conductor runs approved checks and owns commits. Read tests from the declared file snapshot before implementation.';
   const ruleMarkers = review
     ? ['TESTS_FIRST', implementationCommit, 'VERDICT: PASS or VERDICT: FAIL', 'Do not edit files']
     : ['AUTHORITY_NONE', 'Work only inside write_set', 'Do not create SPECS records', 'Do not create SPECS records, commit, merge, change delivery state or update phase status'];
@@ -513,19 +543,20 @@ export function prepareAfkContext(projectRoot, task, repository, options = {}) {
         requiredMarkers: ruleMarkers.filter(Boolean),
         selectionReason: review ? 'Tests-first review and exact verdict are mandatory.' : 'Write, command and delivery authority boundaries are mandatory.',
       },
+      ...(options.evidenceCandidates ?? []),
     ],
   });
 }
 
-function taskPrompt(projectRoot, task, repository) {
-  const pack = prepareAfkContext(projectRoot, task, repository, { mode: 'implementation' });
+function taskPrompt(projectRoot, task, repository, evidence) {
+  const pack = prepareAfkContext(projectRoot, task, repository, { mode: 'implementation',evidenceCandidates:evidence?.candidates });
   if (pack.status !== 'ready') throw new Error(`AFK Build context is not ready: ${pack.reason}.`);
   return pack.modelContext;
 }
 
-function reviewPrompt(projectRoot, task, implementationCommit) {
+function reviewPrompt(projectRoot, task, implementationCommit, evidence) {
   const pack = prepareAfkContext(projectRoot, task, { name: task.repo, role: 'review' }, {
-    mode: 'review', implementationCommit, repositoryRevision: implementationCommit,
+    mode: 'review', implementationCommit, repositoryRevision: implementationCommit,evidenceCandidates:evidence?.candidates,
   });
   if (pack.status !== 'ready') throw new Error(`AFK review context is not ready: ${pack.reason}.`);
   return pack.modelContext;
@@ -619,6 +650,15 @@ function taskState(run, task, update = {}) {
   run.tasks[task.id] = { ...(run.tasks[task.id] ?? {}), id: task.id, ...update, updatedAt: now() };
 }
 
+function assertRunProviderFresh(projectRoot,run) {
+  if(!run.codingPolicyDigest)return;
+  assertCodingPolicyFresh(run.codingPolicyDigest,readCodingPolicy(projectRoot).policyDigest);
+  for(const identity of run.providerIdentities??[]){
+    if(captureProviderIdentity(identity.provider).identityDigest!==identity.identityDigest)
+      throw new Error('Provider identity changed. Recheck capabilities before continuing.');
+  }
+}
+
 async function invokeControlled(projectRoot, run, task, invocation, invoke = invokeProvider) {
   const paths = pathsFor(projectRoot, run.id), controller = new AbortController();
   const key = controlKey(projectRoot, run.id), controls = runningControls.get(key) ?? new Set();
@@ -628,6 +668,7 @@ async function invokeControlled(projectRoot, run, task, invocation, invoke = inv
     try {
       if (requireRun(projectRoot, run.id).run.desiredState === 'cancelled') controller.abort();
       authorityChecks.get(run)?.({ stage: 'check', mode: invocation.mode ?? 'command' });
+      if(run.codingPolicyDigest)assertCodingPolicyFresh(run.codingPolicyDigest,readCodingPolicy(projectRoot).policyDigest);
     }
     catch (error) { authorityError = error; controller.abort(); }
   };
@@ -636,12 +677,18 @@ async function invokeControlled(projectRoot, run, task, invocation, invoke = inv
     guard();
     if (authorityError) throw authorityError;
     authorityChecks.get(run)?.({ stage: 'dispatch', mode: invocation.mode ?? 'command' });
+    const identity=(run.providerIdentities??[]).find(value=>value.provider===invocation.provider);
+    const evidence=invocation.grokEvidence;
+    const checkIdentity=()=>{if(identity&&captureProviderIdentity(invocation.provider).identityDigest!==identity.identityDigest)throw new Error('Provider identity changed. Recheck capabilities before continuing.');
+      if(invocation.provider==='grok')assertGrokTaskEvidenceFresh(evidence,invocation.mode);};
+    checkIdentity();
     // Persist uncertainty before the launch. A dead conductor must not leave
     // an old true flag that lets resume abandon a still-running worker's lease.
     run.executionStopped = false;
     saveRun(paths, run);
     timer = setInterval(guard, 50);
-    const result = await invoke(invocation, { signal: controller.signal, onStart(pid) {
+    const result = await invoke(invocation, { signal: controller.signal, beforeAccept(){guard();if(authorityError)throw authorityError;
+      authorityChecks.get(run)?.({stage:'accept',mode:invocation.mode??'command'});checkIdentity();}, onStart(pid) {
       taskState(run, task, { pid });
       run.activeWorkers = [...(run.activeWorkers ?? []).filter(worker => worker.taskId !== task.id), { taskId: task.id, pid }];
       saveRun(paths, run);
@@ -650,6 +697,7 @@ async function invokeControlled(projectRoot, run, task, invocation, invoke = inv
     if (result.executionStopped === true) run.activeWorkers = (run.activeWorkers ?? []).filter(worker => worker.taskId !== task.id);
     else run.unconfirmedExecution = true;
     if (authorityError) throw authorityError;
+    checkIdentity();
     if (run.unconfirmedExecution) throw new Error('AFK execution is not confirmed stopped; recovery is required.');
     run.executionStopped = (run.activeWorkers ?? []).length === 0;
     saveRun(paths, run);
@@ -791,12 +839,15 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
     taskState(run, task, { status: 'implementing' });
     saveRun(paths, run);
     event(projectRoot, run, `Agent implementing ${task.id}.`, `${provider} · ${task.name}`);
+    const implementationEvidence=provider==='grok'?prepareGrokTaskEvidence(projectRoot,worktree,task,{mode:'implementation',commands:[red]}):null;
     const invocation = buildProviderInvocation(provider, {
       cwd: worktree,
-      prompt: taskPrompt(projectRoot, task, repository),
+      prompt: taskPrompt(projectRoot, task, repository,implementationEvidence),
+      grokEvidence:implementationEvidence,
       task,
       timeoutMs: run.timeoutMs,
       mode: 'implementation',
+      codingPolicy:run.codingPolicy,policyDigest:run.codingPolicyDigest,policyRoot:projectRoot,
     });
     invocation.logPath = resolve(logRoot, 'implementation.log');
     const result = await invokeControlled(projectRoot, run, task, invocation, invoke);
@@ -840,16 +891,25 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
     git(worktree, ['commit', '-m', `feat(${run.slug}): implement ${task.id}`]);
     const implementationCommit = git(worktree, ['rev-parse', 'HEAD']);
 
-    const reviewer = run.providers.find((candidate) => candidate !== provider) ?? provider;
+    const resolvedReviewers=run.codingPolicy?resolveCodingProviders(run.codingPolicy,{available:run.providers,allowedProviders:run.providers,orchestrator:provider}).reviewers:null;
+    const reviewers = resolvedReviewers?.length?resolvedReviewers:[run.providers.find((candidate) => candidate !== provider) ?? provider];
+    let review,reviewer;
+    const reviewResults=[];
+    for(const selectedReviewer of reviewers){
+    reviewer=selectedReviewer;
+    const reviewEvidence=reviewer==='grok'?prepareGrokTaskEvidence(projectRoot,worktree,task,{mode:'review',implementationCommit,commands:[red,green,refactor]}):null;
     const reviewInvocation = buildProviderInvocation(reviewer, {
       cwd: worktree,
-      prompt: reviewPrompt(projectRoot, task, implementationCommit),
+      prompt: reviewPrompt(projectRoot, task, implementationCommit,reviewEvidence),
+      grokEvidence:reviewEvidence,
       task,
       timeoutMs: run.timeoutMs,
       mode: 'review',
+      codingPolicy:run.codingPolicy,policyDigest:run.codingPolicyDigest,policyRoot:projectRoot,
     });
     reviewInvocation.logPath = resolve(logRoot, 'review.log');
-    const review = await invokeControlled(projectRoot, run, task, reviewInvocation, invoke);
+    reviewInvocation.logPath = resolve(logRoot, `review-${reviewer}.log`);
+    review = await invokeControlled(projectRoot, run, task, reviewInvocation, invoke);
     if (requireRun(projectRoot, run.id).run.desiredState === 'cancelled') {
       throw new Error('AFK run was cancelled during fresh-context review.');
     }
@@ -860,12 +920,15 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
     if (git(worktree, ['rev-parse', 'HEAD']) !== implementationCommit || gitDirty(worktree)) {
       throw new Error('Fresh-context review changed the inspected implementation.');
     }
+    reviewResults.push({reviewer,output:review.output,logPath:review.logPath});
+    }
+    if(reviewResults.length>1)review={...review,output:reviewResults.map(value=>`${value.reviewer}:\n${value.output}`).join('\n')};
     heartbeatExecutionLease(projectRoot, lease.id, {
       token: lease.token,
       durationMs: Math.min(86_400_000, run.timeoutMs + 10 * 60 * 1000),
     });
     const branchHead = git(worktree, ['rev-parse', 'HEAD']);
-    const reviewerIdentity = `${reviewer}/${reviewer === provider ? 'fresh-session' : 'independent-cli'}`;
+    const reviewerIdentity = reviewers.map(reviewer=>`${reviewer}/${reviewer === provider ? 'fresh-session' : 'independent-cli'}`).join(',');
     taskState(run, task, { status: 'ready-to-integrate', implementationCommit, branchHead, reviewer: reviewerIdentity });
     saveRun(paths, run);
     return {
@@ -890,6 +953,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
 }
 
 async function integrateTask(projectRoot, run, result) {
+  assertRunProviderFresh(projectRoot,run);
   authorityChecks.get(run)?.({ stage: 'integrate', mode: 'command' });
   const { task, lease } = result;
   const repository = result.repository;
@@ -1027,6 +1091,7 @@ export async function executeAfkRun(projectRoot, runId, dependencies = {}) {
   try {
     if (run.autonomy && !authorityChecks.has(run)) throw new Error('Autonomous AFK run requires its original live authority context.');
     while (run.desiredState === 'running') {
+      assertRunProviderFresh(paths.projectRoot,run);
       const graph = readGraph(paths.projectRoot, run.slug);
       const check = validateTaskGraph(deliveryPaths(paths.projectRoot, run.slug).deliveryRoot, { slug: run.slug });
       if (check.status !== 'pass') throw new Error(`Task graph became invalid: ${check.errors.map((item) => item.message).join('; ')}`);
@@ -1043,7 +1108,8 @@ export async function executeAfkRun(projectRoot, runId, dependencies = {}) {
       const waveDefinition = graph.afk_waves.find((candidate) => Number(candidate.wave) === Number(firstReady.parallel_wave));
       const wave = executableIds.map((id) => graph.tasks.find((task) => task.id === id));
       const results = await Promise.all(wave.map((task, index) => (
-        implementTask(paths.projectRoot, run, task, run.providers[index % run.providers.length], dependencies)
+        implementTask(paths.projectRoot, run, task,
+          (run.implementationProviders??run.providers)[index % (run.implementationProviders??run.providers).length], dependencies)
       )));
       const control = requireRun(paths.projectRoot, run.id).run;
       run.desiredState = control.desiredState;

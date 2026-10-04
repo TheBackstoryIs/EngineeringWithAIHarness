@@ -53,13 +53,31 @@
         <header class="configuration-heading"><h2>Make this dashboard work for you.</h2><p>Keep the everyday tools. Add the extra views when your project needs them.</p></header>
         <form id="dashboardPreferencesForm"><div id="dashboardPreferenceGroups"></div><div class="configuration-save"><button id="saveDashboardPreferences" type="submit" class="primary-action" disabled>Save changes</button><button id="cancelDashboardPreferences" type="button" class="quiet-button">Cancel</button><output id="dashboardPreferenceStatus" aria-live="polite"></output></div></form>
         <p class="configuration-assurance">These settings only change what’s shown. Your standards, required checks and approvals still apply. Turning on a view won’t run a scan, connect a team service or install anything.</p>
+        <section class="configuration-group coding-providers" aria-labelledby="codingProvidersTitle">
+          <header><div><h3 id="codingProvidersTitle">Coding providers</h3><p>Choose who codes and who reviews. Recommended: let each CLI choose its own model.</p></div></header>
+          <form id="codingProvidersForm" class="coding-providers-body">
+            <div class="coding-provider-notice"><strong>Models are chosen by your CLI</strong><p>Existing host selection and required reviews continue until you save a new provider policy. Saving does not start work.</p></div>
+            <div id="codingProviderRoles" class="coding-provider-grid"></div>
+            <fieldset><legend>Eligible provider pool</legend><div id="codingProviderPool" class="coding-provider-pool"></div><p id="codingProviderAvailability"></p></fieldset>
+            <details><summary>Optional model suggestions and restrictions</summary><p>Leave these blank for native CLI selection. Suggestions are advisory. A permitted-model list stops execution when enforcement is unsupported. This does not cap tokens or spending.</p>
+              <label>Provider to configure<select id="codingModelProvider"></select></label>
+              <div class="coding-model-grid"><label>Suggested model ID (optional)<input id="codingModelSuggestion" maxlength="128" autocomplete="off"><small>Guidance without a forced model override.</small></label><label>Permitted model IDs (optional)<textarea id="codingModelPermitted" rows="3" autocomplete="off"></textarea><small>One exact provider-specific ID per line. No wildcards or inferred ranking.</small></label></div>
+              <p id="codingModelStatus" role="status"></p>
+            </details>
+            <div id="codingProviderPreview" class="coding-provider-preview" aria-live="polite"></div>
+            <div class="coding-provider-actions"><button id="codingProviderSave" type="submit" class="primary-action" disabled>Save provider settings</button><button id="codingProviderCancel" type="button" class="quiet-button" disabled>Cancel changes</button><button id="codingProviderDefaults" type="button" class="quiet-button" disabled>Restore existing behaviour</button><button id="codingProviderAuto" type="button" class="quiet-button" disabled>Choose automatically</button></div>
+            <output id="codingProviderStatus" role="status" aria-live="polite">Loading provider settings…</output>
+            <div id="codingProviderConflict" hidden><p id="codingProviderLatest"></p><button id="codingProviderCompare" type="button" class="quiet-button">Compare latest settings</button><button id="codingProviderRebase" type="button" class="quiet-button" hidden>Keep my draft against these settings</button></div>
+            <p>Automatic selection uses installed, enabled providers inside the approved delivery pool. Required checks, independent review and human approvals still apply. Grok unattended modes require separate conformance.</p>
+          </form>
+        </section>
         <section class="configuration-group autonomy-configuration" aria-labelledby="autonomyConfigurationTitle">
           <header><div><h3 id="autonomyConfigurationTitle">Delegated delivery</h3><p>Choose an exact pool and limits. EWAI can progress only permitted work between your decisions.</p></div><strong id="autonomyMode" class="autonomy-mode">Checking…</strong></header>
           <div class="autonomy-configuration-body">
             <fieldset class="autonomy-pool-field"><legend>Exact intent pool</legend><p>Only the intents you select can enter this grant.</p><div id="autonomyPool" class="autonomy-pool" aria-live="polite">Loading project intents…</div></fieldset>
             <fieldset class="autonomy-actions-field"><legend>Permitted progress</legend><button type="button" role="checkbox" aria-checked="true" name="autonomyAction" value="begin-harness">Begin a ready intent</button><button type="button" role="checkbox" aria-checked="false" name="autonomyAction" value="prepare-phase">Prepare a governed phase</button><button type="button" role="checkbox" aria-checked="false" name="autonomyAction" value="afk-build">Continue approved Build work</button></fieldset>
             <div class="autonomy-limits">
-              <label>Provider<select id="autonomyProvider"><option value="codex">Codex</option><option value="claude">Claude</option><option value="antigravity">Antigravity</option></select></label>
+              <label>Provider<select id="autonomyProvider"><option value="codex">Codex</option><option value="claude">Claude</option><option value="antigravity">Antigravity</option><option value="grok">Grok Build</option><option value="auto">Automatic from saved provider pool</option></select></label>
               <label>New grant expires after, hours<input id="autonomyExpiryHours" type="number" min="1" max="24" value="2" inputmode="numeric"></label>
               <label>Run limit, minutes<input id="autonomyRuntimeMinutes" type="number" min="1" max="1440" value="30" inputmode="numeric"></label>
               <label>Operation limit, seconds<input id="autonomyOperationSeconds" type="number" min="1" max="3600" value="900" inputmode="numeric"></label>
@@ -811,5 +829,6 @@
       </form>
     </dialog>
     <script src="/app.js" type="module"></script>
+    <script src="/coding-providers.js" type="module"></script>
   </body>
 </html>

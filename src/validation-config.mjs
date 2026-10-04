@@ -1,4 +1,7 @@
+import {resolveCodingProviders,codingPolicyDigest,assertModelPolicy} from './coding-providers.mjs';
+// Keep legacy discovery defaults stable; Grok is an explicit, additive choice.
 export const VALIDATION_PROVIDERS = Object.freeze(['claude', 'codex', 'antigravity']);
+export const SUPPORTED_VALIDATION_PROVIDERS = Object.freeze([...VALIDATION_PROVIDERS,'grok']);
 
 const LEGACY_PROVIDER_ALIASES = Object.freeze({
   gemini: 'antigravity',
@@ -104,7 +107,7 @@ function normaliseValidators(value, checkpoint) {
 
   const validators = [...new Set(value.map(canonicalValidationProvider))];
   for (const provider of validators) {
-    requireEnum(provider, VALIDATION_PROVIDERS, `validation checkpoint ${checkpoint} validator`);
+    requireEnum(provider, SUPPORTED_VALIDATION_PROVIDERS, `validation checkpoint ${checkpoint} validator`);
   }
   return validators;
 }
@@ -177,7 +180,7 @@ export function normaliseValidationConfig(value = {}) {
 
   const rawProviders = value?.external?.providers ?? {};
   const providers = Object.fromEntries(
-    VALIDATION_PROVIDERS.map((provider) => [
+    SUPPORTED_VALIDATION_PROVIDERS.filter(provider=>provider!=='grok'||Object.hasOwn(rawProviders,provider)).map((provider) => [
       provider,
       normaliseProvider(
         rawProviders[provider] ?? (provider === 'antigravity' ? rawProviders.gemini : undefined),
@@ -218,13 +221,13 @@ export function effectiveValidationConfig(configOrValidation, orchestrator = 'ma
     configOrValidation?.validation ?? configOrValidation,
   );
   const canonicalOrchestrator = canonicalValidationProvider(orchestrator);
-  const normalisedOrchestrator = VALIDATION_PROVIDERS.includes(canonicalOrchestrator)
+  const normalisedOrchestrator = SUPPORTED_VALIDATION_PROVIDERS.includes(canonicalOrchestrator)
     ? canonicalOrchestrator
     : 'manual';
 
-  const globallyEligible = VALIDATION_PROVIDERS.filter((provider) => {
+  const globallyEligible = SUPPORTED_VALIDATION_PROVIDERS.filter((provider) => {
     const setting = validation.external.providers[provider];
-    return setting.state === 'available' && setting.enabled;
+    return setting?.state === 'available' && setting.enabled;
   });
 
   const checkpoints = Object.fromEntries(
@@ -232,7 +235,14 @@ export function effectiveValidationConfig(configOrValidation, orchestrator = 'ma
       const requested = setting.validators === 'auto'
         ? globallyEligible
         : setting.validators.filter((provider) => globallyEligible.includes(provider));
-      const providers = requested.filter((provider) => provider !== normalisedOrchestrator);
+      let providers = requested.filter((provider) => provider !== normalisedOrchestrator);
+      if(setting.enabled && configOrValidation?.coding_providers){
+        providers=resolveCodingProviders(configOrValidation.coding_providers,{
+          orchestrator:normalisedOrchestrator,available:globallyEligible,reviewers:providers,
+          requiredReviewers:providers.length,
+        }).reviewers;
+        for(const provider of providers)assertModelPolicy(provider,configOrValidation.coding_providers);
+      }
 
       return [
         checkpoint,
@@ -255,11 +265,12 @@ export function effectiveValidationConfig(configOrValidation, orchestrator = 'ma
     orchestrator: normalisedOrchestrator,
     providers: clone(validation.external.providers),
     checkpoints,
+    ...(configOrValidation?.coding_providers ? {codingPolicy:clone(configOrValidation.coding_providers),codingPolicyDigest:codingPolicyDigest(configOrValidation.coding_providers)} : {}),
   };
 }
 
 export function setValidationProvider(config, provider, state, enabled = undefined) {
-  requireEnum(provider, VALIDATION_PROVIDERS, 'validation provider');
+  requireEnum(provider, SUPPORTED_VALIDATION_PROVIDERS, 'validation provider');
   requireEnum(state, ['available', 'unavailable'], 'validation provider state');
   const validation = normaliseValidationConfig(config.validation);
   validation.external.providers[provider] = {

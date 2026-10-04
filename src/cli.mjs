@@ -32,6 +32,7 @@ import {
 } from './design-systems.mjs';
 import { installDesignSystemCandidate, validateDesignSystemCandidate } from './design-system-authoring.mjs';
 import { applyDesignSystem } from './design-system-application.mjs';
+import {readCodingProviders,saveCodingProviders} from './coding-providers.mjs';
 import {
   createPersona,
   indexPersonas,
@@ -493,8 +494,11 @@ function usage() {
   return `EWAI Pipeline
 
 Commands:
-  ewai install [--project PATH] [--host auto|codex|claude|antigravity] [--mode copy|link]
-  ewai init [--project PATH] [--name NAME] [--specs PATH] [--init-specs-repo] [--claude] [--codex] [--antigravity] [--force]
+  ewai install [--project PATH] [--host auto|codex|claude|grok|antigravity] [--mode copy|link]
+  ewai providers show|set|auto|defaults [--project PATH] [--json]
+  ewai providers set [--primary PROVIDER|auto|existing] [--secondary PROVIDER|auto|off|existing] [--tertiary PROVIDER|auto|off|existing] [--pool LIST] [--input FILE] [--expected-digest DIGEST]
+  ewai providers model PROVIDER [--suggest MODEL_ID] [--allow-model MODEL_ID] [--clear-suggestion] [--clear-restriction]
+  ewai init [--project PATH] [--name NAME] [--specs PATH] [--init-specs-repo] [--claude] [--codex] [--grok] [--antigravity] [--force]
   ewai checkin [--project PATH]
   ewai dashboard [--project PATH]
   ewai dashboard preferences [--project PATH] [--json]
@@ -502,7 +506,7 @@ Commands:
   ewai autonomy preview [--intent DOMAIN/SLUG --action ACTION --provider PROVIDER --expires-at ISO --max-runtime-ms N --max-operation-ms N --max-attempts N --record] [--project PATH] [--json]
   ewai autonomy approve --expected-digest DIGEST --approved-by NAME --yes [--project PATH] [--json]
   ewai autonomy revoke --expected-digest DIGEST --revoked-by NAME --yes [--project PATH] [--json]
-  ewai autonomy run|service --expected-digest DIGEST --provider PROVIDER --yes [--project PATH] [--json]
+  ewai autonomy run|service --expected-digest DIGEST --provider PROVIDER|auto --yes [--project PATH] [--json]
   ewai autonomy pause|resume|cancel|recover --run ID --expected-revision N --yes [--project PATH] [--json]
   ewai autonomy control --action pause|resume|cancel|revoke|recover --run ID --expected-revision N --yes [--revoked-by NAME] [--project PATH] [--json]
   ewai autonomy answer --input PROJECT_RELATIVE_JSON --yes [--project PATH] [--json]
@@ -569,8 +573,8 @@ Commands:
   ewai archaeology prepare-review BUNDLE [--project PATH] [--force]
   ewai archaeology curate BUNDLE [--project PATH] --yes [--approved-by NAME]
   ewai archaeology validate-completion BUNDLE [--project PATH]
-  ewai validation list [--project PATH] [--orchestrator manual|claude|codex|antigravity]
-  ewai validation set claude|codex|antigravity available|unavailable [--enabled|--disabled] [--project PATH]
+  ewai validation list [--project PATH] [--orchestrator manual|claude|codex|grok|antigravity]
+  ewai validation set claude|codex|grok|antigravity available|unavailable [--enabled|--disabled] [--project PATH]
   ewai validation checkpoint implementation-plan|test-plan|code [--cycles N] [--validators auto|PROVIDER,...] [--breadth targeted|change-set|capability|system] [--depth issues-only|issues-and-fixes|analysis-and-recommendations] [--output small|medium|large] [--enabled|--disabled] [--project PATH]
   ewai security status|providers|adapters|runs|findings|dispositions [--project PATH]
   ewai security adapter-validate FOLDER [--project PATH]
@@ -613,13 +617,13 @@ Commands:
   ewai delivery phase-complete SLUG PHASE [--artefact PATH] [--project PATH]
   ewai delivery ratify-amendments SLUG --yes --approved-by NAME --scope TEXT [--project PATH]
   ewai delivery evidence-amendment SLUG [--yes --approved-by NAME --reason TEXT --expected-state-digest DIGEST] [--project PATH]
-  ewai delivery validation-cycle SLUG PHASE --provider claude|codex|antigravity --outcome pass|issues [--response PATH] [--fix PATH] [--notes TEXT] [--project PATH]
+  ewai delivery validation-cycle SLUG PHASE --provider claude|codex|grok|antigravity --outcome pass|issues [--response PATH] [--fix PATH] [--notes TEXT] [--project PATH]
   ewai delivery approve-build SLUG --yes --approved-by NAME [--scope TEXT] [--project PATH]
   ewai delivery approve-manual-qa SLUG --yes --approved-by NAME --evidence PATH [--notes TEXT] [--project PATH]
   ewai delivery runs [SLUG] [--project PATH]
   ewai delivery runs --mark-stale [--hours N] [--project PATH]
-  ewai afk preflight SLUG [--provider auto|claude|codex|antigravity] [--parallel N] [--project PATH]
-  ewai afk start SLUG [--provider auto|claude|codex|antigravity] [--parallel N] [--timeout-minutes N] [--project PATH]
+  ewai afk preflight SLUG [--provider auto|claude|codex|grok|antigravity] [--parallel N] [--project PATH]
+  ewai afk start SLUG [--provider auto|claude|codex|grok|antigravity] [--parallel N] [--timeout-minutes N] [--project PATH]
   ewai afk status [RUN_ID] [--project PATH]
   ewai afk pause RUN_ID [--project PATH]
   ewai afk resume RUN_ID [--project PATH]
@@ -836,7 +840,7 @@ export async function run(args) {
         name: option(args, '--name'),
         specsRoot: option(args, '--specs') || undefined,
         initSpecsRepository: has(args, '--init-specs-repo'),
-        validators: ['claude', 'codex', 'antigravity'].filter((validator) => has(args, `--${validator}`)),
+        validators: ['claude', 'codex', 'grok', 'antigravity'].filter((validator) => has(args, `--${validator}`)),
         force: has(args, '--force')
       });
       print(json ? result : formatInitResult(result), json);
@@ -900,6 +904,33 @@ export async function run(args) {
       }
       const result = await autonomyInterfaceAction(root, action, input);
       print(json ? result : JSON.stringify(result, null, 2), json); return;
+    }
+
+    if(command==='providers'){
+      if(!['show','set','auto','defaults','model'].includes(subcommand))throw new Error('Choose providers show, set, auto, model or defaults.');
+      const valued=new Set(['--project','--expected-digest',...(subcommand==='set'?['--primary','--secondary','--tertiary','--pool','--input']:[]),...(subcommand==='auto'?['--pool']:[]),...(subcommand==='model'?['--suggest','--allow-model']:[])]);
+      const switches=new Set(['--json',...(subcommand==='model'?['--clear-suggestion','--clear-restriction']:[])]),seen=new Set();
+      for(let i=subcommand==='model'?3:2;i<args.length;i++){const arg=args[i];if(valued.has(arg)){if(!args[i+1]||args[i+1].startsWith('--'))throw new Error(arg+' requires a value.');if(seen.has(arg)&&arg!=='--allow-model')throw new Error('Do not repeat '+arg);seen.add(arg);i++;}else if(!switches.has(arg))throw new Error('Unsupported provider argument: '+arg);}
+      const project=selectedProject(args),current=readCodingProviders(project);
+      if(subcommand==='show'){print(json?current:JSON.stringify(current,null,2),json);return;}
+      let policy=structuredClone(current.policy??{});
+      if(subcommand==='defaults')policy=null;
+      if(subcommand==='set'){
+        const input=option(args,'--input');if(input&&['--primary','--secondary','--tertiary','--pool'].some(flag=>has(args,flag)))throw new Error('Use a complete input policy or individual setting flags.');
+        if(input)policy=readProjectJsonInput(project,input,'Provider policy');
+        else{if(!['--primary','--secondary','--tertiary','--pool'].some(flag=>has(args,flag)))throw new Error('Choose provider settings to change.');for(const role of ['primary','secondary','tertiary'])if(has(args,'--'+role))policy[role]=option(args,'--'+role);if(has(args,'--pool'))policy.pool=option(args,'--pool').split(',').map(x=>x.trim());}
+      }
+      if(subcommand==='auto'){policy.primary='auto';policy.secondary='auto';policy.tertiary='auto';if(has(args,'--pool'))policy.pool=option(args,'--pool').split(',').map(x=>x.trim());}
+      if(subcommand==='model'){
+        const provider=args[2];if(!['claude','codex','grok','antigravity'].includes(provider))throw new Error('Choose a supported model provider.');
+        if(has(args,'--suggest')&&has(args,'--clear-suggestion')||has(args,'--allow-model')&&has(args,'--clear-restriction'))throw new Error('Choose one change for each model setting.');
+        if(!['--suggest','--allow-model','--clear-suggestion','--clear-restriction'].some(flag=>has(args,flag)))throw new Error('Choose a model suggestion or restriction to change.');
+        policy.models??={};const model=policy.models[provider]??{};
+        if(has(args,'--clear-suggestion'))delete model.suggestion;if(has(args,'--clear-restriction'))delete model.permitted_models;
+        if(has(args,'--suggest'))model.suggestion=option(args,'--suggest');if(has(args,'--allow-model'))model.permitted_models=options(args,'--allow-model');policy.models[provider]=model;
+      }
+      const saved=saveCodingProviders(project,{confirmed:true,expectedDigest:option(args,'--expected-digest',current.digest),policy});
+      print(json?saved:'Provider settings saved. Models remain native by default; required checks and approvals still apply.',json);return;
     }
 
     if (command === 'dashboard' && ['preferences','configure'].includes(subcommand)) {

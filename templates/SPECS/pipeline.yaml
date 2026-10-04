@@ -18,6 +18,9 @@ personas:
 approvals:
   build: required
   destructive_operations: required
+# Optional coding-provider roles are configured with `ewai providers` or the
+# dashboard. Absence preserves existing provider and native model selection.
+# Settings do not grant execution authority; unsupported model restrictions stop.
 validation:
   standards:
     required: true

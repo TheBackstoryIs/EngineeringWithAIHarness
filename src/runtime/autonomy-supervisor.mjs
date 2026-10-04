@@ -10,8 +10,10 @@ import { autonomyPaths, autonomyFiles, autonomyDigest, autonomyError, readAutono
 import { withIntentMutation, acquireIntentOwnership, assertIntentOwnership, releaseIntentOwnership } from './intent-ownership.mjs';
 import { readIntentMutationSnapshot, recoverCompletedAutonomyOperation } from './autonomy-operations.mjs';
 import { prepareAutonomyPhase, invokePhaseProposal, acceptPhaseProposal } from './autonomy-workers.mjs';
-import { preparePhaseProvider, verifyPhaseProviderConformance } from './provider-adapters.mjs';
+import { preparePhaseProvider, verifyPhaseProviderConformance, commandAvailable, providerCommand } from './provider-adapters.mjs';
 import { preflightAfkRun, startAfkRun, resumeAfkRun, pauseAfkRun, cancelAfkRun, afkRunStatus } from './afk-conductor.mjs';
+import {readCodingPolicy, resolveCodingProviders, assertModelPolicy} from '../coding-providers.mjs';
+import {loadProjectConfig, validationStatus} from '../project.mjs';
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
@@ -55,7 +57,7 @@ function readRun(root, id) {
       || value.projectIdentity !== autonomyDigest(paths.projectRoot)
       || !path.endsWith(`/${value.revision}-${value.digest.slice(7)}.json`)) autonomyError('autonomy-run-evidence-invalid');
     if (!statuses.has(value.status) || !['once', 'service'].includes(value.mode) || !['running', 'paused', 'cancelled', 'revoked'].includes(value.desiredState)
-      || !digestPattern.test(value.grantDigest ?? '') || !['claude', 'codex', 'antigravity'].includes(value.provider)
+      || !digestPattern.test(value.grantDigest ?? '') || !['claude', 'codex', 'antigravity', 'grok'].includes(value.provider)
       || !Number.isSafeInteger(value.owner?.pid) || value.owner.pid < 1 || !uuid.test(value.owner?.instance ?? '')
       || !Number.isSafeInteger(value.lastClock) || !Number.isFinite(Date.parse(value.startedAt)) || !Number.isFinite(Date.parse(value.updatedAt))
       || !value.counters || Object.keys(value.counters).sort().join(',') !== 'actions,elapsedMs,providerAttempts,reviewCycles'
@@ -130,11 +132,26 @@ function createRun(root, input, mode) {
   const paths = pathsFor(root);
   return withAutonomyLock(paths, () => {
     const grant = currentGrant(root, input.expectedDigest);
-    if (!grant.scope.providers.includes(input.provider)) autonomyError('autonomy-provider-not-permitted');
+    let provider = input.provider;
+    const coding = readCodingPolicy(root);
+    if (provider === 'auto') {
+      const {config} = loadProjectConfig(root), status = validationStatus(config, 'manual');
+      const available = grant.scope.providers.filter(p => status.providers[p]?.enabled && status.providers[p]?.state === 'available'
+        && commandAvailable(providerCommand(p)) && (!grant.scope.actions.includes('prepare-phase') || preparePhaseProvider(p).status === 'requires-conformance'));
+      try {
+        provider = resolveCodingProviders({...coding.policy,pool:coding.policy?.pool??grant.scope.providers,primary: !coding.policy||coding.policy.primary === 'existing' ? 'auto' : coding.policy.primary,
+          secondary:'off',tertiary:'off'}, {available,allowedProviders:grant.scope.providers}).primary;
+      } catch(error) {
+        if(error.code==='coding-provider-model-restriction-unsupported')autonomyError('autonomy-model-restriction-unsupported');
+        autonomyError('autonomy-provider-unavailable');
+      }
+    }
+    if (!grant.scope.providers.includes(provider) || coding.policy && !coding.policy.pool.includes(provider)) autonomyError('autonomy-provider-not-permitted');
+    try { assertModelPolicy(provider, coding.policy); } catch { autonomyError('autonomy-model-restriction-unsupported'); }
     if (listRuns(root).some(run => !terminal.has(run.status))) autonomyError('autonomy-supervisor-busy');
     const id = randomUUID(), at = Date.now();
     const run = { schema: 'ewai.autonomy-run/v1', id, revision: 1, previousDigest: null,
-      projectIdentity: autonomyDigest(paths.projectRoot), mode, provider: input.provider, grantDigest: grant.digest,
+      projectIdentity: autonomyDigest(paths.projectRoot), mode, provider, grantDigest: grant.digest,
       status: 'starting', desiredState: 'running', startedAt: new Date(at).toISOString(), updatedAt: new Date(at).toISOString(),
       lastClock: at, counters: { elapsedMs: 0, providerAttempts: 0, reviewCycles: 0, actions: 0 },
       owner: { pid: process.pid, instance: randomUUID() }, current: null, lastResult: null, questions: [],
@@ -342,7 +359,8 @@ export async function executeAutonomyRun(root, id) {
       } else if (candidate.action === 'afk-build') {
         if (!grant.scope.actions.includes('afk-build') || !grant.scope.intentIds.includes(candidate.intentId)) autonomyError('autonomy-afk-scope-invalid');
         assertBuild(root, candidate, !candidate.afkRunId);
-        const preflight = preflightAfkRun(root, candidate.intentId.split('/')[1], { provider: run.provider, maxParallel: 1, ignoreRunId: candidate.afkRunId });
+        const preflight = preflightAfkRun(root, candidate.intentId.split('/')[1], { provider: run.provider, maxParallel: 1, ignoreRunId: candidate.afkRunId,
+          autonomy:{runId:run.id,grantDigest:run.grantDigest} });
         if (preflight.status !== 'ready') autonomyError('autonomy-afk-preflight-blocked');
         if (preflight.readyTasks.length && remainingAttempts < 2) autonomyError('autonomy-attempts-exhausted');
         const ownership = acquireIntentOwnership(root, candidate.intentId, { ownerId: `supervisor-${id}`, durationMs: Math.min(86400000, Math.ceil(remainingMs) + 60000) });

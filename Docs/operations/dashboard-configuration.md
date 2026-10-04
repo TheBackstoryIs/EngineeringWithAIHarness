@@ -2,6 +2,20 @@
 
 The dashboard starts with its everyday tools. Extra views are off by default, so you don't have to navigate portfolio management, policy controls or integration tools when your project doesn't need them.
 
+## Coding provider settings (in development)
+
+The development branch includes **Configuration → Coding providers**. This is not part of the published `0.3.1-beta.0` package. These settings govern host selection and AFK/autonomy dispatch; saving them does not start a delivery or approve execution.
+
+Choose the primary coding provider, secondary and tertiary reviewers, and an eligible pool. **Existing behaviour** preserves normal host selection and checkpoint policy. **Choose automatically** creates a draft with automatic roles; it does not run anything or approve a grant. Required review capacity cannot be weakened, and reviewers must differ from the actual coding agent.
+
+Leave optional model fields blank to let each CLI decide. A suggestion supplies advisory guidance without forcing a model. A permitted-model list is a strict boundary: unsupported enforcement stops invocation. The current adapters do not have verified permitted-list enforcement. Recommended: leave this list blank for native selection unless a verified adapter is available. This is not a token or spending cap, and no savings have been measured.
+
+Use **Save provider settings** to apply the draft. **Cancel changes** restores the last saved policy in the form; **Restore existing behaviour** removes only the additive provider policy when saved. If another editor changes configuration, the draft is retained. Compare the latest settings, then explicitly keep the draft against those settings before saving again. That replaces the provider policy, while preserving other project configuration.
+
+For automatic unattended work, save an eligible pool, then choose **Automatic from saved pool** in the autonomy controls. Preview and review the exact providers, intents, actions, expiry and limits before approving a grant. Selection uses only providers inside both the saved pool and approved grant that can perform the requested action and enforce any configured model restriction. Automatic roles skip ineligible providers; explicitly selected or inherited required providers stop instead of changing your choice. Changing settings invalidates the old grant: review a fresh one.
+
+Installed CLI status does not prove authentication or unattended capability. Grok coding, review and proposal modes each run an offline conformance check before dispatch. See [Grok setup and limitations](installation-updating-and-entitlements.md#grok-build-development-branch). A failed check stops the run; inspect its reason before retrying.
+
 ## Show an extra view
 
 1. Open your project's dashboard.

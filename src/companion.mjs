@@ -6,16 +6,19 @@ import { install } from './install.mjs';
 import { detectExistingCodebase } from './project.mjs';
 import { projectPaths, resolveProjectRoot } from './paths.mjs';
 import { dashboardHandoffStatus } from './runtime/dashboard-handoffs.mjs';
+import {readCodingProviders,resolveCodingProviders,modelGuidance} from './coding-providers.mjs';
 
-const HOSTS = ['claude', 'codex', 'antigravity'];
+const HOSTS = ['claude', 'codex', 'antigravity', 'grok'];
 const HOST_LABELS = {
   claude: 'Claude Code',
   codex: 'Codex',
+  grok: 'Grok Build',
   antigravity: 'Google Antigravity'
 };
 const HOST_COMMANDS = {
   claude: 'claude',
   codex: 'codex',
+  grok: 'grok',
   antigravity: 'agy',
 };
 
@@ -102,6 +105,7 @@ export function buildCompanionPrompt(state) {
 export function hostInvocation(host, prompt) {
   if (host === 'claude') return { command: 'claude', args: [prompt] };
   if (host === 'codex') return { command: 'codex', args: [prompt] };
+  if (host === 'grok') return { command: 'grok', args: [prompt] };
   if (host === 'antigravity') return { command: 'agy', args: ['--prompt-interactive', prompt] };
   throw new Error(`Unsupported EWAI agent host: ${host}`);
 }
@@ -209,7 +213,10 @@ export async function runCompanion(options = {}) {
   const errorOutput = options.errorOutput ?? process.stderr;
   const env = options.env ?? process.env;
   const state = projectState(options.cwd ?? process.cwd());
-  const preferredValue = String(options.preferredHost ?? env.EWAI_HOST ?? '').toLowerCase();
+  let policy=null;
+  if(state.initialized)try{policy=readCodingProviders(state.projectRoot,{probe:()=>false}).policy;}catch(error){errorOutput.write(error.message+'\n');return 1;}
+  const policyPrimary=policy&&policy.primary!=='existing'&&policy.primary!=='auto'?policy.primary:undefined;
+  const preferredValue = String(options.preferredHost ?? env.EWAI_HOST ?? policyPrimary ?? '').toLowerCase();
   const preferred = preferredValue === 'agy' ? 'antigravity' : preferredValue;
   const preferredStatuses = HOSTS.includes(preferred)
     ? detectHostStatuses({ env, probe: options.probeHost, hosts: [preferred] }) : [];
@@ -229,15 +236,23 @@ export async function runCompanion(options = {}) {
   }
 
   let host = selectAvailableHost(available, preferred);
+  if(policy&&policy.primary!=='existing'&&!options.preferredHost&&!env.EWAI_HOST){
+    try{host=resolveCodingProviders({...policy,secondary:'off',tertiary:'off'},{available}).primary;}
+    catch(error){errorOutput.write(error.message+'\n');return 1;}
+  }
   if (!host && available.length > 1) {
     if (!options.verbose) output.write(`${formatHostAvailability(statuses)}\n`);
     host = await askForHost(available, { input, output });
   }
   if (!host) {
-    errorOutput.write(`EWAI found ${available.map((item) => HOST_LABELS[item]).join(', ')}, but cannot choose interactively in this session. Set EWAI_HOST to claude, codex, or antigravity.\n`);
+    errorOutput.write(`EWAI found ${available.map((item) => HOST_LABELS[item]).join(', ')}, but cannot choose interactively in this session. Set EWAI_HOST to claude, codex, grok, or antigravity.\n`);
     return 1;
   }
 
+  let guidance='';try{
+    if(policy&&!policy.pool.includes(host))throw new Error('The selected CLI is outside the provider pool. Choose an eligible host or explicitly update the provider settings.');
+    guidance=modelGuidance(host,policy);
+  }catch(error){errorOutput.write(error.message+'\n');return 1;}
   const prepareHost = options.prepareHost ?? ((selectedHost) => refreshHostSkills(selectedHost));
   try {
     await prepareHost(host);
@@ -249,7 +264,7 @@ export async function runCompanion(options = {}) {
 
   output.write(`EWAI · ${basename(state.projectRoot)} → ${HOST_LABELS[host]}\n`);
   const orchestratedState = { ...state, orchestrator: host, startup: companionStartupPlan(state) };
-  const invocation = hostInvocation(host, buildCompanionPrompt(orchestratedState));
+  const invocation = hostInvocation(host, buildCompanionPrompt(orchestratedState)+guidance);
   const hostEnv = { ...env, EWAI_ORCHESTRATOR: host };
   const launch = options.spawnHost ?? ((value) => spawnInteractive(value, { cwd: state.projectRoot, env: hostEnv }));
   return launch(invocation, orchestratedState);

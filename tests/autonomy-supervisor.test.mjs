@@ -5,7 +5,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import YAML from 'yaml';
-import { initProject } from '../src/project.mjs';
+import { initProject,configureExternalValidation } from '../src/project.mjs';
+import {readCodingProviders,saveCodingProviders} from '../src/coding-providers.mjs';
 import { createIntent, updateIntentDeliveryState } from '../src/intents.mjs';
 import { beginDelivery } from '../src/delivery.mjs';
 import { finishActiveSession } from '../src/runtime/work.mjs';
@@ -21,10 +22,14 @@ function consumer(t, options = {}) {
   const root = realpathSync(mkdtempSync(resolve(tmpdir(), 'ewai-supervisor-consumer-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   initProject(root, { name: 'Supervisor consumer', specsRoot: 'knowledge' });
+  if(options.codingPolicy){
+    for(const provider of options.configuredProviders??options.providers??['claude'])configureExternalValidation(root,provider,'available',true);
+    saveCodingProviders(root,{confirmed:true,expectedDigest:readCodingProviders(root,{probe:()=>false}).digest,policy:options.codingPolicy},{probe:()=>false});
+  }
   const intent = createIntent(root, { domain: 'product', slug: 'alpha' });
   updateIntentDeliveryState(root, intent.path, { status: 'ready' });
   const preview = previewAutonomy(root, { record: true, proposal: {
-    intentIds: ['product/alpha'], actions: options.actions ?? ['begin-harness', 'prepare-phase'], providers: ['claude'],
+    intentIds: ['product/alpha'], actions: options.actions ?? ['begin-harness', 'prepare-phase'], providers: options.providers??['claude'],
     expiresAt: new Date(Date.now() + 3600000).toISOString(),
     limits: { maxConcurrentIntents: 1, maxRuntimeMs: 60000, maxOperationMs: 10000, maxAttempts: 2, ...options.limits },
   } });
@@ -32,6 +37,32 @@ function consumer(t, options = {}) {
   git(root, 'init', '-b', 'fixture'); git(root, 'config', 'user.name', 'Fixture'); git(root, 'config', 'user.email', 'fixture@example.invalid'); commit(root);
   return { root, grant };
 }
+
+test('automatic supervisor dispatch selects inside both saved and approved pools',async t=>{
+  const {root,grant}=consumer(t,{actions:['begin-harness'],providers:['claude','codex'],configuredProviders:['codex'],
+    codingPolicy:{pool:['codex'],primary:'auto',secondary:'off',tertiary:'off'}});
+  const bin=resolve(root,'bin'),oldPath=process.env.PATH;mkdirSync(bin);
+  writeFileSync(resolve(bin,'codex'),'#!/bin/sh\nexit 0\n');chmodSync(resolve(bin,'codex'),0o755);
+  commit(root);
+  process.env.PATH=`${bin}:${oldPath}`;t.after(()=>{process.env.PATH=oldPath;});
+  const result=await runAutonomyOnce(root,{expectedDigest:grant.digest,provider:'auto'});
+  assert.equal(result.status,'completed');assert.equal(result.provider,'codex');assert.equal(result.counters.providerAttempts,0);
+});
+
+test('automatic supervisor cannot widen a grant or bypass model restrictions',async t=>{
+  for(const restriction of [false,true]){
+    const {root,grant}=consumer(t,{actions:['begin-harness'],providers:['claude'],
+      codingPolicy:{pool:restriction?['claude']:['codex'],primary:'auto',secondary:'off',tertiary:'off',
+        ...(restriction?{models:{claude:{permitted_models:['fixture']}}}:{})}});
+    const bin=resolve(root,'bin'),oldPath=process.env.PATH;mkdirSync(bin);
+    for(const provider of ['claude','codex']){writeFileSync(resolve(bin,provider),'#!/bin/sh\nexit 0\n');chmodSync(resolve(bin,provider),0o755);}
+    process.env.PATH=`${bin}:${oldPath}`;
+    try{await assert.rejects(()=>runAutonomyOnce(root,{expectedDigest:grant.digest,provider:'auto'}),
+      error=>error.code===(restriction?'autonomy-model-restriction-unsupported':'autonomy-provider-unavailable'));
+      assert.equal(existsSync(resolve(root,'knowledge/6.Build/alpha/delivery-state.json')),false);
+    }finally{process.env.PATH=oldPath;}
+  }
+});
 
 // A durable, named revocation is input evidence. This first RED exercises the
 // real existing policy and worker readers, not an absent supervisor module.
@@ -80,6 +111,7 @@ test('revocation prevents the next dispatch and acceptance under the old grant',
 
 async function controlledSupervisor(root, observe = async () => {}, verify = async () => ({status:'verified', executionStopped:true}), afkProvider = null) {
   const providerSource = `let observe = async () => {}, verify; export function setObserver(value, verifier) { observe = value; verify = verifier; }
+    export { commandAvailable, providerCommand } from ${JSON.stringify(new URL('../src/runtime/provider-adapters.mjs', import.meta.url).href)};
     export function preparePhaseProvider(provider) { return {status:'requires-conformance', provider}; }
     export async function verifyPhaseProviderConformance(handle, control) { return verify(control); }
     export async function invokeRestrictedPhaseProvider(adapter,input) {

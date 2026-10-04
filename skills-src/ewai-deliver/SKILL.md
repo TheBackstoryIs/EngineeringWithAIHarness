@@ -19,7 +19,9 @@ Preserve all fourteen stages, the UI Design and FitCheck adjuncts, shelf/resume 
 
 ## Start and resume
 
-For new delivery, call `ewai_delivery_begin` (or `ewai delivery begin`) for an existing project-owned intent and identify the current host as `tool`/`--tool` (`claude`, `codex`, or `antigravity`). Antigravity is invoked through the `agy` CLI. That value defines the orchestrator exclusion boundary. For continuing work, call `ewai_delivery_continue` first. Never reconstruct the next phase from chat memory.
+For new delivery, call `ewai_delivery_begin` (or `ewai delivery begin`) for an existing project-owned intent and identify the current host as `tool`/`--tool` (`claude`, `codex`, `grok`, or `antigravity`). Antigravity is invoked through the `agy` CLI. That value defines the orchestrator exclusion boundary. For continuing work, call `ewai_delivery_continue` first. Never reconstruct the next phase from chat memory.
+
+Optional coding-provider settings select the primary agent and distinct secondary/tertiary reviewers. Native model choice is the default; suggestions are advisory. Stop before invocation when permitted-model enforcement is unsupported. Automatic selection must intersect saved pools, configured capabilities and approved grants; settings never grant Build or Manual QA authority. Grok coding, review and proposal modes require their own verified native identity/conformance and private environment authentication. Keep an incomplete or unconfirmed mode visible and recommend a concrete recovery action.
 
 Before substantial repository navigation or truth claims, call `ewai_index_status`; refresh with `ewai_index_refresh` when the index is missing or stale. Use `ewai_index_search` and `ewai_index_graph` for navigation and blast-radius evidence, then verify material claims against source files.
 

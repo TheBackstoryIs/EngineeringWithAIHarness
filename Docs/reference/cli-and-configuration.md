@@ -230,6 +230,32 @@ These commands support a prepared Archaeology bundle. The human purpose briefing
 
 Technology and hosting preparation requires a fresh Repository Source Map and a valid, user-reviewed persona-routing gate. It writes an evidence briefing and answer template into the bundle. Recording distinguishes repository-observed, owner-declared and individually human-confirmed claims; it does not rewrite canonical stack strategy. Status reports drift without refreshing or mutating the index. See [Archaeology technology and hosting discovery](../archaeology-technology-and-hosting-discovery.md).
 
+## Coding provider settings (in development)
+
+These controls exist in the development branch, not the published `0.3.1-beta.0` package. CLI and dashboard share the same provider policy. A successful save changes preferences; it does not authorise execution.
+
+```bash
+ewai providers show --project . --json
+ewai providers set --primary grok --secondary codex --tertiary claude --pool grok,codex,claude --project .
+ewai providers auto --pool claude,codex,grok --project .
+ewai providers model grok --suggest <exact-model-id> --project .
+ewai providers model grok --allow-model <exact-model-id> --project .
+ewai providers model grok --clear-suggestion --clear-restriction --project .
+ewai providers defaults --project .
+```
+
+`set` also accepts a complete policy JSON file through `--input <file>`. `--expected-digest <digest>` guards against stale writes. Without that argument, the CLI compares the configuration it just read before saving. Dashboard and CLI use the same validator and atomic settings writer.
+
+The optional `coding_providers` section has an ordered, distinct `pool`; `primary` (`existing`, `auto` or a provider); `secondary`/`tertiary` (also allowing `off`); and per-provider `models` with optional `suggestion` and exact `permitted_models`. Providers are `claude`, `codex`, `grok` and `antigravity`. No executable paths, flags, credentials, wildcard IDs or inferred model ranking are accepted. The absent section preserves existing behaviour; `defaults` removes only this section.
+
+Native model choice is the default. Suggestions are advisory. Permitted-model lists prevent a provider from running where enforcement is unverified; they do not cap tokens or spending. All current adapters lack verified permitted-list enforcement. Automatic roles skip a provider with such a restriction and select an eligible alternative; explicitly selected or inherited required providers stop. If none remain, EWAI explains the unsupported restriction. Recommended: leave it blank unless an enforcing adapter becomes available.
+
+Enable installed providers separately with `ewai validation set <provider> available --enabled --project .`. `ewai providers auto --pool codex,claude,grok --project .` sets automatic coding and review roles; the pool needs enough available, independent providers to satisfy those roles and required checkpoints. Automatic does not mean that missing reviewers are skipped. `existing` retains inherited selection; `off` cannot reduce required review capacity. An explicit AFK `--provider` conflicting with a saved explicit primary stops preflight: update the settings or use `--provider auto`.
+
+For unattended Build, run `ewai afk preflight <slug> --provider auto --project .` after canonical Build approval. Autonomy's `--provider auto` selects inside the intersection of saved settings, installed/configured capabilities and the approved grant. The dashboard previews the exact saved pool before grant approval. A settings or CLI-identity change stops stale dispatch/results and requires a fresh check; changing settings also requires a new autonomy grant. Full auto preserves all human checkpoints.
+
+Grok supports interactive launch, skills and MCP setup, plus separately checked coding, read-only review and restricted proposal modes. Availability of the CLI does not prove mode capability or authentication. See [Grok worker setup](../operations/installation-updating-and-entitlements.md#grok-build-development-branch) for the supported version, private credentials, snapshot bounds and recovery.
+
 ## Validation configuration
 
 ```bash

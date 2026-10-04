@@ -3,7 +3,7 @@
 const $ = id => document.getElementById(id);
 const view = { status: null, preview: null, draftPreview: null, draftIds: new Set(), poolSignature: '',
   draftTouched: false, draftHydrated: false, loading: false, busy: false, dispatching: false,
-  resuming: new Set(), error: '', notice: '', requestRevision: 0, control: null, answer: null, runIntentId: '' };
+  resuming: new Set(), error: '', notice: '', requestRevision: 0, control: null, answer: null, runIntentId: '', codingPolicy:null };
 let host = null;
 
 function node(tag, content = '', className = '') {
@@ -40,6 +40,8 @@ function safeError(error) {
     || code === 'autonomy-policy-stale') return 'The evidence changed. Refresh and review the current state before trying again.';
   if (code === 'autonomy-repository-dirty') return 'The repository has uncommitted work. Resolve it before dispatch.';
   if (code === 'autonomy-canonical-decision-required') return 'A named human decision is required before this run can continue.';
+  if (code === 'autonomy-model-restriction-unsupported') return 'This CLI cannot enforce the permitted-model list. Recommended: clear that restriction for native model selection, or use a verified enforcing adapter, then review a fresh grant.';
+  if (code === 'autonomy-provider-unavailable') return 'No eligible provider can perform this action. Recommended: enable an installed provider inside the saved and approved pools, then repeat preflight. Grok requires its supported native version and mode conformance.';
   return /^autonomy-[a-z0-9-]+$/.test(code ?? '') ? `EWAI stopped at ${humanReason(code)}. Refresh and inspect the recorded prerequisite.`
     : 'Autonomy is unavailable. Refresh the dashboard and inspect the project checks.';
 }
@@ -77,6 +79,7 @@ function selectedProposal() {
   const intents = [...view.draftIds].sort();
   const actions = [...document.querySelectorAll('[name="autonomyAction"][aria-checked="true"]')].map(input => input.value);
   const provider = $('autonomyProvider').value;
+  if(provider==='auto'&&!view.codingPolicy?.pool?.length)throw new Error('Save a coding provider pool first, then preview the exact providers for this grant.');
   const hours = Number($('autonomyExpiryHours').value), runtimeMinutes = Number($('autonomyRuntimeMinutes').value);
   const operationSeconds = Number($('autonomyOperationSeconds').value), attempts = Number($('autonomyAttempts').value);
   if (!intents.length || !actions.length || !Number.isSafeInteger(hours) || hours < 1 || hours > 24
@@ -85,7 +88,7 @@ function selectedProposal() {
     || operationSeconds > runtimeMinutes * 60 || !Number.isSafeInteger(attempts) || attempts < 1 || attempts > 100) {
     throw new Error('Choose at least one exact intent and action, then enter valid expiry and limits.');
   }
-  return { intentIds: intents, actions, providers: [provider], expiresAt: new Date(Date.now() + hours * 3600000).toISOString(),
+  return { intentIds: intents, actions, providers: provider==='auto'?[...view.codingPolicy.pool]:[provider], expiresAt: new Date(Date.now() + hours * 3600000).toISOString(),
     limits: { maxConcurrentIntents: 1, maxRuntimeMs: runtimeMinutes * 60000, maxOperationMs: operationSeconds * 1000, maxAttempts: attempts } };
 }
 function grantSummary(scope) {
@@ -243,7 +246,7 @@ function openDialog(id, opener, focusId) {
 function openDispatch(intentId, opener) {
   if (view.status?.status !== 'current' || view.preview?.executable[0]?.intentId !== intentId) return;
   view.runIntentId = intentId;
-  view.dispatch = { intentId, grantDigest: view.status.grant.digest, provider: view.status.grant.scope.providers[0] };
+  view.dispatch = { intentId, grantDigest: view.status.grant.digest, provider: view.status.grant.scope.providers.length>1?'auto':view.status.grant.scope.providers[0] };
   set('autonomyDispatchSummary', `${titleFor(intentId)} is next by recorded priority. ${grantSummary(view.status.grant.scope)}`);
   openDialog('autonomyDispatchDialog', opener, 'autonomyDispatchMode');
 }
@@ -308,7 +311,7 @@ export async function loadAutonomyState() {
         button.setAttribute('aria-checked', String(scope.actions.includes(button.value)));
       }
       if ([...$('autonomyProvider').options].some(option => option.value === scope.providers[0])) {
-        $('autonomyProvider').value = scope.providers[0];
+        $('autonomyProvider').value = scope.providers.length>1?'auto':scope.providers[0];
       }
       $('autonomyRuntimeMinutes').value = String(Math.round(scope.limits.maxRuntimeMs / 60000));
       $('autonomyOperationSeconds').value = String(Math.round(scope.limits.maxOperationMs / 1000));
@@ -339,6 +342,9 @@ export async function loadAutonomyState() {
 export function configureAutonomyDashboard(options) {
   host = options;
   $('autonomyPreviewButton').addEventListener('click', () => perform(async () => {
+    // Provider settings can be saved in the same dashboard without a reload.
+    // Review the current exact pool, never an earlier form-load snapshot.
+    view.codingPolicy = (await host.api('/api/coding-providers')).policy;
     const proposal = selectedProposal();
     view.draftPreview = await mutation('preview', { proposal, record: false, confirmed: false });
     view.notice = 'Preview only. No grant or provider has started.';
