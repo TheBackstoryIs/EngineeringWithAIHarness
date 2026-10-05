@@ -33,6 +33,7 @@ import {
 import { installDesignSystemCandidate, validateDesignSystemCandidate } from './design-system-authoring.mjs';
 import { applyDesignSystem } from './design-system-application.mjs';
 import {readCodingProviders,saveCodingProviders} from './coding-providers.mjs';
+import {grokCredentialStatus,configureGrokCredentials,checkGrokConnection,removeGrokCredentials} from './grok-credentials.mjs';
 import {
   createPersona,
   indexPersonas,
@@ -498,6 +499,8 @@ Commands:
   ewai providers show|set|auto|defaults [--project PATH] [--json]
   ewai providers set [--primary PROVIDER|auto|existing] [--secondary PROVIDER|auto|off|existing] [--tertiary PROVIDER|auto|off|existing] [--pool LIST] [--input FILE] [--expected-digest DIGEST]
   ewai providers model PROVIDER [--suggest MODEL_ID] [--allow-model MODEL_ID] [--clear-suggestion] [--clear-restriction]
+  ewai providers credentials grok status|configure|check|remove [--project PATH] [--json]
+  ewai providers credentials grok remove --yes [--expected-revision REVISION]
   ewai init [--project PATH] [--name NAME] [--specs PATH] [--init-specs-repo] [--claude] [--codex] [--grok] [--antigravity] [--force]
   ewai checkin [--project PATH]
   ewai dashboard [--project PATH]
@@ -906,6 +909,32 @@ export async function run(args) {
       print(json ? result : JSON.stringify(result, null, 2), json); return;
     }
 
+    if(command==='providers'&&subcommand==='credentials'){
+      const action=args[3];
+      if(args[2]!=='grok'||!['status','configure','check','remove'].includes(action))throw new Error('Choose providers credentials grok status, configure, check or remove.');
+      const allowedValues=['--project',...(action==='remove'?['--expected-revision']:[])],allowedFlags=['--json',...(action==='remove'?['--yes']:[])];
+      for(let i=4;i<args.length;i++){
+        if(allowedValues.includes(args[i])){if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('A credential option requires a value.');i++;}
+        else if(!allowedFlags.includes(args[i]))throw new Error('Unsupported credential option. Never put API keys in command arguments.');
+      }
+      const credentialOptions={projectRoot:selectedProject(args)};
+      let result;
+      if(action==='status')result=grokCredentialStatus(credentialOptions);
+      if(action==='check')result=await checkGrokConnection(credentialOptions);
+      if(action==='remove')result=removeGrokCredentials({confirmed:has(args,'--yes'),expectedRevision:option(args,'--expected-revision',grokCredentialStatus(credentialOptions).revision)},credentialOptions);
+      if(action==='configure'){
+        if(!process.stdin.isTTY||!process.stdout.isTTY)throw new Error('Grok setup requires an interactive terminal for hidden input. Use the local dashboard password form instead.');
+        const previous=grokCredentialStatus(credentialOptions),muted=new Writable({write(_chunk,_encoding,callback){callback();}});muted.isTTY=true;muted.columns=process.stdout.columns;
+        const prompt=createInterface({input:process.stdin,output:muted,terminal:true,historySize:0});let apiKey;
+        try{
+          process.stdout.write('This checks xAI authentication without generated output and saves the key for your account on this computer, outside the project, in an owner-only local file (not encrypted). XAI_API_KEY overrides the saved key. Cancel with Ctrl+C.\nxAI API key (hidden): ');
+          apiKey=await prompt.question('');process.stdout.write('\n');
+          result=await configureGrokCredentials({confirmed:true,expectedRevision:previous.revision,apiKey},credentialOptions);
+        }finally{apiKey=undefined;prompt.close();}
+      }
+      print(json?result:result.message??('Grok credential: '+result.source+'. Saved key: '+(result.saved?'available':'absent')+'.'),json);
+      if(result.status==='failed')process.exitCode=1;return;
+    }
     if(command==='providers'){
       if(!['show','set','auto','defaults','model'].includes(subcommand))throw new Error('Choose providers show, set, auto, model or defaults.');
       const valued=new Set(['--project','--expected-digest',...(subcommand==='set'?['--primary','--secondary','--tertiary','--pool','--input']:[]),...(subcommand==='auto'?['--pool']:[]),...(subcommand==='model'?['--suggest','--allow-model']:[])]);

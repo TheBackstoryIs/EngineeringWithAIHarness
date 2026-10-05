@@ -71,6 +71,21 @@
             <p>Automatic selection uses installed, enabled providers inside the approved delivery pool. Required checks, independent review and human approvals still apply. Grok unattended modes require separate conformance.</p>
           </form>
         </section>
+        <section class="configuration-group grok-credentials" aria-labelledby="grokCredentialsTitle">
+          <header><div><h3 id="grokCredentialsTitle">Grok Build credentials</h3><p>Use your xAI API key for automated coding and review. Interactive Grok Build keeps its own login.</p></div></header>
+          <div class="grok-credentials-body">
+            <p id="grokCredentialStatus" role="status">Checking credential status…</p>
+            <form id="grokCredentialForm">
+              <label for="grokCredentialKey">xAI API key</label>
+              <input id="grokCredentialKey" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="512" required aria-describedby="grokCredentialHelp" disabled>
+              <p id="grokCredentialHelp">Saved for your account on this computer, across EWAI projects, outside the project in an owner-only local file. The stored key is not encrypted. XAI_API_KEY overrides it.</p>
+              <div class="coding-provider-actions"><button id="grokCredentialSave" type="submit" class="primary-action" disabled>Check and save key</button><button id="grokCredentialCancel" type="button" class="quiet-button" disabled>Cancel key entry</button></div>
+            </form>
+            <div class="coding-provider-actions"><button id="grokCredentialCheck" type="button" class="quiet-button" disabled>Check connection</button><button id="grokCredentialRemove" type="button" class="quiet-button" disabled>Remove saved key</button><button id="grokCredentialRefresh" type="button" class="quiet-button">Refresh status</button></div>
+            <p>Checking authenticates with xAI without generating output. It does not prove available credit or coding readiness. Saving a key does not start work.</p>
+            <output id="grokCredentialNotice" role="status" aria-live="polite"></output>
+          </div>
+        </section>
         <section class="configuration-group autonomy-configuration" aria-labelledby="autonomyConfigurationTitle">
           <header><div><h3 id="autonomyConfigurationTitle">Delegated delivery</h3><p>Choose an exact pool and limits. EWAI can progress only permitted work between your decisions.</p></div><strong id="autonomyMode" class="autonomy-mode">Checking…</strong></header>
           <div class="autonomy-configuration-body">
@@ -830,5 +845,6 @@
     </dialog>
     <script src="/app.js" type="module"></script>
     <script src="/coding-providers.js" type="module"></script>
+    <script src="/grok-credentials.js" type="module"></script>
   </body>
 </html>

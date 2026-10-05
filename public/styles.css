@@ -2776,3 +2776,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .autonomy-button-row button { width: 100%; }
   .autonomy-dialog .action-sheet > footer { flex-wrap: wrap; }
 }
+.grok-credentials-body { padding: 18px; display: grid; gap: 14px; }
+.grok-credentials-body form { display: grid; gap: 12px; }
+.grok-credentials-body input { width: 100%; box-sizing: border-box; min-height: 40px; border: 1px solid var(--line, #cfd8d5); border-radius: 6px; padding: 8px 10px; }
+.grok-credentials-body p { margin: 0; }

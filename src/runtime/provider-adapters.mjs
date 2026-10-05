@@ -7,6 +7,7 @@ import { createServer } from 'node:http';
 import { CONTEXT_ESTIMATE_METHOD, estimateContextTokens } from './context-assembly.mjs';
 import {modelGuidance, readCodingPolicy, assertCodingPolicyFresh} from '../coding-providers.mjs';
 import {prepareGrokRuntime, parseGrokWorkerResult, prepareGrokTaskSnapshot, acceptGrokTaskSnapshot, assertGrokTaskEvidenceFresh} from './grok-provider.mjs';
+import {resolveGrokApiKey} from '../grok-credentials.mjs';
 
 export const AFK_PROVIDERS = Object.freeze(['codex', 'claude', 'antigravity']);
 export const SUPPORTED_AFK_PROVIDERS = Object.freeze([...AFK_PROVIDERS,'grok']);
@@ -312,10 +313,11 @@ async function invokeGrokBuild(invocation,options) {
     assertGrokTaskEvidenceFresh(captured.evidence,captured.mode,{...captured.input,policyRoot:captured.policyRoot});
     const proof=await verifyGrokBuildProviderConformance(captured.handle,{signal:options.signal,timeoutMs:Math.min(60000,captured.input.timeoutMs)});
     if(proof.status!=='verified')return failure(proof.code,proof.executionStopped!==false);
-    if(!process.env.XAI_API_KEY)return failure('phase-provider-credential-unavailable');
+    const grokApiKey=resolveGrokApiKey();
+    if(!grokApiKey)return failure('phase-provider-credential-unavailable');
     fresh();
     const capability=currentPhaseCapability(captured.handle);
-    const result=await captureRestrictedProcess(capability,{...captured.input,signal:options.signal,maxBytes:1024*1024,beforeAccept:fresh});
+    const result=await captureRestrictedProcess(capability,{...captured.input,grokApiKey,signal:options.signal,maxBytes:1024*1024,beforeAccept:fresh});
     if(result.status!=='complete')return {...failure('phase-provider-'+result.status,result.executionStopped),status:result.status,
       cancelled:result.status==='cancelled',timedOut:result.status==='timed-out'};
     fresh();const parsed=parseGrokWorkerResult(result.output,capability.mode);
@@ -323,7 +325,7 @@ async function invokeGrokBuild(invocation,options) {
     return {provider:'grok',...parsed,exitCode:parsed.status==='complete'?0:-1,executionStopped:true,
       changedFiles:result.changedFiles??[],promptMeasurement:invocation.promptMeasurement,
       logPath:invocation.logPath,durationMs:Date.now()-startedAt};
-  }catch(error){return failure(error.message.startsWith('grok-task-evidence-')||['phase-cancelled','phase-provider-identity-changed'].includes(error.message)?error.message:'phase-provider-acceptance-failed');}
+  }catch(error){return failure(error.code?.startsWith('grok-credential-')?error.code:error.message.startsWith('grok-task-evidence-')||['phase-cancelled','phase-provider-identity-changed'].includes(error.message)?error.message:'phase-provider-acceptance-failed');}
 }
 
 export async function verifyGrokBuildProviderConformance(handle, control={}) {
@@ -445,7 +447,7 @@ async function captureRestrictedProcess(capability, input, fixture = null) {
     writeFileSync(resolve(directory, 'CLAUDE.md'), 'EWAI_UNTRUSTED_INSTRUCTIONS_CANARY', { mode: 0o600 });
   }
   const mode=capability.mode??'phase';
-  const grok = capability.provider === 'grok' ? prepareGrokRuntime(directory, runtime, input.prompt, fixture, mode) : null;
+  const grok = capability.provider === 'grok' ? prepareGrokRuntime(directory, runtime, input.prompt, fixture, mode, {...process.env,XAI_API_KEY:input.grokApiKey}) : null;
   const taskInput=fixture?.taskInput??input;
   const snapshot=grok&&mode!=='phase'&&!fixture?.command
     ?prepareGrokTaskSnapshot(taskInput.cwd,grok.cwd,taskInput.task):null;
@@ -533,8 +535,10 @@ export async function invokeRestrictedPhaseProvider(handle, input = {}) {
   try { capability = currentPhaseCapability(handle); } catch { return unavailablePhase('phase-provider-conformance-required'); }
   if(capability.mode!=='phase')return unavailablePhase('phase-provider-mode-unavailable');
   if (input.signal?.aborted) return { status: 'cancelled', exitCode: -1, executionStopped: true, spawned: false, output: '' };
-  if (!(capability.provider === 'grok' ? process.env.XAI_API_KEY : process.env.ANTHROPIC_API_KEY)) return unavailablePhase('phase-provider-credential-unavailable');
-  const captured = await captureRestrictedProcess(capability, { ...input, maxBytes: 256 * 1024 });
+  let apiKey;
+  try{apiKey=capability.provider==='grok'?resolveGrokApiKey():process.env.ANTHROPIC_API_KEY;}catch{return unavailablePhase('phase-provider-credential-unavailable');}
+  if(!apiKey)return unavailablePhase('phase-provider-credential-unavailable');
+  const captured = await captureRestrictedProcess(capability, { ...input, grokApiKey:capability.provider==='grok'?apiKey:undefined, maxBytes: 256 * 1024 });
   if (captured.status !== 'complete') return { ...captured, output: '' };
   try { currentPhaseCapability(handle); } catch { return { ...unavailablePhase('phase-provider-identity-changed'), executionStopped: true, output: '' }; }
   if (capability.provider === 'grok') return { ...parseGrokWorkerResult(captured.output), exitCode: captured.exitCode, executionStopped: true };

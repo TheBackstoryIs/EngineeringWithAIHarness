@@ -138,7 +138,7 @@ For explicitly selected global skill installation, EWAI respects `GROK_HOME`; pr
 1. Install and authenticate Grok Build using its official instructions. For this branch's isolated unattended workers, the supported identity is `grok 1.0.44 (5b807183dd79) [stable]` on macOS. Other identities stop until their conformance contract is reviewed.
 2. Enable Grok with `ewai validation set grok available --enabled --project .`. For a new project, `ewai init --grok` records the same explicit availability choice.
 3. Choose providers in **Configuration → Coding providers**, or use `ewai providers set --primary grok --secondary codex --tertiary claude --pool grok,codex,claude --project .`. Enable and authenticate the selected reviewers too. Leave model fields blank for native selection.
-4. Before unattended work, supply `XAI_API_KEY` privately to the process launching EWAI. Interactive OAuth sessions can still use the native companion; isolated workers do not copy your personal authentication files. Never put keys in project YAML, command examples, commits or release notes.
+4. Before unattended work, open **Configuration → Grok Build credentials** and use **Check and save key**, or run `ewai providers credentials grok configure` in an interactive terminal for hidden input. The key is saved for your account on this computer, outside the project, in an owner-only local file. `XAI_API_KEY` in the launching environment takes precedence. Interactive OAuth sessions can still use the native companion; isolated workers do not copy your personal authentication files. Never put keys in project YAML, command arguments, chat, commits or release notes.
 5. Run the usual AFK preflight or preview and approve an autonomy grant. Full automatic selection stays inside the approved scope and preserves Build approval, required review and Manual QA checkpoints.
 
 Grok coding, review and restricted proposal modes each verify the installed binary and their own offline confinement contract. The worker has a fresh private home and no inherited project instructions, hooks, skills, MCP servers or personal model configuration. EWAI supplies approved task context; Grok retains native model choice without a model override. Its bounded session-title metadata request is separate from the coding/proposal tools. Offline conformance makes no paid model requests and does not prove your account access or the quality of a real response.
@@ -147,7 +147,24 @@ Coding copies declared task files into a disposable workspace. The worker may ed
 
 For coding and review, the conductor includes the complete cited standards and recorded check outputs in mandatory task context. Review also receives the exact implementation commit diff. Git history and canonical SPECS remain outside the worker's filesystem. Evidence is bound to its task, source contents and revision, then checked again before dispatch and acceptance. Missing, changed or oversized evidence stops the run; restore the required evidence or narrow the approved task and prepare fresh context. Mandatory evidence is never silently truncated to fit a prompt.
 
-If a version, isolation check, unsupported system configuration, credential or model restriction blocks the run, inspect the recorded reason. Recommended: use the supported CLI identity, provide the private key, or remove an unsupported permitted-model restriction for native selection, as applicable, then repeat preflight. If source files changed, prepare a fresh task snapshot. Preserve partial edits and uncertain execution for recovery; do not blindly retry. No model setting is a token or spending cap.
+If a version, isolation check, unsupported system configuration, credential or model restriction blocks the run, inspect the recorded reason. Recommended: use the supported CLI identity, configure the private key, or remove an unsupported permitted-model restriction for native selection, as applicable, then repeat preflight. If source files changed, prepare a fresh task snapshot. Preserve partial edits and uncertain execution for recovery; do not blindly retry. No model setting is a token or spending cap.
+
+#### Private Grok key setup and recovery
+
+```bash
+ewai providers credentials grok configure
+ewai providers credentials grok status --json
+ewai providers credentials grok check
+ewai providers credentials grok remove --yes
+```
+
+Configure requires a real interactive terminal; keys cannot be passed through flags or input files. The local dashboard password form is the alternative. Both routes share validation and recovery. Submitting a key authenticates against xAI's [model-list endpoint](https://docs.x.ai/developers/rest-api-reference/inference/models) without requesting generated output. Success proves that endpoint accepted the key, not available credit, permission to every model, or coding readiness. The check does not select a model or start a delivery.
+
+On supported POSIX systems, explicit setup stores plaintext in `~/.ewai/credentials/grok.json` with owner-only file permissions (`0600`) in a private directory (`0700`). It is not encrypted or an OS keychain; processes running as your account can read it. The key applies across EWAI projects for that account. EWAI rejects insecure permissions, links, shared files and storage inside the project. On Windows, use a privately supplied launching environment; this file-storage route is unavailable.
+
+Status shows only the credential source and whether a saved key exists. It never returns the key. Connection checks run only when explicitly requested. Failed or stale replacement keeps the previous saved key; refresh status, correct the problem and submit again. The dashboard clears the password after success, failure or cancellation and does not store it in browser storage. Removing a saved key does not revoke it at xAI, and does not clear an environment override. Remove `XAI_API_KEY` from the launching environment and restart EWAI if you want the saved key to become active. Use xAI's own account controls to revoke a key.
+
+Saved keys are resolved at each isolated-worker invocation. The worker receives only the credential in its private environment; no personal authentication/configuration files are copied. Native model selection and conformance requirements remain unchanged.
 
 ## Premium personas
 

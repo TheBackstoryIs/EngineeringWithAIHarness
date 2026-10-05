@@ -256,6 +256,12 @@ For unattended Build, run `ewai afk preflight <slug> --provider auto --project .
 
 Grok supports interactive launch, skills and MCP setup, plus separately checked coding, read-only review and restricted proposal modes. Availability of the CLI does not prove mode capability or authentication. See [Grok worker setup](../operations/installation-updating-and-entitlements.md#grok-build-development-branch) for the supported version, private credentials, snapshot bounds and recovery.
 
+### Grok credentials (in development)
+
+`ewai providers credentials grok configure` uses a hidden interactive terminal prompt, authenticates the submitted key without requesting generated output, and saves it outside the project for the current account. Noninteractive setup and key arguments are rejected; use the local dashboard password form instead.
+
+`ewai providers credentials grok status --json` returns safe source/presence/revision metadata. `check` explicitly authenticates the active credential. `remove --yes` removes only the saved copy; optional `--expected-revision` protects a previously inspected revision. Failed or stale replacement preserves the predecessor. `XAI_API_KEY` overrides saved credentials. Keys are never project YAML or provider-policy fields, and connection checks do not grant execution authority. See [storage and recovery](../operations/installation-updating-and-entitlements.md#private-grok-key-setup-and-recovery).
+
 ## Validation configuration
 
 ```bash

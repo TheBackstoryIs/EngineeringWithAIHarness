@@ -203,7 +203,9 @@ test('package includes autonomy runtime, assets and public guidance but no priva
     assert.equal(existsSync(resolve(packageRoot, path)), true, path);
   }
   for (const path of paths) {
-    if (path !== 'tests/fixtures/context-benchmarks.json') {
+    // Credential setup code ships with the engine; account credential data never does.
+    const credentialCode = ['src/grok-credentials.mjs', 'public/grok-credentials.js'].includes(path);
+    if (path !== 'tests/fixtures/context-benchmarks.json' && !credentialCode) {
       assert.doesNotMatch(path, /^(?:SPECS\/|tests\/|\.ewai-pipeline\/)|(?:\.env|\.npmrc|credential|private-key)/i);
     }
   }

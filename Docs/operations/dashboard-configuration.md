@@ -16,6 +16,14 @@ For automatic unattended work, save an eligible pool, then choose **Automatic fr
 
 Installed CLI status does not prove authentication or unattended capability. Grok coding, review and proposal modes each run an offline conformance check before dispatch. See [Grok setup and limitations](installation-updating-and-entitlements.md#grok-build-development-branch). A failed check stops the run; inspect its reason before retrying.
 
+## Grok Build credentials (in development)
+
+Open **Configuration → Grok Build credentials** to enter an xAI API key in a password field, then choose **Check and save key**. This performs an authentication-only check and saves a key for your account on this computer, across EWAI projects. It does not start work or select a model. The owner-only local credential file is outside the project and is not encrypted.
+
+The status distinguishes a saved key from `XAI_API_KEY` in the launching environment, which takes precedence. **Check connection** checks the active credential without generating output; it does not prove available credit or coding readiness. **Remove saved key** removes only EWAI's saved copy; it does not revoke the key or clear an environment override. **Cancel key entry** clears the input while retaining the previous saved key.
+
+The password is cleared after every submission, including a failed check, and is never put in browser storage. Failed replacement retains the previous saved key. If a saved revision changed, refresh status before retrying. For storage, CLI alternatives and recovery, see [private Grok setup](installation-updating-and-entitlements.md#private-grok-key-setup-and-recovery).
+
 ## Show an extra view
 
 1. Open your project's dashboard.

@@ -44,6 +44,24 @@ test('isolated Grok launch retains native models and excludes inherited environm
  assert.equal(env.GROK_CLAUDE_MCPS_ENABLED,'0');assert.equal(env.GROK_CURSOR_HOOKS_ENABLED,'0');
 });
 
+test('saved-key resolution enters only the disposable worker environment and never offline fixture configuration',async t=>{
+ const fs=await import('node:fs'),path=await import('node:path'),os=await import('node:os');
+ const {configureGrokCredentials,resolveGrokApiKey}=await import('../src/grok-credentials.mjs');
+ const {prepareGrokRuntime}=await import('../src/runtime/grok-provider.mjs');
+ const root=fs.mkdtempSync(path.resolve(os.tmpdir(),'ewai-grok-key-worker-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const accountHome=path.resolve(root,'account');fs.mkdirSync(accountHome,{mode:0o700});
+ const apiKey='xai-synthetic-worker-not-a-real-key';await configureGrokCredentials({confirmed:true,expectedRevision:'missing',apiKey},{home:accountHome,env:{},fetchImpl:async()=>new Response('{}')});
+ const source={PATH:process.env.PATH,XAI_API_KEY:resolveGrokApiKey({home:accountHome,env:{}})};
+ for(const fixture of [null,{url:'http://127.0.0.1:1'}]){
+  const runtime=path.resolve(root,fixture?'fixture':'worker');fs.mkdirSync(runtime);
+  const prepared=prepareGrokRuntime(root,runtime,'Synthetic bounded prompt',fixture,'implementation',source);
+  assert.notEqual(prepared.home,accountHome);assert.equal(prepared.env.XAI_API_KEY,fixture?undefined:apiKey);
+  assert.ok(!fs.readFileSync(path.resolve(prepared.home,'.grok/config.toml'),'utf8').includes(apiKey));
+  assert.ok(!fs.readFileSync(path.resolve(runtime,'prompt.txt'),'utf8').includes(apiKey));
+  assert.ok(!prepared.args.includes('--model'));
+ }
+});
+
 test('Grok envelopes reject missing, truncated or tool-ended results rather than accept arbitrary stdout',()=>{
  const raw=JSON.stringify({text:'{"proposal":"fixture"}',stopReason:'end_turn',num_turns:1,usage:{input_tokens:2,output_tokens:3}});
  assert.deepEqual(parseGrokWorkerResult(raw),{status:'complete',output:'{"proposal":"fixture"}',providerUsage:{schema:'ewai.provider-usage/v1',provider:'grok',inputTokens:2,cachedInputTokens:0,outputTokens:3,source:'provider-reported'}});
