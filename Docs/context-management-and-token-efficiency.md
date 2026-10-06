@@ -8,7 +8,7 @@ Context preparation doesn't approve Build or Manual QA, accept risk, certify qua
 
 ## Concise answers and guided decisions
 
-**Availability:** This guidance is included in `0.3.1-beta.0`. Follow [beta installation](operations/installation-updating-and-entitlements.md#try-the-beta-channel), then initialise the project or run its normal EWAI check-in to refresh the managed instructions in `AGENTS.md` and `CLAUDE.md`. Start a fresh host conversation after the refresh. Project-authored guidance outside the managed block is preserved. npm `0.3.0` does not include these new instructions. Tool-result compaction remains planned, and no incremental token or cost saving has been measured for this update.
+**Availability:** This guidance is included from `0.3.1`. [Update EWAI](operations/installation-updating-and-entitlements.md), then initialise the project or run its normal EWAI check-in to refresh the managed instructions in `AGENTS.md` and `CLAUDE.md`. Start a fresh host conversation after the refresh. Project-authored guidance outside the managed block is preserved. Versions `0.3.0` and earlier don't include these instructions. Tool-result compaction remains planned, and no incremental token or cost saving has been measured for this update.
 
 ### Get a useful short answer
 

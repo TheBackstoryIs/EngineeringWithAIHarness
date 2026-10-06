@@ -230,9 +230,9 @@ These commands support a prepared Archaeology bundle. The human purpose briefing
 
 Technology and hosting preparation requires a fresh Repository Source Map and a valid, user-reviewed persona-routing gate. It writes an evidence briefing and answer template into the bundle. Recording distinguishes repository-observed, owner-declared and individually human-confirmed claims; it does not rewrite canonical stack strategy. Status reports drift without refreshing or mutating the index. See [Archaeology technology and hosting discovery](../archaeology-technology-and-hosting-discovery.md).
 
-## Coding provider settings (in development)
+## Coding provider settings
 
-These controls exist in the development branch, not the published `0.3.1-beta.0` package. CLI and dashboard share the same provider policy. A successful save changes preferences; it does not authorise execution.
+Available from `0.3.1`. CLI and dashboard share the same provider policy. A successful save changes preferences; it does not authorise execution.
 
 ```bash
 ewai providers show --project . --json
@@ -254,9 +254,9 @@ Enable installed providers separately with `ewai validation set <provider> avail
 
 For unattended Build, run `ewai afk preflight <slug> --provider auto --project .` after canonical Build approval. Autonomy's `--provider auto` selects inside the intersection of saved settings, installed/configured capabilities and the approved grant. The dashboard previews the exact saved pool before grant approval. A settings or CLI-identity change stops stale dispatch/results and requires a fresh check; changing settings also requires a new autonomy grant. Full auto preserves all human checkpoints.
 
-Grok supports interactive launch, skills and MCP setup, plus separately checked coding, read-only review and restricted proposal modes. Availability of the CLI does not prove mode capability or authentication. See [Grok worker setup](../operations/installation-updating-and-entitlements.md#grok-build-development-branch) for the supported version, private credentials, snapshot bounds and recovery.
+Grok supports interactive launch, skills and MCP setup, plus separately checked coding, read-only review and restricted proposal modes. Availability of the CLI does not prove mode capability or authentication. See [Grok worker setup](../operations/installation-updating-and-entitlements.md#grok-build) for the supported version, private credentials, snapshot bounds and recovery.
 
-### Grok credentials (in development)
+### Grok credentials
 
 `ewai providers credentials grok configure` uses a hidden interactive terminal prompt, authenticates the submitted key without requesting generated output, and saves it outside the project for the current account. Noninteractive setup and key arguments are rejected; use the local dashboard password form instead.
 

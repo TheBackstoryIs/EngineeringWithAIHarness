@@ -2,26 +2,15 @@
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
-## Beta: concise answers and useful decision guidance
+## New in 0.3.1: concise answers and Grok Build
 
-Version `0.3.1-beta.0` adds communication guidance that prioritises correctness and usefulness, then brevity. Decision requests include action details, supporting guidance, a recommendation with its reason and a suggested response when useful. Query refinement leads with a recommended interpretation and explains consequential assumptions.
+Version `0.3.1` makes EWAI's guidance more concise and adds Grok Build as a coding provider.
 
-To try this beta in one project:
+**Concise answers and guided decisions.** EWAI's managed instructions now prioritise correctness and usefulness, then brevity. Expect the result or recommendation first, with less repetition and routine narration. Decision requests explain the action, options and consequences, then give a recommendation with its reason and a suggested response when useful. When a request is unclear, EWAI leads with its recommended interpretation and states the assumptions that matter. The guidance is designed to cut unnecessary output; tool-result compaction is still planned, and token or cost savings haven't been measured yet. See [concise answers and guided decisions](Docs/context-management-and-token-efficiency.md#concise-answers-and-guided-decisions).
 
-```bash
-npm install --save-dev @thebackstoryis/engineering-with-ai@beta
-npx ewai
-```
+**Grok Build and coding provider settings.** EWAI can open Grok Build as a native companion, install its skills and set up project MCP. **Configuration → Coding providers** in the dashboard, or `ewai providers` in a terminal, lets you choose a primary coding CLI, independent reviewers and an eligible pool for unattended work. Each CLI keeps its own model choice by default. Grok can run isolated coding, read-only review and restricted proposal workers. Each mode passes an offline conformance check before dispatch, and your xAI key is saved privately outside the project. Build approval, required review and Manual QA stay with you. See [provider settings](Docs/reference/cli-and-configuration.md#coding-provider-settings) and [Grok Build setup](Docs/operations/installation-updating-and-entitlements.md#grok-build).
 
-Initialisation or the next check-in refreshes EWAI's managed instructions in `AGENTS.md` and `CLAUDE.md`, preserving project-authored guidance outside that block. Start a fresh host conversation after the refresh. See [the user guide](Docs/context-management-and-token-efficiency.md#concise-answers-and-guided-decisions) for examples and [beta installation and recovery](Docs/operations/installation-updating-and-entitlements.md#try-the-beta-channel) for other installation choices.
-
-This beta adds communication instructions and documentation. Tool-result compaction remains planned, and incremental token or cost savings have not been measured. Mandatory workflow and human approvals still apply. The production npm channel remains on `0.3.0`.
-
-## In development: coding providers and Grok Build
-
-The development branch adds native Grok Build companion launch, skill installation and project MCP setup, plus shared CLI/dashboard provider settings. Each CLI keeps its own model selection by default. These changes are not included in the published `0.3.1-beta.0` package.
-
-The branch includes isolated Grok coding, read-only review and restricted proposal workers, plus provider-policy enforcement in AFK and autonomy. Each mode must pass native conformance before dispatch. Human QA and release approval remain separate. See [provider settings](Docs/reference/cli-and-configuration.md#coding-provider-settings-in-development) for setup and recovery guidance.
+After updating, initialisation or the next check-in refreshes EWAI's managed instructions in `AGENTS.md` and `CLAUDE.md`, preserving project-authored guidance outside that block. Start a fresh host conversation after the refresh.
 
 ## EWAI can now pick up the next ready piece of work
 
