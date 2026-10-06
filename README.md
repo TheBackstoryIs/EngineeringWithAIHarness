@@ -18,7 +18,7 @@ ewai
 
 `ewai` opens your assistant and walks you through setting up the project. See [Install and start](#install-and-start) for details.
 
-Version `0.3.2` updates the package's links and documentation. The features below arrived in `0.3.1`.
+Versions `0.3.2` and `0.3.3` update the package's links and documentation. The features below arrived in `0.3.1`.
 
 ## New in 0.3.1: concise answers and Grok Build
 
