@@ -6,7 +6,7 @@ This guide covers the harness installation. For a persona licence, use [Set up a
 
 ## Before you start
 
-You'll need Node.js 22.5 or newer, npm, Git for project version control, and a supported host: Codex, Claude Code or Google Antigravity's `agy` CLI. Technology packs can have further requirements.
+You'll need Node.js 22.5 or newer, npm, Git for project version control, and a supported host: Codex, Claude Code, Google Antigravity's `agy` CLI or Grok Build. Technology packs can have further requirements.
 
 EWAI includes its own parsers. Don't add Tree-sitter dependencies to your application just to use the harness.
 
@@ -20,7 +20,7 @@ ewai install --host auto
 ewai
 ```
 
-The installation command makes the host skills and MCP connection available. You can choose one host explicitly with `--host codex`, `--host claude` or `--host antigravity`.
+The installation command makes the host skills and MCP connection available. You can choose one host explicitly with `--host codex`, `--host claude`, `--host antigravity` or `--host grok`. For Grok Build, see [Grok Build](#grok-build) for authentication and unattended worker setup.
 
 If npm returns `E404`, check the exact package name and configured registry first. That response alone doesn't tell you whether the package is unpublished, unavailable to your account or missing its requested version. If the intended package still isn't available, contact the publisher; don't install a similarly named package as a substitute.
 
