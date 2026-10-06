@@ -20,6 +20,18 @@ ewai
 
 Versions `0.3.2` and `0.3.3` update the package's links and documentation. The features below arrived in `0.3.1`.
 
+## Local Jev beta experiment
+
+`0.3.4-beta.1` adds opt-in Jev settings, private TypeSafe credentials, ranked options, structured LLM recommendation comparisons and available persona recommendations. It starts off; first enablement should use shadow. See the [Jev beta guide](Docs/operations/jev-beta-experiment.md) for setup, bounded synthetic experiments and measurement limits.
+
+This build is prepared locally; it has not been published or accepted through Manual QA. Local beta preparation does not change the production npm channel. To install an authorised local build, use its `.tgz` file. Published beta packages use the beta tag:
+
+```bash
+npm install --save-dev @thebackstoryis/engineering-with-ai@beta
+```
+
+The registry's beta tag may refer to an earlier build until this version is separately published.
+
 ## New in 0.3.1: concise answers and Grok Build
 
 Version `0.3.1` makes EWAI's guidance more concise and adds Grok Build as a coding provider.

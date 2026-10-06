@@ -1,3 +1,7 @@
+import {jevCredentialStatus,configureJevCredentials,checkJevConnection,removeJevCredentials} from './jev-credentials.mjs';
+import {readJevSettings,saveJevSettings,readJevMeasurements,safeJevError} from './jev.mjs';
+import {decideWithJev,prepareProjectContextWithJev,recommendPersonasWithJev,readCompanionWithJev} from './runtime/jev-operations.mjs';
+import {runJevExperiment} from '../scripts/jev-experiment.mjs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync, realpathSync } from 'node:fs';
@@ -530,6 +534,12 @@ Commands:
   ewai rollout assurance PROJECT_ID [--project PATH]
   ewai discover [--project PATH] [--answers FILE] [--stack PACK] [--force]
   ewai context register FOLDER [--project PATH] --yes [--label NAME] [--classification public|internal|confidential|restricted] [--cloud-processing allowed|denied|unknown]
+  ewai jev status|measurements [--project PATH] [--json]
+  ewai jev credentials status|configure|check|remove [--project PATH]
+  ewai jev configure --mode off|shadow|active --yes [--acknowledge-cloud-processing] [--use-cases context,personas,skill,claim,failure,impact,tests]
+  ewai jev decide --input PROJECT_JSON [--project PATH]
+  ewai jev experiment [--limit 6] [--project PATH]
+  ewai jev personas --focus TEXT [--limit 4] [--project PATH]
   ewai context prepare PROFILE --slug SLUG [--task TASK] [--phase PHASE] [--focus TEXT] [--budget TOKENS] [--previous DIGEST] [--project PATH]
   ewai context benchmark [--samples COUNT]
   ewai design-system status|list|inspect|resolve|select [ID] [--project PATH]
@@ -909,31 +919,55 @@ export async function run(args) {
       print(json ? result : JSON.stringify(result, null, 2), json); return;
     }
 
-    if(command==='providers'&&subcommand==='credentials'){
-      const action=args[3];
-      if(args[2]!=='grok'||!['status','configure','check','remove'].includes(action))throw new Error('Choose providers credentials grok status, configure, check or remove.');
+    if(command==='providers'&&subcommand==='credentials'||command==='jev'&&subcommand==='credentials'){
+      const isJev=command==='jev',action=args[isJev?2:3];
+      const statusCredential=isJev?jevCredentialStatus:grokCredentialStatus,configureCredential=isJev?configureJevCredentials:configureGrokCredentials,checkConnection=isJev?checkJevConnection:checkGrokConnection,removeCredential=isJev?removeJevCredentials:removeGrokCredentials;
+      if(!isJev&&args[2]!=='grok'||!['status','configure','check','remove'].includes(action))throw new Error('Choose providers credentials grok status, configure, check or remove.');
       const allowedValues=['--project',...(action==='remove'?['--expected-revision']:[])],allowedFlags=['--json',...(action==='remove'?['--yes']:[])];
-      for(let i=4;i<args.length;i++){
+      for(let i=isJev?3:4;i<args.length;i++){
         if(allowedValues.includes(args[i])){if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('A credential option requires a value.');i++;}
         else if(!allowedFlags.includes(args[i]))throw new Error('Unsupported credential option. Never put API keys in command arguments.');
       }
       const credentialOptions={projectRoot:selectedProject(args)};
       let result;
-      if(action==='status')result=grokCredentialStatus(credentialOptions);
-      if(action==='check')result=await checkGrokConnection(credentialOptions);
-      if(action==='remove')result=removeGrokCredentials({confirmed:has(args,'--yes'),expectedRevision:option(args,'--expected-revision',grokCredentialStatus(credentialOptions).revision)},credentialOptions);
+      if(action==='status')result=statusCredential(credentialOptions);
+      if(action==='check')result=await checkConnection(credentialOptions);
+      if(action==='remove')result=removeCredential({confirmed:has(args,'--yes'),expectedRevision:option(args,'--expected-revision',statusCredential(credentialOptions).revision)},credentialOptions);
       if(action==='configure'){
-        if(!process.stdin.isTTY||!process.stdout.isTTY)throw new Error('Grok setup requires an interactive terminal for hidden input. Use the local dashboard password form instead.');
-        const previous=grokCredentialStatus(credentialOptions),muted=new Writable({write(_chunk,_encoding,callback){callback();}});muted.isTTY=true;muted.columns=process.stdout.columns;
+        if(!process.stdin.isTTY||!process.stdout.isTTY)throw new Error('Credential setup requires an interactive terminal for hidden input. Use the local dashboard password form instead.');
+        const previous=statusCredential(credentialOptions),muted=new Writable({write(_chunk,_encoding,callback){callback();}});muted.isTTY=true;muted.columns=process.stdout.columns;
         const prompt=createInterface({input:process.stdin,output:muted,terminal:true,historySize:0});let apiKey;
         try{
-          process.stdout.write('This checks xAI authentication without generated output and saves the key for your account on this computer, outside the project, in an owner-only local file (not encrypted). XAI_API_KEY overrides the saved key. Cancel with Ctrl+C.\nxAI API key (hidden): ');
+          process.stdout.write(isJev?'This checks TypeSafe authentication without inference and saves an owner-only local key outside the project (not encrypted). TYPESAFE_API_KEY overrides it. Saving does not enable Jev. Cancel with Ctrl+C.\nTypeSafe API key (hidden): ':'This checks xAI authentication without generated output and saves the key for your account on this computer, outside the project, in an owner-only local file (not encrypted). XAI_API_KEY overrides the saved key. Cancel with Ctrl+C.\nxAI API key (hidden): ');
           apiKey=await prompt.question('');process.stdout.write('\n');
-          result=await configureGrokCredentials({confirmed:true,expectedRevision:previous.revision,apiKey},credentialOptions);
+          result=await configureCredential({confirmed:true,expectedRevision:previous.revision,apiKey},credentialOptions);
         }finally{apiKey=undefined;prompt.close();}
       }
-      print(json?result:result.message??('Grok credential: '+result.source+'. Saved key: '+(result.saved?'available':'absent')+'.'),json);
+      print(json?result:result.message??((isJev?'Jev':'Grok')+' credential: '+result.source+'. Saved key: '+(result.saved?'available':'absent')+'.'),json);
       if(result.status==='failed')process.exitCode=1;return;
+    }
+
+    if(command==='jev'){
+      const actions=['status','configure','measurements','decide','experiment','personas'];
+      if(!actions.includes(subcommand))throw new Error('Choose Jev status, configure, measurements, decide, experiment or credentials.');
+      const valued=['--project',...(subcommand==='configure'?['--mode','--use-cases','--max-calls','--max-input-tokens','--timeout-ms','--minimum-confidence','--expected-revision']:[]),...(subcommand==='decide'?['--input']:[]),...(subcommand==='experiment'?['--limit']:[]),...(subcommand==='personas'?['--focus','--limit']:[])];
+      const flags=['--json',...(subcommand==='configure'?['--yes','--acknowledge-cloud-processing']:[])],seen=new Set();
+      for(let i=2;i<args.length;i++){const argument=args[i];if(seen.has(argument))throw new Error('Do not repeat Jev options.');seen.add(argument);if(valued.includes(argument)){if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('A Jev option requires a value.');i++;}else if(!flags.includes(argument))throw new Error('Unsupported Jev option. Never put API keys in command arguments.');}
+      const root=selectedProject(args),current=readJevSettings(root);let value;
+      if(subcommand==='status')value={settings:current,credentials:jevCredentialStatus({projectRoot:root}),measurements:readJevMeasurements(root)};
+      if(subcommand==='measurements')value=readJevMeasurements(root);
+      if(subcommand==='configure'){
+        const policy=structuredClone(current.policy);
+        if(has(args,'--mode'))policy.mode=option(args,'--mode');
+        if(has(args,'--use-cases'))policy.useCases=option(args,'--use-cases').split(',').map(s=>s.trim());
+        for(const [flag,key]of [['--max-calls','maxCalls'],['--max-input-tokens','maxInputTokens'],['--timeout-ms','timeoutMs'],['--minimum-confidence','minConfidence']])if(has(args,flag))policy[key]=Number(option(args,flag));
+        if(has(args,'--acknowledge-cloud-processing'))policy.cloudConsent=true;
+        value=saveJevSettings(root,{confirmed:has(args,'--yes'),expectedRevision:option(args,'--expected-revision',current.revision),policy});
+      }
+      if(subcommand==='decide'){const file=option(args,'--input');if(!file)throw new Error('Provide a project-local JSON decision input.');value=await decideWithJev(root,readProjectJsonInput(root,file,'Jev decision'));}
+      if(subcommand==='personas')value=await recommendPersonasWithJev(root,{focus:option(args,'--focus'),limit:Number(option(args,'--limit','4'))},listPersonas(availablePersonaRoots(root)));
+      if(subcommand==='experiment')value=await runJevExperiment(root,{limit:has(args,'--limit')?Number(option(args,'--limit')):6});
+      print(json?value:JSON.stringify(value,null,2),json);return;
     }
     if(command==='providers'){
       if(!['show','set','auto','defaults','model'].includes(subcommand))throw new Error('Choose providers show, set, auto, model or defaults.');
@@ -1127,7 +1161,7 @@ export async function run(args) {
     if (command === 'companion' && subcommand === 'status') {
       assertCompanionArguments(args);
       const project = selectedProject(args);
-      print(readCompanionGuidance(project, {
+      print(await readCompanionWithJev(project, {
         focus: option(args, '--focus'),
         personas: listPersonas(availablePersonaRoots(project)),
       }), json);
@@ -1316,7 +1350,7 @@ export async function run(args) {
       const profile = args[2] ?? '';
       const budgetValue = option(args, '--budget');
       const projectRoot = selectedProject(args);
-      print(prepareProjectContext(projectRoot, {
+      print(await prepareProjectContextWithJev(projectRoot, {
         profile,
         slug: option(args, '--slug'),
         taskId: option(args, '--task'),
@@ -2518,6 +2552,7 @@ export async function run(args) {
 
     throw new Error(`Unknown command: ${args.join(' ')}`);
   } catch (error) {
+    if(command==='jev'){const safe=safeJevError(error);console.error(json?JSON.stringify(safe):safe.error);process.exitCode=1;return;}
     if (command !== 'error-report') {
       try {
         const projectRoot = selectedProject(args);

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { readJevSettings,saveJevSettings,readJevMeasurements,safeJevError } from '../jev.mjs';
+import { jevCredentialStatus,configureJevCredentials,checkJevConnection,removeJevCredentials,safeJevCredentialError } from '../jev-credentials.mjs';
+import { decideWithJev,prepareProjectContextWithJev,previewImpactWithJev,recommendPersonasWithJev,readCompanionWithJev } from './jev-operations.mjs';
 import { createReadStream, existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, isAbsolute, relative, resolve } from 'node:path';
@@ -219,7 +222,7 @@ function rolloutError(response, statusCode, message) {
   });
 }
 
-async function readJson(request) {
+async function readJson(request, maxBytes = 1024 * 1024) {
   const expectedOrigin = `http://${request.headers.host}`;
   if (!request.headers.origin || request.headers.origin !== expectedOrigin) {
     const error = new Error('Mutation requests require the matching dashboard origin');
@@ -235,7 +238,7 @@ async function readJson(request) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 1024 * 1024) {
+    if (size > maxBytes) {
       const error = new Error('Request body exceeds 1 MB');
       error.statusCode = 413;
       throw error;
@@ -458,6 +461,29 @@ const server = createServer(async (request, response) => {
         intents: runtimeIntentSummary(projectRoot)
       });
     }
+    if(url.pathname==='/api/jev'||url.pathname.startsWith('/api/jev/')){
+      let input;
+      const credentialRoute=url.pathname.startsWith('/api/jev/credentials');
+      try{
+        if(url.search)return json(response,400,{error:'Jev actions do not accept query parameters.'});
+        const action=url.pathname.slice('/api/jev/'.length),reads=['settings','measurements','credentials'];
+        if(![...reads,'decisions','personas','credentials/configure','credentials/check','credentials/remove'].includes(action))return json(response,404,{error:'Jev action not found.'});
+        if(request.method!==(reads.includes(action)?'GET':'POST')&&!(action==='settings'&&request.method==='POST'))return json(response,405,{error:'Use the supported Jev action method.'});
+        if(request.method==='GET')return json(response,200,action==='settings'?readJevSettings(projectRoot):action==='measurements'?readJevMeasurements(projectRoot):jevCredentialStatus({projectRoot}));
+        if(String(request.headers['content-type']??'').split(';')[0].trim().toLowerCase()!=='application/json')return json(response,415,{error:'Use application/json.'});
+        input=await readJson(request,credentialRoute?2048:20000);
+        if(!input||typeof input!=='object'||Array.isArray(input))return json(response,400,{error:'Use a JSON object for a Jev request.'});
+        if(action==='settings')return json(response,200,saveJevSettings(projectRoot,input));
+        if(action==='decisions')return json(response,200,await decideWithJev(projectRoot,input));
+        if(action==='personas')return json(response,200,await recommendPersonasWithJev(projectRoot,input,personaLibrary()));
+        input=strictBody(input,action==='credentials/configure'?['confirmed','expectedRevision','apiKey']:action==='credentials/remove'?['confirmed','expectedRevision']:['confirmed'],'Jev credential action');
+        if(input.confirmed!==true)return json(response,400,{error:'Confirm this credential action.'});
+        return json(response,200,action==='credentials/configure'?await configureJevCredentials(input,{projectRoot}):action==='credentials/remove'?removeJevCredentials(input,{projectRoot}):await checkJevConnection({projectRoot}));
+      }catch(error){
+        const status=[403,415,413,409].includes(error.statusCode)?error.statusCode:400;
+        return json(response,status,[403,415,413].includes(status)?{error:status===403?'Use the matching local dashboard origin.':status===415?'Use application/json.':'Jev request is too large.'}:credentialRoute?safeJevCredentialError(error):safeJevError(error));
+      }finally{if(input&&typeof input==='object')input.apiKey=undefined;}
+    }
     if(url.pathname.startsWith('/api/coding-providers/grok/credentials')){
       let input;
       try{
@@ -474,7 +500,7 @@ const server = createServer(async (request, response) => {
       }catch(error){
         const code=[403,415,413].includes(error.statusCode)?error.statusCode:error.code==='grok-credential-stale'||error.code==='grok-credential-busy'?409:400;
         return json(response,code,[403,415,413].includes(code)?{error:code===403?'Use the matching local dashboard origin.':code===415?'Use application/json.':'Credential request is too large.'}:safeGrokCredentialError(error));
-      }finally{if(input)input.apiKey=undefined;}
+      }finally{if(input&&typeof input==='object')input.apiKey=undefined;}
     }
     if(url.pathname==='/api/coding-providers'){
       if(url.search)return json(response,400,{error:'Provider settings do not accept query parameters.'});
@@ -589,10 +615,10 @@ const server = createServer(async (request, response) => {
         ['profile', 'slug', 'taskId', 'phase', 'focus', 'budgetTokens', 'previousDigest'],
         'Context preparation request',
       );
-      const pack = guarded(() => prepareProjectContext(projectRoot, {
+      const pack = await prepareProjectContextWithJev(projectRoot, {
         ...input,
         personaCatalogue: personaLibrary(),
-      }));
+      });
       return json(response, 200, safeContextManifest(pack));
     }
     const contextPack = url.pathname.match(/^\/api\/context-packs\/([^/]+)$/);
@@ -611,7 +637,9 @@ const server = createServer(async (request, response) => {
       if (focus.length > 500 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(focus)) {
         return json(response, 400, { error: 'Companion focus exceeds 500 characters or contains unsafe text' });
       }
-      return json(response, 200, readCompanionGuidance(projectRoot, { focus, personas: personaLibrary() }));
+      // Foreign-origin GETs may not trigger paid inference or disclosure.
+      const trusted=request.headers.origin===`http://${host}`||(!request.headers.origin&&request.headers['sec-fetch-site']==='same-origin');
+      return json(response, 200, trusted?await readCompanionWithJev(projectRoot, { focus, personas: personaLibrary() }):readCompanionGuidance(projectRoot,{focus,personas:personaLibrary()}));
     }
     if (request.method === 'GET' && url.pathname === '/api/portfolio') {
       const unknown = [...new Set(url.searchParams.keys())].filter((key) => key !== 'focus');
@@ -1112,7 +1140,7 @@ const server = createServer(async (request, response) => {
       const view = dashboardWorkItemView(reference);
       if (!view) return json(response, 404, { error: 'Work item not found' });
       const input = await readJson(request);
-      return json(response, 200, guarded(() => previewImpactAssessment(projectRoot, view.item.slug, input, { personas: personaLibrary() })));
+      return json(response, 200, await previewImpactWithJev(projectRoot, view.item.slug, input, { personas: personaLibrary() }));
     }
     const impactConfirm = url.pathname.match(/^\/api\/work-items\/([^/]+)\/impact\/confirm$/);
     if (request.method === 'POST' && impactConfirm) {

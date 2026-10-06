@@ -36,6 +36,8 @@ To try the beta communication guidance, read [concise answers and guided decisio
 
 [Choose which views you need](operations/dashboard-configuration.md). Portfolio, Team Hub, policy tools and the other advanced views are optional and start hidden. Showing a view doesn't configure the service behind it; hiding one doesn't remove checks your project requires.
 
+Try the optional [Jev decision-assistance beta](operations/jev-beta-experiment.md) to rank bounded options, compare LLM recommendations and recommend available personas. Start with shadow mode; overall coding savings remain unmeasured.
+
 ## Something isn't working?
 
 Start with [troubleshooting and recovery](operations/troubleshooting-and-recovery.md). For a problem that needs support, [prepare a private error report](error-reporting-guide.md) and review it before sharing.

@@ -86,6 +86,48 @@
             <output id="grokCredentialNotice" role="status" aria-live="polite"></output>
           </div>
         </section>
+        <section class="configuration-group jev-configuration" aria-labelledby="jevTitle">
+          <header><div><h3 id="jevTitle">Jev decision assistance <span class="jev-beta">Beta</span></h3><p>Rank options, compare recommendations and find relevant reviewers before asking a larger model.</p></div></header>
+          <div class="jev-body">
+            <form id="jevSettingsForm">
+              <fieldset id="jevControls" disabled>
+                <legend>How Jev participates</legend>
+                <div class="jev-modes">
+                  <label><input type="radio" name="jevMode" value="off" checked> Off <small>Use existing local decisions.</small></label>
+                  <label><input type="radio" name="jevMode" value="shadow"> Shadow — recommended first <small>Measure suggestions; keep existing automatic decisions.</small></label>
+                  <label><input type="radio" name="jevMode" value="active"> Active <small>Apply eligible context and persona advice. Required evidence and approvals remain.</small></label>
+                </div>
+                <fieldset><legend>Where Jev can help</legend><div id="jevUseCases" class="jev-use-cases"></div></fieldset>
+                <div class="jev-disclosure"><strong>Text processing by TypeSafe</strong><p>Enabled decisions send your focus and selected labels or descriptions to TypeSafe. Explicit claim and diagnostic checks can send eligible evidence you supply. Persona bodies and project source files are excluded from automatic ranking.</p><label><input id="jevCloudConsent" type="checkbox"> I accept this text disclosure for enabled decisions.</label></div>
+                <div class="jev-limits">
+                  <label>Maximum calls per saved policy<input id="jevMaxCalls" type="number" min="1" max="1000" required></label>
+                  <label>Input-token reservation budget<input id="jevMaxTokens" type="number" min="2000" max="1000000" required></label>
+                  <label>Timeout, milliseconds<input id="jevTimeout" type="number" min="100" max="10000" required></label>
+                  <label>Minimum confidence<input id="jevConfidence" type="number" min="0.5" max="1" step="0.01" required></label>
+                </div>
+                <p>Saving a new policy starts a new bounded budget. Timeouts or unknown usage stop further calls within that budget. Confidence is advisory.</p>
+              </fieldset>
+              <div class="coding-provider-actions"><button id="jevSettingsSave" type="submit" class="primary-action" disabled>Save Jev settings</button><button id="jevRefresh" type="button" class="quiet-button">Refresh settings and measurements</button></div>
+              <output id="jevNotice" role="status" aria-live="polite">Loading Jev settings…</output>
+            </form>
+            <section aria-labelledby="jevMeasurementsTitle"><h4 id="jevMeasurementsTitle">Measured results</h4><div id="jevMeasurements" aria-live="polite">Unknown — no measurements loaded.</div><p>Latency and cost describe Jev calls. Downstream token savings and coding speed remain unknown until compared with equivalent work.</p></section>
+          </div>
+        </section>
+        <section class="configuration-group jev-credentials" aria-labelledby="jevCredentialsTitle">
+          <header><div><h3 id="jevCredentialsTitle">Jev API credentials</h3><p>Connect TypeSafe for bounded decision assistance. Saving a key leaves Jev off.</p></div></header>
+          <div class="jev-credentials-body">
+            <p id="jevCredentialStatus" role="status">Checking credential status…</p>
+            <form id="jevCredentialForm">
+              <label for="jevCredentialKey">TypeSafe API key</label>
+              <input id="jevCredentialKey" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="512" required aria-describedby="jevCredentialHelp" disabled>
+              <p id="jevCredentialHelp">Saved for your account on this computer, across EWAI projects, outside the project in an owner-only local file. The stored key is not encrypted. TYPESAFE_API_KEY overrides it.</p>
+              <div class="coding-provider-actions"><button id="jevCredentialSave" type="submit" class="primary-action" disabled>Check and save key</button><button id="jevCredentialCancel" type="button" class="quiet-button" disabled>Cancel key entry</button></div>
+            </form>
+            <div class="coding-provider-actions"><button id="jevCredentialCheck" type="button" class="quiet-button" disabled>Check connection</button><button id="jevCredentialRemove" type="button" class="quiet-button" disabled>Remove saved key</button><button id="jevCredentialRefresh" type="button" class="quiet-button">Refresh status</button></div>
+            <p>Checking authenticates with TypeSafe without generating output. It does not prove available credit or decision quality. Saving a key does not enable Jev.</p>
+            <output id="jevCredentialNotice" role="status" aria-live="polite"></output>
+          </div>
+        </section>
         <section class="configuration-group autonomy-configuration" aria-labelledby="autonomyConfigurationTitle">
           <header><div><h3 id="autonomyConfigurationTitle">Delegated delivery</h3><p>Choose an exact pool and limits. EWAI can progress only permitted work between your decisions.</p></div><strong id="autonomyMode" class="autonomy-mode">Checking…</strong></header>
           <div class="autonomy-configuration-body">
@@ -844,6 +886,8 @@
       </form>
     </dialog>
     <script src="/app.js" type="module"></script>
+    <script src="/jev.js" type="module"></script>
+    <script src="/jev-credentials.js" type="module"></script>
     <script src="/coding-providers.js" type="module"></script>
     <script src="/grok-credentials.js" type="module"></script>
   </body>

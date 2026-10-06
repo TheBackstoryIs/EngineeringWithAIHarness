@@ -87,7 +87,11 @@ function normaliseCandidate(candidate, policyDigest) {
   return { ...normalised, ...estimateContextTokens(renderedSegment(normalised)) };
 }
 
-function compareSegments(left, right) {
+function compareSegments(left, right, advisoryRanking) {
+  if (left.evidenceClass !== 'mandatory' && right.evidenceClass !== 'mandatory' && advisoryRanking) {
+    const rankDifference = Number(advisoryRanking[right.id] ?? 0) - Number(advisoryRanking[left.id] ?? 0);
+    if (Number.isFinite(rankDifference) && rankDifference) return rankDifference;
+  }
   return evidenceOrder[left.evidenceClass] - evidenceOrder[right.evidenceClass]
     || right.priority - left.priority
     || left.id.localeCompare(right.id);
@@ -180,7 +184,7 @@ export function prepareContextPack(options = {}) {
       .sort((left, right) => clean(left.id).localeCompare(clean(right.id))),
   }));
   const seen = new Set();
-  const candidates = (options.candidates ?? []).map((candidate) => normaliseCandidate(candidate, policyDigest)).sort(compareSegments);
+  const candidates = (options.candidates ?? []).map((candidate) => normaliseCandidate(candidate, policyDigest)).sort((left, right) => compareSegments(left, right, options.advisoryRanking));
   for (const candidate of candidates) {
     if (seen.has(candidate.id)) throw new Error(`Duplicate context segment id: ${candidate.id}`);
     seen.add(candidate.id);
@@ -221,13 +225,24 @@ export function prepareContextPack(options = {}) {
     return { ...candidate, disposition, cache };
   });
   const included = segments.filter(({ disposition }) => ['selected', 'reused'].includes(disposition));
-  const activePersonas = selectContextualPersonas({
+  let activePersonas = selectContextualPersonas({
     personaCatalogue: options.personaCatalogue,
     signals: unique([...selectedProfile.signals, ...clean(options.focus).split(/[^a-z0-9]+/i)]),
     context: { profile: selectedProfile.id, focus: clean(options.focus), selected: included.map(({ id }) => id) },
     contextLabel: selectedProfile.label,
     limit: options.personaLimit ?? 4,
   });
+  // Trusted operation wrappers retain complete baseline engagement records.
+  // Matching IDs alone cannot preserve tier overrides or selection provenance.
+  const retained = options.retainedPersonas ?? [];
+  activePersonas = [...retained, ...activePersonas.filter(persona => !retained.some(previous => previous.id === persona.id))].slice(0,8);
+  for (const id of options.advisoryPersonaIds ?? []) {
+    if (activePersonas.length >= 8 || activePersonas.some(persona => persona.id === id)) continue;
+    const tiers = {core:1,premium:2,personal:3,project:4};
+    const persona = (options.personaCatalogue ?? []).filter(persona => persona.id === id).sort((a,b)=>(tiers[b.tier]??0)-(tiers[a.tier]??0))[0];
+    if (!persona) continue;
+    activePersonas.push({ id: persona.id, name: clean(persona.name), tier: clean(persona.tier) || 'core', category: clean(persona.category), description: clean(persona.description).slice(0,240), matchedSignals: ['Jev semantic relevance'], engagementReason: `${clean(persona.name)} is added as an advisory semantic match; existing reviewers remain engaged.` });
+  }
   const required = segments.filter(({ evidenceClass }) => evidenceClass === 'mandatory')
     .flatMap((segment) => segment.requiredMarkers.map((marker) => ({ segmentId: segment.id, marker, present: included.some(({ id, content }) => id === segment.id && content.includes(marker)) })));
   const presentCount = required.filter(({ present }) => present).length;
@@ -446,6 +461,9 @@ export function prepareProjectContext(projectRoot, input = {}) {
     deliveryRevision: input.deliveryRevision ?? sourceRevision,
     candidates,
     personaCatalogue: input.personaCatalogue,
+    advisoryRanking: input.advisoryRanking,
+    advisoryPersonaIds: input.advisoryPersonaIds,
+    retainedPersonas: input.retainedPersonas,
     previousPack,
     previousDigest: input.previousDigest,
     cacheRoot: resolve(contextRuntimeRoot(root), 'cache'),

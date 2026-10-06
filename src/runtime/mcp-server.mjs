@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { readJevSettings,saveJevSettings,readJevMeasurements,safeJevError } from '../jev.mjs';
+import { jevCredentialStatus,checkJevConnection } from '../jev-credentials.mjs';
+import { decideWithJev,prepareProjectContextWithJev,recommendPersonasWithJev,readCompanionWithJev } from './jev-operations.mjs';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod/v4';
@@ -204,6 +207,23 @@ function portfolioPersonas() {
   ]);
 }
 
+// Closed shared validators receive the original fields, including attempted extras.
+// Key capture is deliberately absent from model-facing tools.
+for(const [action,fields] of Object.entries({status:[],measurements:[],configure:['confirmed','expectedRevision','policy'],decide:['useCase','source','task','candidates','claim','evidence','quote','diagnostic','summary','origin','recommendedId'],personas:['focus','limit']})){
+ server.registerTool('ewai_jev_'+action,{
+  title:'Jev '+action,
+  description:action==='decide'?'Rank bounded options and return a recommendation before using a generative LLM. useCase: skill for answer options or skills, context, personas, claim, failure, impact, tests. source: public, synthetic, cloud-approved or metadata-only. Options require task and up to 31 candidates {id,label,description?}; use origin: llm and recommendedId to compare an LLM recommendation. Unsupported shapes are rejected. Advice cannot approve work. Shadow results are comparison-only.':action==='personas'?'Recommend available core, project, personal and installed premium personas for focus (max 2000 characters), limit 1..8. Catalogue resolution is local; returns bounded recommendations and coverage. No pack downloads or persona bodies are uploaded. Shadow results are comparison-only.':action==='configure'?'Save explicit human-selected Jev settings with confirmed, expectedRevision and a complete policy from status. Off by default; first enablement should use shadow. Never infer cloud-processing consent.':'Read safe Jev policy, credential presence or measurements without inference. Savings remain unknown until measured.',
+  inputSchema:z.object(Object.fromEntries(fields.map(key=>[key,z.unknown().optional()]))).passthrough(),
+  annotations:{readOnlyHint:['status','measurements'].includes(action),destructiveHint:false,openWorldHint:!['status','measurements','configure'].includes(action)},
+ },async input=>{try{
+  if(action==='status'){if(Object.keys(input).length)throw Error('input');return result({settings:readJevSettings(paths.projectRoot),credentials:jevCredentialStatus({projectRoot:paths.projectRoot})});}
+  if(action==='measurements'){if(Object.keys(input).length)throw Error('input');return result(readJevMeasurements(paths.projectRoot));}
+  if(action==='configure')return result(saveJevSettings(paths.projectRoot,input));
+  if(action==='personas')return result(await recommendPersonasWithJev(paths.projectRoot,input,portfolioPersonas()));
+  return result(await decideWithJev(paths.projectRoot,input));
+ }catch(error){return {...result(safeJevError(error)),isError:true};}});
+}
+
 const personaAttachmentSchema = z.object({
   ref: z.string().min(1),
   role: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
@@ -334,7 +354,7 @@ server.registerTool(
   'ewai_context_prepare',
   {
     title: 'Prepare governed model context',
-    description: 'Prepare a bounded revision-bound context pack for a supported EWAI profile. The trusted MCP host receives transient model context plus a body-free safe manifest. This cannot approve or execute delivery work.',
+    description: 'Prepare a bounded revision-bound context pack for a supported EWAI profile. The trusted MCP host receives transient model context plus a body-free safe manifest. Explicit Jev policy can send focus and bounded metadata to TypeSafe and record usage; source and persona bodies stay local. This cannot approve or execute delivery work.',
     inputSchema: {
       profile: z.enum(['companion', 'intent', 'plan', 'build-task', 'fresh-context-review', 'phase-contribution-review']),
       slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -344,9 +364,9 @@ server.registerTool(
       budgetTokens: z.number().int().min(1).max(200000).optional(),
       previousDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   },
-  async (input) => result(prepareProjectContext(paths.projectRoot, {
+  async (input) => result(await prepareProjectContextWithJev(paths.projectRoot, {
     ...input,
     personaCatalogue: portfolioPersonas(),
   })),
@@ -1071,11 +1091,11 @@ server.registerTool(
   'ewai_companion_status',
   {
     title: 'Read context-aware EWAI delivery guidance',
-    description: 'Read bounded, ranked delivery guidance, active persona provenance and accountable human routes. This tool is advisory and read-only.',
+    description: 'Read bounded delivery guidance and accountable human routes. With explicit Jev policy and focus, this may call TypeSafe for advisory ranking and write measurements. It grants no work authority.',
     inputSchema: { focus: z.string().max(500).optional() },
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   },
-  async ({ focus = '' }) => result(readCompanionGuidance(paths.projectRoot, {
+  async ({ focus = '' }) => result(await readCompanionWithJev(paths.projectRoot, {
     focus,
     personas: portfolioPersonas(),
   })),

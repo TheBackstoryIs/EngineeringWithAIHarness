@@ -29,7 +29,7 @@ test('the public release has consistent metadata and channel-specific installati
     const guide = readFileSync(resolve('Docs/context-management-and-token-efficiency.md'), 'utf8');
     assert.ok(guide.includes('`' + metadata.version + '`'), 'User guidance identifies the beta version');
     assert.match(guide, /incremental token or cost saving has been measured/);
-    assert.match(readme, /production npm channel remains on `0\.3\.0`/);
+    assert.match(readme, /Local beta preparation does not change the production npm channel/);
   } else {
     assert.equal(channel, 'latest');
   }

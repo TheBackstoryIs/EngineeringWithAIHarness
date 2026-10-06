@@ -1,0 +1,8 @@
+[
+ {"id":"options","expected":"relation","input":{"useCase":"skill","source":"synthetic","task":"Recommend a reusable way to access related records in a Laravel model.","candidates":[{"id":"relation","label":"Native Eloquent relationship"},{"id":"duplicate","label":"Duplicate controller queries"}]}},
+ {"id":"llm-options","expected":"relation","input":{"useCase":"skill","source":"synthetic","origin":"llm","recommendedId":"duplicate","task":"Recommend reusable model-to-model access in Laravel.","candidates":[{"id":"relation","label":"Native Eloquent relationship"},{"id":"duplicate","label":"Duplicate controller queries"}]}},
+ {"id":"persona","expected":"security","input":{"useCase":"personas","source":"synthetic","task":"Review cross-customer access to private records.","candidates":[{"id":"security","label":"Security reviewer","description":"Tenant boundaries and authorisation"},{"id":"copy","label":"Copywriter","description":"Marketing headlines"}]}},
+ {"id":"claim","expected":"insufficient","input":{"useCase":"claim","source":"synthetic","claim":"Human Manual QA approved this release.","evidence":"An automated unit test passed. No human approval is recorded."}},
+ {"id":"failure","expected":"auth","input":{"useCase":"failure","source":"synthetic","diagnostic":{"code":"HTTP-401","message":"Unauthorised request; authentication rejected."}}},
+ {"id":"tests","expected":"isolation","input":{"useCase":"tests","source":"synthetic","task":"Verify customers cannot read each other's records.","candidates":[{"id":"mandatory","label":"Required baseline tests","mandatory":true},{"id":"isolation","label":"Cross-tenant access rejection test"},{"id":"spacing","label":"Heading spacing test"}]}}
+]
