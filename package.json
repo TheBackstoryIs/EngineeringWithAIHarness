@@ -1,6 +1,6 @@
 {
   "name": "@thebackstoryis/engineering-with-ai",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A human-centred, AI-augmented engineering pipeline",
   "license": "SEE LICENSE IN LICENSE",
   "author": "The Backstory Is",
@@ -25,7 +25,7 @@
     "type": "git",
     "url": "git+https://github.com/TheBackstoryIs/EngineeringWithAIHarness.git"
   },
-  "homepage": "https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=npm&utm_medium=referral&utm_campaign=ewai",
+  "homepage": "https://www.conversationalcoding.dev/ewai",
   "bugs": {
     "url": "https://github.com/TheBackstoryIs/EngineeringWithAIHarness/issues"
   },
