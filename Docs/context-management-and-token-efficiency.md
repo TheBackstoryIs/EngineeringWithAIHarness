@@ -6,6 +6,48 @@ You normally don't prepare context manually: the relevant EWAI skill does that f
 
 Context preparation doesn't approve Build or Manual QA, accept risk, certify quality, deploy or release.
 
+## Concise answers and guided decisions
+
+**Availability:** This guidance is included from `0.3.1`. [Update EWAI](operations/installation-updating-and-entitlements.md), then initialise the project or run its normal EWAI check-in to refresh the managed instructions in `AGENTS.md` and `CLAUDE.md`. Start a fresh host conversation after the refresh. Project-authored guidance outside the managed block is preserved. Versions `0.3.0` and earlier don't include these instructions. Tool-result compaction remains planned, and no incremental token or cost saving has been measured for this update.
+
+### Get a useful short answer
+
+Describe the result you need, for example:
+
+> “Give me the result and next action concisely. Keep the evidence, exact commands, important risks and anything you couldn't verify.”
+
+The guidance prioritises correctness and usefulness, then brevity. Expect the result or recommendation first, with less repetition and routine narration. Required status, warnings and approval steps still appear. A short answer should retain prerequisites, meaningful action order, failures and uncertainty; it should not replace working instructions with shorthand.
+
+When you need more detail, ask for it:
+
+> “Expand the migration steps, including prerequisites, verification and recovery.”
+
+Detailed requests still need complete answers. If a concise answer leaves you unable to act safely or understand the evidence, ask for the missing detail before acting.
+
+### Make an informed decision
+
+A decision request should explain the action, consequences, material options and tradeoffs, then give a recommendation with its reason. A suggested response can help you express your choice; it does not record approval on your behalf.
+
+You can ask:
+
+> “Explain what I need to decide, recommend an option with its reason, and suggest a reply. Include what happens next and any uncertainty.”
+
+When the evidence cannot support a choice, expect a recommendation for the next evidence-gathering step. Build approval, Manual QA and release decisions still need their own explicit authority; see [who approves what](human-approval-and-assurance-guide.md).
+
+### Refine an unclear request
+
+The guidance leads with a recommended interpretation and explains assumptions that affect the outcome. It asks one focused question when missing information materially changes the scope or next action, with guidance and a recommended response.
+
+For example, if you say “Make onboarding simpler”, an illustrative response is:
+
+> “I recommend reviewing the existing onboarding journey first to identify where people get stuck. I'm assuming you want the journey assessed before changing the implementation. Should we start with that review? Suggested response: ‘Yes, review the journey first and recommend changes.’”
+
+Correct the interpretation when it misses your intent. Work already authorised and independent of your answer can continue; a proposed interpretation or suggested reply does not expand that authority.
+
+### Understand savings claims
+
+Shorter replies aim to reduce output tokens. The context preparation described below addresses input tokens. Neither a shorter example nor the packaged context benchmark establishes whole-session cost savings. Assess equivalent work using actual provider usage where available, including retries and clarification rounds, alongside correctness and how well the answer supports your decision. Unknown usage remains unknown.
+
 ## Inspect the evidence sent to the model
 
 Open **Configuration**, enable **AI context diagnostics** and save, then open that view in the sidebar. See [dashboard configuration](operations/dashboard-configuration.md) if you need help finding it.

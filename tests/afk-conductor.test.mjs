@@ -11,6 +11,88 @@ import {
   afkRunStatus, cancelAfkRun, pauseAfkRun, preflightAfkRun, resumeAfkRun, selectExecutableTaskIds, startAfkRun,
 } from '../src/runtime/afk-conductor.mjs';
 import { listExecutionLeases } from '../src/runtime/execution-leases.mjs';
+import {readCodingProviders,saveCodingProviders} from '../src/coding-providers.mjs';
+import {prepareGrokBuildProvider} from '../src/runtime/provider-adapters.mjs';
+
+test('AFK supplies Grok source standards, implementation diff and recorded checks before review dispatch',{skip:process.platform!=='darwin'},async t=>{
+  const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-grok-evidence-')),oldPath=process.env.PATH,oldTestContext=process.env.NODE_TEST_CONTEXT;
+  delete process.env.NODE_TEST_CONTEXT;
+  t.after(()=>{process.env.PATH=oldPath;if(oldTestContext===undefined)delete process.env.NODE_TEST_CONTEXT;else process.env.NODE_TEST_CONTEXT=oldTestContext;rmSync(root,{recursive:true,force:true});});
+  const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
+  const capability=prepareGrokBuildProvider('review');if(capability.status==='unavailable'){t.skip(capability.code);return;}
+  configureExternalValidation(root,'grok','available',true);
+  providerPolicy(root,{pool:['codex','grok'],primary:'codex',secondary:'grok',tertiary:'off'});
+  const standard=readFileSync(resolve(root,'SPECS/pipeline.yaml'),'utf8'),calls=[];
+  const run=await startAfkRun(root,'safe-change',{foreground:true,dependencies:{invokeProvider:async(invocation,options)=>{
+    calls.push([invocation.mode,invocation.provider]);
+    if(invocation.provider==='grok'){
+      assert.ok(invocation.grokEvidence);assert.ok(invocation.prompt.includes(standard));
+      assert.match(invocation.prompt,/diff --git a\/src\/output.mjs/);assert.match(invocation.prompt,/\+export const message = 'ready'/);
+      for(const stage of ['red','green','refactor'])assert.ok(invocation.prompt.includes('"stage":"'+stage+'"'));
+      assert.match(invocation.prompt,/Could not find/);assert.match(invocation.prompt,/pass 1/);
+    }
+    return fakeProvider(invocation,options);
+  }}});
+  assert.equal(run.status,'completed',JSON.stringify(run.messages));
+  assert.deepEqual(calls,[['implementation','codex'],['review','grok']]);
+});
+
+function providerPolicy(root, policy) {
+  saveCodingProviders(root,{confirmed:true,expectedDigest:readCodingProviders(root,{probe:()=>false}).digest,policy},{probe:()=>false});
+  git(root,['add','-A']);git(root,['commit','-m','fixture provider settings']);
+}
+function extraProvider(root, provider) {
+  const path=resolve(root,'.test-bin',provider==='antigravity'?'agy':provider);
+  writeFileSync(path,'#!/bin/sh\nprintf "fixture provider 1\\n"\n');chmodSync(path,0o755);
+  configureExternalValidation(root,provider,'available',true);
+}
+
+test('saved primary and two distinct review roles reach the real AFK dispatch boundary',async t=>{
+  const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-roles-')),oldPath=process.env.PATH;
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
+  extraProvider(root,'claude');extraProvider(root,'antigravity');
+  providerPolicy(root,{pool:['codex','claude','antigravity'],primary:'codex',secondary:'claude',tertiary:'antigravity'});
+  const calls=[];
+  const run=await startAfkRun(root,'safe-change',{foreground:true,dependencies:{invokeProvider:async(invocation,options)=>{
+    calls.push([invocation.mode,invocation.provider]);return fakeProvider(invocation,options);
+  }}});
+  assert.equal(run.status,'completed',JSON.stringify(run.messages));
+  assert.deepEqual(calls,[['implementation','codex'],['review','claude'],['review','antigravity']]);
+});
+
+test('AFK saved primary conflicts and unsupported model restrictions block preflight',t=>{
+  const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-policy-')),oldPath=process.env.PATH;
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;extraProvider(root,'claude');
+  providerPolicy(root,{pool:['codex','claude'],primary:'claude',secondary:'off',tertiary:'off'});
+  const conflict=preflightAfkRun(root,'safe-change',{provider:'codex'});
+  assert.equal(conflict.status,'blocked');assert.match(conflict.failures.join(' '),/conflict|saved primary/i);
+  providerPolicy(root,{pool:['codex'],primary:'codex',secondary:'off',tertiary:'off',models:{codex:{permitted_models:['fixture']}}});
+  const restricted=preflightAfkRun(root,'safe-change');assert.equal(restricted.status,'blocked');assert.match(restricted.failures.join(' '),/cannot enforce/);
+});
+
+test('AFK automatic selection excludes Grok identities without a coding contract',t=>{
+  const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-capability-')),oldPath=process.env.PATH;
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
+  extraProvider(root,'grok');extraProvider(root,'claude');
+  providerPolicy(root,{pool:['grok','codex','claude'],primary:'auto',secondary:'claude',tertiary:'off'});
+  const result=preflightAfkRun(root,'safe-change');assert.equal(result.status,'ready',result.failures.join(' '));
+  assert.equal(result.codingRoles.primary,'codex');assert.equal(result.providers.includes('grok'),false);
+});
+
+test('AFK identity drift stops before a provider result can be integrated',async t=>{
+  const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-identity-')),oldPath=process.env.PATH;
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
+  providerPolicy(root,{pool:['codex'],primary:'codex',secondary:'off',tertiary:'off'});
+  const run=await startAfkRun(root,'safe-change',{foreground:true,dependencies:{invokeProvider:async(invocation,options)=>{
+    const result=await fakeProvider(invocation,options);writeFileSync(resolve(bin,'codex'),'#!/bin/sh\nprintf "changed\\n"\n');return result;
+  }}});
+  assert.equal(run.status,'blocked');assert.match(run.messages.map(v=>JSON.stringify(v)).join(' '),/identity changed/i);
+  assert.throws(()=>readFileSync(resolve(root,'src/output.mjs')),{code:'ENOENT'});
+});
 
 function git(root, args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();

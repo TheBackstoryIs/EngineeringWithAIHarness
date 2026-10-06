@@ -11,19 +11,28 @@ test('release channel selection keeps beta away from stable and rejects unknown 
   assert.throws(() => publishTagForVersion('0.3.0-rc.0'), /Unsupported npm release version/);
 });
 
-test('the public release has consistent stable metadata and installation guidance', () => {
+test('the public release has consistent metadata and channel-specific installation guidance', () => {
   const metadata = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
   const lock = JSON.parse(readFileSync(resolve('package-lock.json'), 'utf8'));
   const readme = readFileSync(resolve('README.md'), 'utf8');
-  assert.equal(metadata.version, '0.3.0');
-  assert.equal(publishTagForVersion(metadata.version), 'latest');
+  const channel = publishTagForVersion(metadata.version);
+  assert.match(metadata.version, /^\d+\.\d+\.\d+(?:-beta\.\d+)?$/);
+  assert.ok(readme.includes('`' + metadata.version + '`'), 'README describes the packaged version');
   assert.equal(lock.version, metadata.version);
   assert.equal(lock.packages[''].version, metadata.version);
   assert.match(readme, /EWAI can now pick up the next ready piece of work/);
   assert.match(readme, /final whole-delivery test stage, Manual QA and release preparation still happen through the normal EWAI workflow/);
   assert.match(readme, /brings the capability out of beta/);
   assert.match(readme, /npm install --save-dev @thebackstoryis\/engineering-with-ai\n/);
-  assert.doesNotMatch(readme, /engineering-with-ai@beta|Manual QA for this beta is still pending/);
+  if (channel === 'beta') {
+    assert.match(readme, /npm install --save-dev @thebackstoryis\/engineering-with-ai@beta\n/);
+    const guide = readFileSync(resolve('Docs/context-management-and-token-efficiency.md'), 'utf8');
+    assert.ok(guide.includes('`' + metadata.version + '`'), 'User guidance identifies the beta version');
+    assert.match(guide, /incremental token or cost saving has been measured/);
+    assert.match(readme, /production npm channel remains on `0\.3\.0`/);
+  } else {
+    assert.equal(channel, 'latest');
+  }
 });
 
 test('tag-triggered publication selects beta explicitly and never defaults a beta to latest', () => {

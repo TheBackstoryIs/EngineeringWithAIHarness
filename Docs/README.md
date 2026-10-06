@@ -30,6 +30,8 @@ If you have a persona licence, [set it up before the analysis](operations/premiu
 
 If you're contributing without an engineering background, use the [non-technical team guide](adoption/non-technical-team-guide.md). For examples of the wider workflow, see [worked examples](examples/worked-examples.md).
 
+To try the beta communication guidance, read [concise answers and guided decisions](context-management-and-token-efficiency.md#concise-answers-and-guided-decisions), including examples and installation instructions.
+
 ## Make the dashboard work for you
 
 [Choose which views you need](operations/dashboard-configuration.md). Portfolio, Team Hub, policy tools and the other advanced views are optional and start hidden. Showing a view doesn't configure the service behind it; hiding one doesn't remove checks your project requires.

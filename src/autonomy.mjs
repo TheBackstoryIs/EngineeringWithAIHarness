@@ -5,7 +5,7 @@ import { autonomyError, autonomyGuard, autonomyDigest, autonomyPaths, autonomyFi
   writeAutonomyRecord, withAutonomyLock, readAutonomySnapshot } from './runtime/autonomy-workspace.mjs';
 
 export const AUTONOMY_ACTIONS = Object.freeze(['begin-harness', 'prepare-phase', 'afk-build']);
-export const AUTONOMY_PROVIDERS = Object.freeze(['codex', 'claude', 'antigravity']);
+export const AUTONOMY_PROVIDERS = Object.freeze(['codex', 'claude', 'antigravity', 'grok']);
 export const AUTONOMY_HUMAN_EXCLUSIONS = Object.freeze(['approve-build', 'select-prototype', 'manual-qa', 'accept-risk', 'policy-exception', 'destructive-action', 'deploy', 'release']);
 const intentPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const digestPattern = /^sha256:[a-f0-9]{64}$/;

@@ -461,3 +461,23 @@ test('source or grant drift during provider execution retains only unaccepted ev
     assert.equal(existsSync(resolve(root, 'knowledge/6.Build/alpha/gates/intent/gate-ledger.json')), false);
   }
 });
+
+test('captured provider policy drift blocks worker dispatch before invocation', async t => {
+  const {root,api,adapter}=await workerFixture(t);
+  const contract=api.prepareAutonomyPhase(root,'product/alpha','intent');
+  const config=resolve(root,'knowledge/pipeline.yaml');
+  writeFileSync(config,readFileSync(config,'utf8')+'\ncoding_providers:\n  primary: claude\n  secondary: off\n  tertiary: off\n');
+  let calls=0;
+  const result=await api.invokePhaseProposal(contract,{...adapter,observe:()=>{calls++;}});
+  assert.equal(result.code,'phase-provider-policy-changed');assert.equal(calls,0);
+});
+
+test('unsupported permitted-model restriction stops phase worker before provider invocation', async t=>{
+  const {root,api,adapter,grant}=await workerFixture(t);
+  const config=resolve(root,'knowledge/pipeline.yaml');
+  writeFileSync(config,readFileSync(config,'utf8')+'\ncoding_providers:\n  models:\n    claude:\n      permitted_models: [fixture-model]\n');
+  grant();
+  const contract=api.prepareAutonomyPhase(root,'product/alpha','intent');let calls=0;
+  const result=await api.invokePhaseProposal(contract,{...adapter,observe:()=>{calls++;}});
+  assert.equal(result.code,'phase-model-restriction-unsupported');assert.equal(calls,0);
+});

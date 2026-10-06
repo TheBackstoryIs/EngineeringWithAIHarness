@@ -124,6 +124,7 @@ Do not relocate or overwrite an existing SPECS contract through init. Relocation
 - Require human approval before Build when `approvals.build` is `required`.
 - Read the full `validation` contract before scheduling review. Do not infer availability from global machine state, and do not use the active Claude, Codex, or Antigravity orchestrator as its own independent validator.
 - Honour each checkpoint's selected providers, maximum cycles, breadth, depth, and output limit. Standards compliance remains mandatory even when no independent external validator is configured.
+- Use the shared `ewai providers` policy for optional Claude Code, Codex, Grok Build and Antigravity coding/review roles. Keep native model choice by default; suggestions are advisory and unsupported permitted-model restrictions stop dispatch. Automatic selection remains inside configured capability and approved grant pools. Distinguish installed CLI, authenticated account and verified execution mode.
 - Never write project outputs into the global EWAI installation.
 - Never carry repository paths or project state from one project into another.
 

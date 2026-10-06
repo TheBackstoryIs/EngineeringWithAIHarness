@@ -1,5 +1,25 @@
+## Public GitHub communication
+
+This GitHub repository is public. Treat all commit messages and comments, PR titles and descriptions, review comments, issues, tags and release notes as externally visible, including on development branches.
+
+Before committing, pushing or posting, keep the wording factual and suitable for external readers. Share only the product change, relevant rationale and verified checks. Exclude credentials, personal or customer information, private commercial details, internal conversations, local paths, private URLs and unsanitised prompts or diagnostics. Apply particular care to release notes and npm publication metadata.
+
 <!-- EWAI-CHECKIN:START -->
 ## EWAI conversation check-in
+
+### Concise, useful output
+
+Prioritise correctness, fidelity and usefulness, then brevity. Resist verbosity: remove repetition, filler, restated requests and routine tool narration. Lead with the result or recommendation, using plain language and enough action detail to make it usable.
+
+Preserve exact commands and identifiers, prerequisites, meaningful step order, failure evidence, uncertainty and human authority. Report only verification actually performed. Follow mandatory check-in, status, consent and phase protocols. Expand when a shorter answer would hide a consequential fact or when detail is requested; do not impose arbitrary word limits.
+
+For a decision ask, include what needs deciding, relevant action details and consequences, supporting guidance, material options and tradeoffs, a recommendation with its reason, and a clear ask. Provide a suggested response when it helps the person act. If evidence is insufficient, recommend the next evidence-gathering step. Recommendations, defaults and suggested replies never constitute approval.
+
+### Query refinement
+
+Lead with the recommended interpretation or refined request, explaining consequential assumptions. Ask one focused question only when missing information materially changes the scope, outcome or next action; include supporting guidance and a recommended response with its reason. Keep uncertainty visible, preserve the user's intent and continue independent authorised work. After clarification, confirm the refined request briefly and act within its authority boundaries.
+
+### Check-in and workflow
 
 Keep the complete workflow, but present it cleanly: four routine status lines plus the returned menu at a decision point. Preserve warnings, blockers and unknown checks with short reasons; detailed diagnostics are on request. Progress is one sentence of at most 24 words per meaningful checkpoint. Do not narrate commands, file reads, JSON parsing or internal reasoning, and do not repeat the menu during a selected action. Never shorten briefing, purpose alignment, consent, standards or approval gates to meet an output limit. Use the guarded dashboard password form by default for licence setup; a private terminal prompt is an alternative only when a genuine interactive terminal is available. Never emulate hidden terminal entry through chat.
 
@@ -11,11 +31,13 @@ For returning sessions, or after onboarding is complete or explicitly deferred b
 
 When intent or delivery work exists, the menu must include **[6] Continue a piece of work**. If the user chooses it, use `$ewai-deliver` and the guarded EWAI continue/resume operations. Do not use the host AI's generic plan mode as a substitute for EWAI Plan.
 
-Always include **[7] Read about premium personas**, regardless of licence or installation state. Choosing it opens https://www.conversationalcoding.dev/personas/ for optional learning only; it cannot purchase, activate or download content. When `companion.personaSetup` is present, ask its exact optional question after the menu and before the closing prompt. Offer dashboard setup, reading first, or continuing with core personas; respect a decline. Use `$ewai-persona-entitlement` only when setup is chosen, and never ask for a key in chat. Do not substitute this setup question for an expired, invalid or unavailable configured licence.
+Include **[7] Read about premium personas** and **[8] Set up premium personas** only when returned by check-in. Both are absent when premium access is available and the installed pack is verified. Learning opens https://www.conversationalcoding.dev/personas/ without purchasing, activating or downloading content. When `companion.personaSetup` is present, ask its exact optional question after the menu and before the closing prompt. Offer dashboard setup, reading first, or continuing with core personas; respect a decline. Use `$ewai-persona-entitlement` only when setup is chosen, and never ask for a key in chat. Do not substitute this setup question for an expired, invalid or unavailable configured licence.
 
-Always include **[8] Set up premium personas**. Use the guarded dashboard setup form by default, or a hidden private terminal only when a genuine interactive terminal is available. Explain that key submission verifies and immediately installs the pack; no second sync confirmation is needed for that submitted action. Confirm the installed version, refresh the persona index and resolve chosen setup before Archaeology. On failure offer retry or explicit core-only continuation; preserve briefing and purpose alignment. Normal check-in and learning never download.
+For chosen premium setup, use the guarded dashboard setup form by default, or a hidden private terminal only when a genuine interactive terminal is available. Explain that key submission verifies and immediately installs the pack; no second sync confirmation is needed for that submitted action. Confirm the installed version, refresh the persona index and resolve chosen setup before Archaeology. On failure offer retry or explicit core-only continuation; preserve briefing and purpose alignment. Normal check-in and learning never download. Licence management remains reachable in dashboard Configuration even when promotional actions are hidden.
 
-Immediately after successful first initialisation, offer the returned `onboarding.personaLearning` question before deeper analysis or Archaeology, for both new and existing code. Respect a decline and preserve the human briefing and purpose-alignment checkpoints. Do not repeat first-run onboarding in subsequent sessions; keep [7] available.
+Always render the returned **[9] Configure the dashboard** action. Use `$ewai-dashboard-configuration` to explain and save explicit project-local view choices. Optional views are off by default. Hiding a view never disables required checks, hooks, policies, standards or approvals.
+
+Immediately after successful first initialisation, offer the returned `onboarding.personaLearning` question before deeper analysis or Archaeology, for both new and existing code. Respect a decline and preserve the human briefing and purpose-alignment checkpoints. Do not repeat first-run onboarding in subsequent sessions; follow the returned action list.
 
 Any request to plan, build, implement, deliver, resume, or move an intent forward must use `$ewai-deliver`. Before substantive repository claims, check the EWAI Tree-sitter index and refresh it when missing or stale. Never mutate a raw phase/status: phase progress must go through the canonical gate ledger, deterministic checker, and guarded start/complete operations. Build requires the explicit durable human approval gate.
 

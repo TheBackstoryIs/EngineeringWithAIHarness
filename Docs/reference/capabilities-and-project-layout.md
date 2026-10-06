@@ -73,11 +73,12 @@ project/
 
 Initialisation preserves existing files unless `--force` is explicitly supplied.
 
-It also safely merges project MCP entries for the three supported hosts:
+It also safely merges project MCP entries for the supported hosts:
 
 ```text
 .mcp.json                 Claude Code
 .codex/config.toml        Codex
+.grok/config.toml         Grok Build
 .agents/mcp_config.json   Google Antigravity / AGY CLI
 ```
 
@@ -85,7 +86,11 @@ Each host launches the same project-bound `ewai mcp --project .` stdio server. E
 
 Before creating EWAI artefacts, initialization checks for existing source files, manifests, and project definitions. The conversational companion first captures a human project briefing, then optionally asks whether the user has a folder of emails, meeting transcripts, documentation, research, requirements, or other project material that could enrich the project. For an existing codebase, EWAI offers optional Archaeology. If the owner accepts, it compares the confirmed purpose and reviewed imported context with repository evidence before deeper reconstruction. A fresh project uses the same context to make discovery more specific.
 
-`--claude`, `--codex`, and `--antigravity` record validation CLIs that the user has explicitly confirmed are available and initially enabled. Antigravity access uses the `agy` executable. These flags do not install or authenticate those services. At delivery time EWAI excludes the active orchestrator from the independent reviewer set.
+`--claude`, `--codex`, `--grok`, and `--antigravity` record validation CLIs that the user has explicitly confirmed are available and initially enabled. Antigravity access uses the `agy` executable. These flags do not install or authenticate those services. At delivery time EWAI excludes the active orchestrator from the independent reviewer set.
+
+## Coding provider and model preferences
+
+Choose a primary coding CLI and distinct secondary/tertiary reviewers in the dashboard or through `ewai providers`. Without this optional policy, existing selection and native models remain unchanged. Suggestions are advisory; unsupported permitted-model restrictions stop invocation. Automatic selection remains inside configured and approved provider pools and does not bypass human checkpoints. Grok unattended modes require their separately verified native identity and private environment authentication. See [provider controls](cli-and-configuration.md#coding-provider-settings) and [Grok setup](../operations/installation-updating-and-entitlements.md#grok-build).
 
 ## Enrich a project from supplied context
 
@@ -259,7 +264,7 @@ ewai validation checkpoint implementation-plan --cycles 2 \
 
 Availability records what the project can access; `enabled` records what the project chooses to spend. Each implementation-plan, test-plan, and code checkpoint independently controls its reviewers, maximum review/fix cycles, breadth, analysis depth, and output size. The active orchestrator is excluded from independent validation. Unsupported stages remain visible in delivery state and must not be marked passed.
 
-The EWAI method is provider-neutral. One capable AI can run the workflow without pretending self-review is independent; additional Claude CLI, Codex CLI, or Antigravity (`agy`) systems can provide independent perspectives where available and proportionate. Standards compliance is always required, even when no external validator is configured.
+The EWAI method is provider-neutral. One capable AI can run the workflow without pretending self-review is independent; additional Claude CLI, Codex CLI, Grok Build, or Antigravity (`agy`) systems can provide independent perspectives where available and proportionate. Standards compliance is always required, even when no external validator is configured.
 
 ## Create an intent
 
@@ -453,7 +458,7 @@ ewai afk resume <run-id>
 ewai afk cancel <run-id>
 ```
 
-Each task runs on a real task branch in an isolated Git worktree using an enabled local Claude, Codex, or Antigravity CLI. Concurrency never exceeds the validated task graph. Workers cannot own central delivery state or merges; the conductor enforces write sets, captures structured evidence, obtains a fresh-context review, merges in declared order, and runs post-merge verification before committing. Runtime state and raw provider logs live under ignored `.ewai-pipeline/afk/`; task reports and hashed evidence remain under `6.Build/<slug>/tasks/` in the configured SPECS repository.
+Each task runs on a real task branch in an isolated Git worktree using an enabled local Claude, Codex, Grok Build, or Antigravity CLI. Concurrency never exceeds the validated task graph. Workers cannot own central delivery state or merges; the conductor enforces write sets, captures structured evidence, obtains a fresh-context review, merges in declared order, and runs post-merge verification before committing. Runtime state and raw provider logs live under ignored `.ewai-pipeline/afk/`; task reports and hashed evidence remain under `6.Build/<slug>/tasks/` in the configured SPECS repository.
 
 AFK detects topology from the configured `pipeline.yaml`. A simple project maps tasks to its single repository. A multi-repository project maps each task's `repo` to a named configured repository, creates and integrates its task branch there, and commits canonical evidence in the repository containing the configured SPECS root. The workspace itself does not need to be a Git repository. `task-graph.json.repository_branches` can declare different integration branches per repository; its scalar `parent_branch` remains the backwards-compatible default. When a declared integration branch does not exist, `afk start` creates it from that repository's clean current branch. Preflight blocks missing mappings, ambiguous SPECS ownership, nested non-root repository paths, dirty repositories, detached heads, or drift from an integration branch that already exists instead of guessing. A completed AFK run means eligible Build tasks were integrated; the canonical Build gate, Standards Sweep, Test Execute, external code validation, Delivery, Manual QA, and Retro still run normally.
 
@@ -497,7 +502,7 @@ Without existing work, [6] is absent. With available premium access and a verifi
 
 Conversational actions use the same guarded project-local operations as the dashboard and optional commands. Before moving work forward, EWAI checks the current stage, required documents, evidence, approvals, tests and configured external validators, then explains the proposed next step.
 
-Running `ewai` refreshes the selected host's managed EWAI skills and launches the conversational companion in an available Claude Code, Codex or Google Antigravity host. Initialization adds a small managed instruction block so directly opened agent sessions use the same check-in. The lower-level commands remain available for scripts and integrations; you don't need to learn them to work conversationally.
+Running `ewai` refreshes the selected host's managed EWAI skills and launches the conversational companion in an available Claude Code, Codex, Grok Build or Google Antigravity host. Initialization adds a small managed instruction block so directly opened agent sessions use the same check-in. The lower-level commands remain available for scripts and integrations; you don't need to learn them to work conversationally.
 
 ## Technology and stack packs
 
@@ -614,7 +619,7 @@ If check-in confirms unavailable premium access and no installed premium pack, t
 
 ### MCP access
 
-The MCP server uses stdio and is started by Codex, Claude Code, or Antigravity from the project configuration written during initialization. It exposes intent and work-item reads, guarded intent creation, operational updates, phase and material registration, runtime status, and active-work events. It does not require the HTTP dashboard to be running.
+The MCP server uses stdio and is started by Codex, Claude Code, Grok Build, or Antigravity from the project configuration written during initialization. It exposes intent and work-item reads, guarded intent creation, operational updates, phase and material registration, runtime status, and active-work events. It does not require the HTTP dashboard to be running.
 
 ### Current runtime scope
 

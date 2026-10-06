@@ -5,6 +5,24 @@
   "required": ["schema", "project", "specs", "repositories", "approvals", "validation"],
   "properties": {
     "schema": { "const": "ewai.project/v1" },
+    "coding_providers": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "pool": { "type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": { "enum": ["claude", "codex", "grok", "antigravity"] } },
+        "primary": { "enum": ["existing", "auto", "claude", "codex", "grok", "antigravity"] },
+        "secondary": { "enum": ["existing", "auto", "off", "claude", "codex", "grok", "antigravity"] },
+        "tertiary": { "enum": ["existing", "auto", "off", "claude", "codex", "grok", "antigravity"] },
+        "models": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "claude": { "$ref": "#/$defs/codingModelPolicy" },
+            "codex": { "$ref": "#/$defs/codingModelPolicy" },
+            "grok": { "$ref": "#/$defs/codingModelPolicy" },
+            "antigravity": { "$ref": "#/$defs/codingModelPolicy" }
+          }
+        }
+      }
+    },
     "dashboard": {
       "type": "object",
       "additionalProperties": false,
@@ -165,6 +183,7 @@
               "properties": {
                 "claude": { "$ref": "#/$defs/provider" },
                 "codex": { "$ref": "#/$defs/provider" },
+                "grok": { "$ref": "#/$defs/provider" },
                 "antigravity": { "$ref": "#/$defs/provider" }
               },
               "additionalProperties": false
@@ -284,7 +303,7 @@
             {
               "type": "array",
               "uniqueItems": true,
-              "items": { "enum": ["claude", "codex", "antigravity"] }
+              "items": { "enum": ["claude", "codex", "antigravity", "grok"] }
             }
           ]
         },
@@ -308,6 +327,15 @@
         }
       },
       "additionalProperties": false
+    },
+    "codingModelPolicy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "suggestion": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,127}$" },
+        "permitted_models": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,127}$" }
+        }
+      }
     }
   }
 }

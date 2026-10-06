@@ -1235,7 +1235,7 @@ server.registerTool(
     title: 'Read EWAI validation policy',
     description: 'Resolve mandatory standards and per-checkpoint external-validation policy for a specified orchestrator.',
     inputSchema: {
-      orchestrator: z.enum(['manual', 'claude', 'codex', 'antigravity']).optional(),
+      orchestrator: z.enum(['manual', 'claude', 'codex', 'antigravity', 'grok']).optional(),
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   },
@@ -1250,7 +1250,7 @@ server.registerTool(
     title: 'Configure an external validation provider',
     description: 'Record whether a supported CLI is available and enabled for independent project validation.',
     inputSchema: {
-      provider: z.enum(['claude', 'codex', 'antigravity']),
+      provider: z.enum(['claude', 'codex', 'antigravity', 'grok']),
       state: z.enum(['available', 'unavailable']),
       enabled: z.boolean().optional(),
     },
@@ -1272,7 +1272,7 @@ server.registerTool(
       maxCycles: z.number().int().min(1).max(3).optional(),
       validators: z.union([
         z.literal('auto'),
-        z.array(z.enum(['claude', 'codex', 'antigravity'])),
+        z.array(z.enum(['claude', 'codex', 'antigravity', 'grok'])),
       ]).optional(),
       breadth: z.enum(['targeted', 'change-set', 'capability', 'system']).optional(),
       depth: z.enum(['issues-only', 'issues-and-fixes', 'analysis-and-recommendations']).optional(),
@@ -1410,7 +1410,7 @@ server.registerTool(
         'validate-external-test-plan',
         'validate-external-code',
       ]),
-      provider: z.enum(['claude', 'codex', 'antigravity']),
+      provider: z.enum(['claude', 'codex', 'antigravity', 'grok']),
       outcome: z.enum(['pass', 'issues']),
       responsePath: z.string().optional(),
       fixPath: z.string().optional(),
@@ -1848,7 +1848,7 @@ server.registerTool(
     description: 'Deterministically verify the Build gate, task graph, simple or multi-repository topology, branch preparation, provider availability, and safe parallelism before AFK execution.',
     inputSchema: {
       slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-      provider: z.enum(['auto', 'claude', 'codex', 'antigravity']).optional().default('auto'),
+      provider: z.enum(['auto', 'claude', 'codex', 'antigravity', 'grok']).optional().default('auto'),
       maxParallel: z.number().int().min(1).optional().default(1),
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -1863,7 +1863,7 @@ server.registerTool(
     description: 'Start the bounded local conductor for an already approved Build task graph. Creates required integration/task branches in each configured repository, then uses isolated worktrees, execution leases, fresh-context review, orchestrator-owned merges, and post-merge checks.',
     inputSchema: {
       slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-      provider: z.enum(['auto', 'claude', 'codex', 'antigravity']).optional().default('auto'),
+      provider: z.enum(['auto', 'claude', 'codex', 'antigravity', 'grok']).optional().default('auto'),
       maxParallel: z.number().int().min(1).optional().default(1),
       timeoutMinutes: z.number().int().min(1).max(1440).optional().default(45),
     },

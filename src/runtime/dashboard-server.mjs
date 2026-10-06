@@ -8,6 +8,8 @@ import { attachPersonaToIntent, detachPersonaFromIntent } from '../intents.mjs';
 import { createPersona, listPersonas, personalPersonaRoot, projectPersonaRoot } from '../personas.mjs';
 import { loadProjectConfig } from '../project.mjs';
 import {readDashboardPreferences,saveDashboardPreferences,premiumPersonasActive} from '../dashboard-preferences.mjs';
+import {readCodingProviders,saveCodingProviders} from '../coding-providers.mjs';
+import {grokCredentialStatus,configureGrokCredentials,checkGrokConnection,removeGrokCredentials,safeGrokCredentialError} from '../grok-credentials.mjs';
 import { readPortfolioWorkspace } from '../portfolio.mjs';
 import { readCompanionGuidance } from '../companion-guidance.mjs';
 import {
@@ -455,6 +457,33 @@ const server = createServer(async (request, response) => {
         startedAt,
         intents: runtimeIntentSummary(projectRoot)
       });
+    }
+    if(url.pathname.startsWith('/api/coding-providers/grok/credentials')){
+      let input;
+      try{
+        if(url.search)return json(response,400,{error:'Credential actions do not accept query parameters.'});
+        const match=url.pathname.match(/^\/api\/coding-providers\/grok\/credentials(?:\/(configure|check|remove))?$/),action=match?.[1]??'status';
+        if(!match)return json(response,404,{error:'Credential action not found.'});
+        if(request.method!==(action==='status'?'GET':'POST'))return json(response,405,{error:'Use the supported credential action method.'});
+        const options={projectRoot};
+        if(action==='status')return json(response,200,grokCredentialStatus(options));
+        input=strictBody(await readJson(request),action==='configure'?['confirmed','expectedRevision','apiKey']:action==='remove'?['confirmed','expectedRevision']:['confirmed'],'Credential action');
+        if(input.confirmed!==true)return json(response,400,{error:'Confirm this credential action.'});
+        const result=action==='configure'?await configureGrokCredentials(input,options):action==='remove'?removeGrokCredentials(input,options):await checkGrokConnection(options);
+        return json(response,200,result);
+      }catch(error){
+        const code=[403,415,413].includes(error.statusCode)?error.statusCode:error.code==='grok-credential-stale'||error.code==='grok-credential-busy'?409:400;
+        return json(response,code,[403,415,413].includes(code)?{error:code===403?'Use the matching local dashboard origin.':code===415?'Use application/json.':'Credential request is too large.'}:safeGrokCredentialError(error));
+      }finally{if(input)input.apiKey=undefined;}
+    }
+    if(url.pathname==='/api/coding-providers'){
+      if(url.search)return json(response,400,{error:'Provider settings do not accept query parameters.'});
+      if(request.method==='GET')return json(response,200,readCodingProviders(projectRoot));
+      if(request.method==='POST'){
+        if(String(request.headers['content-type']??'').split(';')[0].trim().toLowerCase()!=='application/json')return json(response,415,{error:'Provider settings require JSON.'});
+        const input=strictBody(await readJson(request),['confirmed','expectedDigest','policy'],'Provider settings');return json(response,200,saveCodingProviders(projectRoot,input));
+      }
+      return json(response,405,{error:'Use GET or POST for provider settings.'});
     }
     if (request.method === 'GET' && url.pathname === '/api/dashboard/preferences') {
       return json(response,200,guarded(()=>readDashboardPreferences(projectRoot)));

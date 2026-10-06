@@ -2,6 +2,16 @@
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
+## New in 0.3.1: concise answers and Grok Build
+
+Version `0.3.1` makes EWAI's guidance more concise and adds Grok Build as a coding provider.
+
+**Concise answers and guided decisions.** EWAI's managed instructions now prioritise correctness and usefulness, then brevity. Expect the result or recommendation first, with less repetition and routine narration. Decision requests explain the action, options and consequences, then give a recommendation with its reason and a suggested response when useful. When a request is unclear, EWAI leads with its recommended interpretation and states the assumptions that matter. The guidance is designed to cut unnecessary output; tool-result compaction is still planned, and token or cost savings haven't been measured yet. See [concise answers and guided decisions](Docs/context-management-and-token-efficiency.md#concise-answers-and-guided-decisions).
+
+**Grok Build and coding provider settings.** EWAI can open Grok Build as a native companion, install its skills and set up project MCP. **Configuration → Coding providers** in the dashboard, or `ewai providers` in a terminal, lets you choose a primary coding CLI, independent reviewers and an eligible pool for unattended work. Each CLI keeps its own model choice by default. Grok can run isolated coding, read-only review and restricted proposal workers. Each mode passes an offline conformance check before dispatch, and your xAI key is saved privately outside the project. Build approval, required review and Manual QA stay with you. See [provider settings](Docs/reference/cli-and-configuration.md#coding-provider-settings) and [Grok Build setup](Docs/operations/installation-updating-and-entitlements.md#grok-build).
+
+After updating, initialisation or the next check-in refreshes EWAI's managed instructions in `AGENTS.md` and `CLAUDE.md`, preserving project-authored guidance outside that block. Start a fresh host conversation after the refresh.
+
 ## EWAI can now pick up the next ready piece of work
 
 If you’ve prepared several work items, you can choose which ones EWAI is allowed to take on. EWAI checks what’s ready, uses the priorities you’ve recorded to pick the next item, and starts its delivery workflow. Once you’ve separately approved the Build, it can run the approved build tasks, their tests and a fresh review.

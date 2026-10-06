@@ -31,11 +31,12 @@ function availableClaudeAgents() {
     .sort();
 }
 
-function selectedHosts(host, home) {
+function selectedHosts(host, home, grokHome) {
   if (host !== 'auto') return [host];
   const hosts = [];
   if (existsSync(resolve(home, '.codex'))) hosts.push('codex');
   if (existsSync(resolve(home, '.claude'))) hosts.push('claude');
+  if (existsSync(grokHome)) hosts.push('grok');
   if (
     existsSync(resolve(home, '.gemini/antigravity-cli'))
     || existsSync(resolve(home, '.gemini/config'))
@@ -43,13 +44,15 @@ function selectedHosts(host, home) {
   return hosts.length ? hosts : ['codex'];
 }
 
-function skillDestinationRoot({ scope, host, home, projectRoot }) {
+function skillDestinationRoot({ scope, host, home, projectRoot, grokHome }) {
   if (scope === 'project') {
     if (!projectRoot) throw new Error('Project installation requires projectRoot');
+    if (host === 'grok') return resolve(projectRoot, '.grok/skills');
     return host === 'claude'
       ? resolve(projectRoot, '.claude/skills')
       : resolve(projectRoot, '.agents/skills');
   }
+  if (host === 'grok') return resolve(grokHome, 'skills');
   return host === 'claude'
     ? resolve(home, '.claude/skills')
     : host === 'antigravity'
@@ -103,9 +106,11 @@ export function install(options = {}) {
   if (!['global', 'project'].includes(scope)) throw new Error(`Unsupported install scope: ${scope}`);
   if (!['copy', 'link'].includes(mode)) throw new Error(`Unsupported install mode: ${mode}`);
 
-  const hosts = selectedHosts(options.host ?? 'auto', home);
+  // Explicit fixture homes never inherit the real machine's GROK_HOME.
+  const grokHome=resolve(options.grokHome ?? (options.home===undefined ? (options.env??process.env).GROK_HOME : undefined) ?? resolve(home,'.grok'));
+  const hosts = selectedHosts(options.host ?? 'auto', home, grokHome);
   for (const host of hosts) {
-    if (!['codex', 'claude', 'antigravity'].includes(host)) throw new Error(`Unsupported agent host: ${host}`);
+    if (!['codex', 'claude', 'antigravity', 'grok'].includes(host)) throw new Error(`Unsupported agent host: ${host}`);
   }
 
   const results = [];
@@ -115,6 +120,7 @@ export function install(options = {}) {
       scope,
       host,
       home,
+      grokHome,
       projectRoot: options.projectRoot ? resolve(options.projectRoot) : ''
     });
     mkdirSync(destinationRoot, { recursive: true });

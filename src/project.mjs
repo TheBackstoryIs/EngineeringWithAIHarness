@@ -4,6 +4,7 @@ import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 import {normaliseDashboardPreferences} from './dashboard-preferences.mjs';
+import {normaliseCodingProviders} from './coding-providers.mjs';
 import { projectPaths } from './paths.mjs';
 import { premiumPersonaLearningAction } from './companion-opening.mjs';
 import { initializeRuntime } from './runtime/database.mjs';
@@ -89,6 +90,20 @@ const templateFiles = [
 const checkinInstructionFiles = ['AGENTS.md', 'CLAUDE.md'];
 const checkinInstruction = `<!-- EWAI-CHECKIN:START -->
 ## EWAI conversation check-in
+
+### Concise, useful output
+
+Prioritise correctness, fidelity and usefulness, then brevity. Resist verbosity: remove repetition, filler, restated requests and routine tool narration. Lead with the result or recommendation, using plain language and enough action detail to make it usable.
+
+Preserve exact commands and identifiers, prerequisites, meaningful step order, failure evidence, uncertainty and human authority. Report only verification actually performed. Follow mandatory check-in, status, consent and phase protocols. Expand when a shorter answer would hide a consequential fact or when detail is requested; do not impose arbitrary word limits.
+
+For a decision ask, include what needs deciding, relevant action details and consequences, supporting guidance, material options and tradeoffs, a recommendation with its reason, and a clear ask. Provide a suggested response when it helps the person act. If evidence is insufficient, recommend the next evidence-gathering step. Recommendations, defaults and suggested replies never constitute approval.
+
+### Query refinement
+
+Lead with the recommended interpretation or refined request, explaining consequential assumptions. Ask one focused question only when missing information materially changes the scope, outcome or next action; include supporting guidance and a recommended response with its reason. Keep uncertainty visible, preserve the user's intent and continue independent authorised work. After clarification, confirm the refined request briefly and act within its authority boundaries.
+
+### Check-in and workflow
 
 Keep the complete workflow, but present it cleanly: four routine status lines plus the returned menu at a decision point. Preserve warnings, blockers and unknown checks with short reasons; detailed diagnostics are on request. Progress is one sentence of at most 24 words per meaningful checkpoint. Do not narrate commands, file reads, JSON parsing or internal reasoning, and do not repeat the menu during a selected action. Never shorten briefing, purpose alignment, consent, standards or approval gates to meet an output limit. Use the guarded dashboard password form by default for licence setup; a private terminal prompt is an alternative only when a genuine interactive terminal is available. Never emulate hidden terminal entry through chat.
 
@@ -346,11 +361,11 @@ export function configureValidationCheckpoint(projectRoot, checkpoint, update) {
 }
 
 export function externalValidationStatus(config, orchestrator = 'manual') {
-  const effective = effectiveValidationConfig(config, orchestrator);
+  const effective = validationStatus(config, orchestrator);
   const selected = new Set(
     Object.values(effective.checkpoints).flatMap((checkpoint) => checkpoint.validators),
   );
-  return VALIDATION_PROVIDERS.map((validator) => ({
+  return Object.keys(effective.providers).map((validator) => ({
     validator,
     state: effective.providers[validator].state,
     enabled: effective.providers[validator].enabled,
@@ -360,6 +375,12 @@ export function externalValidationStatus(config, orchestrator = 'manual') {
 }
 
 export function validationStatus(config, orchestrator = 'manual') {
+  // Settings inspection has no coding-agent identity. Resolve independent
+  // roles only for an actual delivery host; phase dispatch still uses the
+  // strict effective configuration and cannot claim independence from manual.
+  if(orchestrator==='manual'&&config.coding_providers){
+    return {...effectiveValidationConfig(config.validation,orchestrator),roleResolution:'requires-orchestrator'};
+  }
   return effectiveValidationConfig(config, orchestrator);
 }
 
@@ -392,6 +413,7 @@ export function loadProjectConfig(projectRoot) {
   }
   config.validation = normaliseValidationConfig(config.validation);
   config.dashboard = normaliseDashboardPreferences(config.dashboard);
+  if(config.coding_providers!==undefined)config.coding_providers=normaliseCodingProviders(config.coding_providers);
   return { config, paths };
 }
 

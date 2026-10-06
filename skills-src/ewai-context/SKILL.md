@@ -49,6 +49,7 @@ Personas are advisory lenses. They are not user evidence, specialist validation,
 - The loopback dashboard receives only a body-free safe manifest.
 - Never accept a browser-supplied project root, file path, provider command, executable, or credential.
 - Keep estimated input usage clearly separate from optional provider-reported usage.
+- Preserve captured coding-provider policy and the actual coding-agent identity when preparing task/review context. Model suggestions are advisory; never replace native model choice or bypass an unsupported permitted-model boundary to save tokens. Concision must retain decisions, supporting guidance, recommended actions and mandatory evidence.
 - Context preparation cannot approve Build or Manual QA, certify quality, accept security risk, deploy, or release.
 
 ## Verify engineering performance

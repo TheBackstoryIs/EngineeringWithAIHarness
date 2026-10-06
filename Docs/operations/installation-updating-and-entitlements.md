@@ -46,6 +46,23 @@ npx --yes @thebackstoryis/engineering-with-ai@latest
 
 This asks npm to obtain and run the package. It doesn't create a standing global installation.
 
+## Try the beta channel
+
+The beta channel is an opt-in prerelease for trying changes before they reach production. Check what each channel currently points to with `npm view @thebackstoryis/engineering-with-ai dist-tags`.
+
+For one project:
+
+```bash
+npm install --save-dev @thebackstoryis/engineering-with-ai@beta
+npx ewai
+```
+
+To pin a specific beta instead of following the beta channel, replace `@beta` with that exact version, for example `@0.3.1-beta.0`. For a global beta installation, use `npm install --global @thebackstoryis/engineering-with-ai@beta`, then start EWAI in your project folder.
+
+Initialisation or normal check-in refreshes the EWAI-managed block in `AGENTS.md` and `CLAUDE.md`. Guidance outside that block is preserved. In an existing project, you can refresh explicitly with `npx ewai checkin --project . --json` for a project dependency, or `ewai checkin --project . --json` for a global installation. Start a fresh host conversation after refreshing so it reads the new instructions. Review changes to your project's package, lockfile and instruction files before committing them.
+
+Beta check-in offers updates from the beta channel. To return to production deliberately, install `@latest` using the same project-local or global scope, then run that version's check-in and start a fresh conversation. Review the instruction changes and use [dashboard recovery](troubleshooting-and-recovery.md#dashboard-will-not-start) if an older runtime is still running. Returning to production does not undo work already performed in your application.
+
 ## Start your project
 
 Open your project folder in the host and start EWAI. Agree where its SPECS folder should live before initialising it. For existing code, EWAI offers Archaeology to reconstruct missing project knowledge; you can accept or decline it.
@@ -108,8 +125,46 @@ Check-in can start or reuse the dashboard, refresh derived state and check the p
 | Codex | `.agents/skills/` | `.codex/config.toml` |
 | Claude Code | `.claude/skills/` | `.mcp.json` |
 | Google Antigravity | `.agents/skills/` | `.agents/mcp_config.json` |
+| Grok Build | `.grok/skills/` | `.grok/config.toml` |
 
 EWAI merges its entries with unrelated host configuration. Don't replace the entire file to update one entry. After an update, check that your other MCP servers are still present.
+
+From `0.3.1`, `EWAI_HOST=grok ewai` opens the native Grok companion without a model override. Install and authenticate the CLI through the [official Grok Build instructions](https://docs.x.ai/build/overview). CLI installation alone does not prove account access or project trust.
+
+For explicitly selected global skill installation, EWAI respects `GROK_HOME`; project installation uses `.grok/skills/`. Malformed, conflicting or unsafe TOML configuration stops MCP setup without rewriting that file. Resolve the reported configuration issue and retry; keep other MCP entries.
+
+### Grok Build
+
+1. Install and authenticate Grok Build using its official instructions. For isolated unattended workers, the supported identity is `grok 1.0.44 (5b807183dd79) [stable]` on macOS. Other identities stop until their conformance contract is reviewed.
+2. Enable Grok with `ewai validation set grok available --enabled --project .`. For a new project, `ewai init --grok` records the same explicit availability choice.
+3. Choose providers in **Configuration → Coding providers**, or use `ewai providers set --primary grok --secondary codex --tertiary claude --pool grok,codex,claude --project .`. Enable and authenticate the selected reviewers too. Leave model fields blank for native selection.
+4. Before unattended work, open **Configuration → Grok Build credentials** and use **Check and save key**, or run `ewai providers credentials grok configure` in an interactive terminal for hidden input. The key is saved for your account on this computer, outside the project, in an owner-only local file. `XAI_API_KEY` in the launching environment takes precedence. Interactive OAuth sessions can still use the native companion; isolated workers do not copy your personal authentication files. Never put keys in project YAML, command arguments, chat, commits or release notes.
+5. Run the usual AFK preflight or preview and approve an autonomy grant. Full automatic selection stays inside the approved scope and preserves Build approval, required review and Manual QA checkpoints.
+
+Grok coding, review and restricted proposal modes each verify the installed binary and their own offline confinement contract. The worker has a fresh private home and no inherited project instructions, hooks, skills, MCP servers or personal model configuration. EWAI supplies approved task context; Grok retains native model choice without a model override. Its bounded session-title metadata request is separate from the coding/proposal tools. Offline conformance makes no paid model requests and does not prove your account access or the quality of a real response.
+
+Coding copies declared task files into a disposable workspace. The worker may edit only that copy; EWAI checks scope, unchanged source predecessors and current authority before accepting changes. Review is read-only. EWAI's conductor runs approved commands and owns commits and integration. Snapshots accept regular files only, up to 900 KB per file, 256 files and 16 MiB overall. Root-wide globs and copied CLI/credential configuration are unsupported: narrow the task's file sets instead.
+
+For coding and review, the conductor includes the complete cited standards and recorded check outputs in mandatory task context. Review also receives the exact implementation commit diff. Git history and canonical SPECS remain outside the worker's filesystem. Evidence is bound to its task, source contents and revision, then checked again before dispatch and acceptance. Missing, changed or oversized evidence stops the run; restore the required evidence or narrow the approved task and prepare fresh context. Mandatory evidence is never silently truncated to fit a prompt.
+
+If a version, isolation check, unsupported system configuration, credential or model restriction blocks the run, inspect the recorded reason. Recommended: use the supported CLI identity, configure the private key, or remove an unsupported permitted-model restriction for native selection, as applicable, then repeat preflight. If source files changed, prepare a fresh task snapshot. Preserve partial edits and uncertain execution for recovery; do not blindly retry. No model setting is a token or spending cap.
+
+#### Private Grok key setup and recovery
+
+```bash
+ewai providers credentials grok configure
+ewai providers credentials grok status --json
+ewai providers credentials grok check
+ewai providers credentials grok remove --yes
+```
+
+Configure requires a real interactive terminal; keys cannot be passed through flags or input files. The local dashboard password form is the alternative. Both routes share validation and recovery. Submitting a key authenticates against xAI's [model-list endpoint](https://docs.x.ai/developers/rest-api-reference/inference/models) without requesting generated output. Success proves that endpoint accepted the key, not available credit, permission to every model, or coding readiness. The check does not select a model or start a delivery.
+
+On supported POSIX systems, explicit setup stores plaintext in `~/.ewai/credentials/grok.json` with owner-only file permissions (`0600`) in a private directory (`0700`). It is not encrypted or an OS keychain; processes running as your account can read it. The key applies across EWAI projects for that account. EWAI rejects insecure permissions, links, shared files and storage inside the project. On Windows, use a privately supplied launching environment; this file-storage route is unavailable.
+
+Status shows only the credential source and whether a saved key exists. It never returns the key. Connection checks run only when explicitly requested. Failed or stale replacement keeps the previous saved key; refresh status, correct the problem and submit again. The dashboard clears the password after success, failure or cancellation and does not store it in browser storage. Removing a saved key does not revoke it at xAI, and does not clear an environment override. Remove `XAI_API_KEY` from the launching environment and restart EWAI if you want the saved key to become active. Use xAI's own account controls to revoke a key.
+
+Saved keys are resolved at each isolated-worker invocation. The worker receives only the credential in its private environment; no personal authentication/configuration files are copied. Native model selection and conformance requirements remain unchanged.
 
 ## Premium personas
 

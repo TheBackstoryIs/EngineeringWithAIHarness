@@ -20,6 +20,7 @@ import { loadProjectConfig } from './project.mjs';
 import {
   VALIDATION_CHECKPOINTS,
   VALIDATION_PROVIDERS,
+  SUPPORTED_VALIDATION_PROVIDERS,
   normaliseValidationConfig,
 } from './validation-config.mjs';
 import { publishLifecycleEventSafely } from './runtime/lifecycle-hooks.mjs';
@@ -218,7 +219,7 @@ function normaliseOrganisationBlueprint(value) {
 
 function discoveryValidation(raw, configured) {
   const rawProviders = raw.providers ?? Object.fromEntries(
-    VALIDATION_PROVIDERS
+    SUPPORTED_VALIDATION_PROVIDERS
       .filter((provider) => raw[provider] !== undefined)
       .map((provider) => [provider, raw[provider]]),
   );
@@ -852,7 +853,7 @@ function renderDiscoveryEvidence(answers, detected, standards, compliance, compl
     ['AI features', answers.assurance.aiFeatures],
     ['Accessibility obligations', answers.assurance.accessibility],
     ['Availability', answers.assurance.availability],
-    ...VALIDATION_PROVIDERS.map((provider) => [
+    ...Object.keys(answers.validation.external.providers).map((provider) => [
       `${provider[0].toUpperCase()}${provider.slice(1)} external validation`,
       `${answers.validation.external.providers[provider].state}; ${
         answers.validation.external.providers[provider].enabled ? 'enabled' : 'disabled'
@@ -879,7 +880,7 @@ function renderProjectConstraints(answers, completedAt) {
 }
 
 function renderApproach(answers, completedAt) {
-  const providerLines = VALIDATION_PROVIDERS.map((provider) => {
+  const providerLines = Object.keys(answers.validation.external.providers).map((provider) => {
     const setting = answers.validation.external.providers[provider];
     return `- **${provider[0].toUpperCase()}${provider.slice(1)}:** ${setting.state}; ${setting.enabled ? 'enabled' : 'disabled'}`;
   }).join('\n');
@@ -1250,7 +1251,7 @@ export async function runDiscoveryInterview(projectRoot, io = {}) {
     const availability = await askEnum(rl, 'Availability expectation', [...AVAILABILITY_LEVELS], 'standard');
     const configuredProviders = config.validation?.external?.providers ?? {};
     const validationProviders = {};
-    for (const provider of VALIDATION_PROVIDERS) {
+    for (const provider of [...VALIDATION_PROVIDERS,...(configuredProviders.grok?['grok']:[])]) {
       const label = `${provider[0].toUpperCase()}${provider.slice(1)}`;
       validationProviders[provider] = await askEnum(
         rl,

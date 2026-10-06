@@ -43,7 +43,7 @@ function validateAutonomyInterfaceInput(action, input) {
     runId: value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value),
     expectedRevision: value => Number.isSafeInteger(value) && value > 0,
     questionId: value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value),
-    provider: value => ['codex', 'claude', 'antigravity'].includes(value),
+    provider: value => ['auto', 'codex', 'claude', 'antigravity', 'grok'].includes(value),
     action: value => ['pause', 'resume', 'cancel', 'revoke', 'recover'].includes(value),
     answer: value => typeof value === 'string' && !!value.trim() && Buffer.byteLength(value) <= 16384,
     proposal: value => !!value && Object.getPrototypeOf(value) === Object.prototype,

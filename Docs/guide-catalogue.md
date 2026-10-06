@@ -20,6 +20,7 @@ Choose the section that matches your job. The optional team tools aren't prerequ
 - [Facilitate project Discovery](guided-discovery-facilitator-guide.md)
 - [Create or revise an intent in Intent Studio](guided-intent-workspace-guide.md)
 - [Choose work with the Companion](context-aware-delivery-companion-user-guide.md)
+- [Get concise answers and useful decision guidance (beta)](context-management-and-token-efficiency.md#concise-answers-and-guided-decisions)
 - [Delegate an exact pool of intents with guarded autonomy](autonomous-intent-delivery.md)
 - [Contribute information to work in progress](guided-phase-evidence-drafting-guide.md)
 - [Review evidence from meeting notes or transcripts](meeting-evidence-user-guide.md)

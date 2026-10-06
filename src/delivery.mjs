@@ -10,6 +10,7 @@ import {
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import {codingPolicyDigest,assertCodingPolicyFresh,assertModelPolicy} from './coding-providers.mjs';
 import { updateIntentDeliveryState, validateIntentStateCopies } from './intents.mjs';
 import { loadProjectConfig } from './project.mjs';
 import { readRuntimeIntent } from './runtime/intents.mjs';
@@ -38,7 +39,7 @@ import { validatePhaseArtefacts } from './delivery-artifacts.mjs';
 import {
   canonicalValidationProvider,
   effectiveValidationConfig,
-  VALIDATION_PROVIDERS,
+  SUPPORTED_VALIDATION_PROVIDERS,
   validationCheckpointForPhase,
 } from './validation-config.mjs';
 import {
@@ -431,7 +432,7 @@ function normaliseDeliveryValidation(paths, state) {
   const legacyProviders = [...new Set(
     (Array.isArray(state.providers) ? state.providers : [])
       .map(canonicalValidationProvider)
-      .filter((provider) => VALIDATION_PROVIDERS.includes(provider)),
+      .filter((provider) => SUPPORTED_VALIDATION_PROVIDERS.includes(provider)),
   )];
 
   for (const [checkpointName, checkpoint] of Object.entries(validation.checkpoints)) {
@@ -638,6 +639,10 @@ function recordOwnedExternalValidationCycle(projectRoot, slug, phaseId, input) {
   const phase = findTrackedPhase(state, phaseId);
   if (phase.status !== 'running') throw new Error(`Phase ${phaseId} is not running.`);
   if (!phase.validation) throw new Error(`Phase ${phaseId} is not an external-validation checkpoint.`);
+  if(state.validation?.codingPolicyDigest){
+    const {config}=loadProjectConfig(projectRoot);
+    assertCodingPolicyFresh(state.validation.codingPolicyDigest,codingPolicyDigest(config.coding_providers));
+  }
 
   const provider = String(input.provider ?? '').trim().toLowerCase();
   if (!phase.validation.providers.includes(provider)) {
@@ -646,6 +651,7 @@ function recordOwnedExternalValidationCycle(projectRoot, slug, phaseId, input) {
     );
   }
   const outcome = String(input.outcome ?? '').trim().toLowerCase();
+  assertModelPolicy(provider,state.validation?.codingPolicy);
   if (!['pass', 'issues'].includes(outcome)) {
     throw new Error('Validation cycle outcome must be pass or issues.');
   }
