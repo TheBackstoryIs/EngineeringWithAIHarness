@@ -2,6 +2,24 @@
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
+[![Intent Studio in the EWAI dashboard: describing a feature, agreeing its acceptance criteria and engaging specialist personas before any code is written](https://www.conversationalcoding.dev/wp-content/uploads/sites/5/2026/09/intent-studio-full-be7758ffd224-1536x704.webp)](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
+
+**Website, guides and books:** [conversationalcoding.dev](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai) · [Online documentation](https://www.conversationalcoding.dev/engineering-with-ai-harness/docs/?utm_source=readme&utm_medium=referral&utm_campaign=ewai) · [Persona library](https://www.conversationalcoding.dev/personas/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
+
+## Quick start
+
+EWAI is free and works with Claude Code, Codex, Google Antigravity and Grok Build. You'll need Node.js 22.5 or newer and one of those assistants, installed and signed in.
+
+```bash
+npm install --global @thebackstoryis/engineering-with-ai
+cd /path/to/your/project
+ewai
+```
+
+`ewai` opens your assistant and walks you through setting up the project. See [Install and start](#install-and-start) for details.
+
+Version `0.3.2` updates the package's links and documentation. The features below arrived in `0.3.1`.
+
 ## New in 0.3.1: concise answers and Grok Build
 
 Version `0.3.1` makes EWAI's guidance more concise and adds Grok Build as a coding provider.
@@ -117,6 +135,8 @@ Premium personas are optional specialist perspectives. If you have a subscriptio
 - [Capabilities and project layout](Docs/reference/capabilities-and-project-layout.md)
 - [Commands and configuration](Docs/reference/cli-and-configuration.md)
 - [Troubleshooting and recovery](Docs/operations/troubleshooting-and-recovery.md)
+- [EWAI on the web: harness overview, online docs and changelog](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
+- [Engineering With AI, the book behind the method](https://www.conversationalcoding.dev/books/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
 
 ## Contributing to EWAI
 
