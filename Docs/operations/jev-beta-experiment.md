@@ -77,4 +77,4 @@ API and model references: [TypeSafe API](https://docs.typesafe.ai/api), [models 
 
 This is an experimental beta. Packaging and automated browser checks do not replace owner Manual QA or establish completed coding-task savings.
 
-OpenAI Decisions joins the shared bounded engine in `0.3.4-beta.2`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.
+OpenAI Decisions joins the shared bounded engine in `0.3.4-beta.3`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

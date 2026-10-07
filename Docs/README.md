@@ -8,6 +8,8 @@ For feature delivery, **`ewai-deliver` coordinates the full fourteen-stage workf
 
 If you want EWAI to act on an approved, exact pool of registered intents, read [governed autonomous intent delivery](autonomous-intent-delivery.md). It starts off, needs a named and bounded grant, and leaves human Build approval and Manual QA separate.
 
+Read the [latest beta update](releases/0.3.4-beta.3.md) for optional help from Jev and OpenAI Decisions.
+
 ## New to EWAI?
 
 1. [Install EWAI](operations/installation-updating-and-entitlements.md) and open it in your project folder.
@@ -55,4 +57,4 @@ The [complete guide catalogue](guide-catalogue.md) separates everyday use, engin
 
 If you're changing EWAI itself, start in the [maintainer section](guide-catalogue.md#maintaining-ewai), not the application delivery instructions.
 
-OpenAI Decisions joins the shared bounded engine in `0.3.4-beta.2`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.
+OpenAI Decisions joins the shared bounded engine in `0.3.4-beta.3`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

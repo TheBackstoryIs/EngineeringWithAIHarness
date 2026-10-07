@@ -22,7 +22,7 @@ Versions `0.3.2` and `0.3.3` update the package's links and documentation. The f
 
 ## Optional decision assistance beta
 
-`0.3.4-beta.2` adds optional help from Jev and OpenAI Decisions. Use it to weigh existing options, compare an AI recommendation, or suggest suitable persona reviewers from those already available to your project.
+`0.3.4-beta.3` adds optional help from Jev and OpenAI Decisions. Use it to weigh existing options, compare an AI recommendation, or suggest suitable persona reviewers from those already available to your project.
 
 Both providers start off. Add their keys privately through the CLI or dashboard, then choose whether to use them. Start with shadow mode to see recommendations without changing existing behaviour. Required evidence, tests and human approvals still apply.
 
@@ -32,7 +32,7 @@ This is an experimental beta: completed coding-task time, token and cost savings
 npm install --save-dev @thebackstoryis/engineering-with-ai@beta
 ```
 
-Read the [beta update](Docs/releases/0.3.4-beta.2.md), [Jev setup guide](Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](Docs/operations/openai-decisions-beta.md).
+Read the [beta update](Docs/releases/0.3.4-beta.3.md), [Jev setup guide](Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](Docs/operations/openai-decisions-beta.md).
 
 ## New in 0.3.1: concise answers and Grok Build
 
