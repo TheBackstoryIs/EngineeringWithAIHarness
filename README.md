@@ -2,26 +2,47 @@
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
-## Beta: concise answers and useful decision guidance
+[![Intent Studio in the EWAI dashboard: describing a feature, agreeing its acceptance criteria and engaging specialist personas before any code is written](https://www.conversationalcoding.dev/wp-content/uploads/sites/5/2026/09/intent-studio-full-be7758ffd224-1536x704.webp)](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
 
-Version `0.3.1-beta.0` adds communication guidance that prioritises correctness and usefulness, then brevity. Decision requests include action details, supporting guidance, a recommendation with its reason and a suggested response when useful. Query refinement leads with a recommended interpretation and explains consequential assumptions.
+**Website, guides and books:** [conversationalcoding.dev](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai) · [Online documentation](https://www.conversationalcoding.dev/engineering-with-ai-harness/docs/?utm_source=readme&utm_medium=referral&utm_campaign=ewai) · [Persona library](https://www.conversationalcoding.dev/personas/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
 
-To try this beta in one project:
+## Quick start
+
+EWAI is free and works with Claude Code, Codex, Google Antigravity and Grok Build. You'll need Node.js 22.5 or newer and one of those assistants, installed and signed in.
+
+```bash
+npm install --global @thebackstoryis/engineering-with-ai
+cd /path/to/your/project
+ewai
+```
+
+`ewai` opens your assistant and walks you through setting up the project. See [Install and start](#install-and-start) for details.
+
+Versions `0.3.2` and `0.3.3` update the package's links and documentation. The features below arrived in `0.3.1`.
+
+## Optional decision assistance beta
+
+`0.3.4-beta.2` adds optional help from Jev and OpenAI Decisions. Use it to weigh existing options, compare an AI recommendation, or suggest suitable persona reviewers from those already available to your project.
+
+Both providers start off. Add their keys privately through the CLI or dashboard, then choose whether to use them. Start with shadow mode to see recommendations without changing existing behaviour. Required evidence, tests and human approvals still apply.
+
+This is an experimental beta: completed coding-task time, token and cost savings have not been measured. Local beta preparation does not change the production npm channel. Install from the beta channel:
 
 ```bash
 npm install --save-dev @thebackstoryis/engineering-with-ai@beta
-npx ewai
 ```
 
-Initialisation or the next check-in refreshes EWAI's managed instructions in `AGENTS.md` and `CLAUDE.md`, preserving project-authored guidance outside that block. Start a fresh host conversation after the refresh. See [the user guide](Docs/context-management-and-token-efficiency.md#concise-answers-and-guided-decisions) for examples and [beta installation and recovery](Docs/operations/installation-updating-and-entitlements.md#try-the-beta-channel) for other installation choices.
+Read the [beta update](Docs/releases/0.3.4-beta.2.md), [Jev setup guide](Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](Docs/operations/openai-decisions-beta.md).
 
-This beta adds communication instructions and documentation. Tool-result compaction remains planned, and incremental token or cost savings have not been measured. Mandatory workflow and human approvals still apply. The production npm channel remains on `0.3.0`.
+## New in 0.3.1: concise answers and Grok Build
 
-## In development: coding providers and Grok Build
+Version `0.3.1` makes EWAI's guidance more concise and adds Grok Build as a coding provider.
 
-The development branch adds native Grok Build companion launch, skill installation and project MCP setup, plus shared CLI/dashboard provider settings. Each CLI keeps its own model selection by default. These changes are not included in the published `0.3.1-beta.0` package.
+**Concise answers and guided decisions.** EWAI's managed instructions now prioritise correctness and usefulness, then brevity. Expect the result or recommendation first, with less repetition and routine narration. Decision requests explain the action, options and consequences, then give a recommendation with its reason and a suggested response when useful. When a request is unclear, EWAI leads with its recommended interpretation and states the assumptions that matter. The guidance is designed to cut unnecessary output; tool-result compaction is still planned, and token or cost savings haven't been measured yet. See [concise answers and guided decisions](Docs/context-management-and-token-efficiency.md#concise-answers-and-guided-decisions).
 
-The branch includes isolated Grok coding, read-only review and restricted proposal workers, plus provider-policy enforcement in AFK and autonomy. Each mode must pass native conformance before dispatch. Human QA and release approval remain separate. See [provider settings](Docs/reference/cli-and-configuration.md#coding-provider-settings-in-development) for setup and recovery guidance.
+**Grok Build and coding provider settings.** EWAI can open Grok Build as a native companion, install its skills and set up project MCP. **Configuration → Coding providers** in the dashboard, or `ewai providers` in a terminal, lets you choose a primary coding CLI, independent reviewers and an eligible pool for unattended work. Each CLI keeps its own model choice by default. Grok can run isolated coding, read-only review and restricted proposal workers. Each mode passes an offline conformance check before dispatch, and your xAI key is saved privately outside the project. Build approval, required review and Manual QA stay with you. See [provider settings](Docs/reference/cli-and-configuration.md#coding-provider-settings) and [Grok Build setup](Docs/operations/installation-updating-and-entitlements.md#grok-build).
+
+After updating, initialisation or the next check-in refreshes EWAI's managed instructions in `AGENTS.md` and `CLAUDE.md`, preserving project-authored guidance outside that block. Start a fresh host conversation after the refresh.
 
 ## EWAI can now pick up the next ready piece of work
 
@@ -128,6 +149,8 @@ Premium personas are optional specialist perspectives. If you have a subscriptio
 - [Capabilities and project layout](Docs/reference/capabilities-and-project-layout.md)
 - [Commands and configuration](Docs/reference/cli-and-configuration.md)
 - [Troubleshooting and recovery](Docs/operations/troubleshooting-and-recovery.md)
+- [EWAI on the web: harness overview, online docs and changelog](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
+- [Engineering With AI, the book behind the method](https://www.conversationalcoding.dev/books/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
 
 ## Contributing to EWAI
 

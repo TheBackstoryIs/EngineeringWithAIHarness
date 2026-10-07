@@ -6,7 +6,7 @@ This guide covers the harness installation. For a persona licence, use [Set up a
 
 ## Before you start
 
-You'll need Node.js 22.5 or newer, npm, Git for project version control, and a supported host: Codex, Claude Code or Google Antigravity's `agy` CLI. Technology packs can have further requirements.
+You'll need Node.js 22.5 or newer, npm, Git for project version control, and a supported host: Codex, Claude Code, Google Antigravity's `agy` CLI or Grok Build. Technology packs can have further requirements.
 
 EWAI includes its own parsers. Don't add Tree-sitter dependencies to your application just to use the harness.
 
@@ -20,7 +20,7 @@ ewai install --host auto
 ewai
 ```
 
-The installation command makes the host skills and MCP connection available. You can choose one host explicitly with `--host codex`, `--host claude` or `--host antigravity`.
+The installation command makes the host skills and MCP connection available. You can choose one host explicitly with `--host codex`, `--host claude`, `--host antigravity` or `--host grok`. For Grok Build, see [Grok Build](#grok-build) for authentication and unattended worker setup.
 
 If npm returns `E404`, check the exact package name and configured registry first. That response alone doesn't tell you whether the package is unpublished, unavailable to your account or missing its requested version. If the intended package still isn't available, contact the publisher; don't install a similarly named package as a substitute.
 
@@ -48,7 +48,7 @@ This asks npm to obtain and run the package. It doesn't create a standing global
 
 ## Try the beta channel
 
-The beta channel is an opt-in prerelease. Version `0.3.1-beta.0` adds [concise answers and guided decisions](../context-management-and-token-efficiency.md#concise-answers-and-guided-decisions); production remains `0.3.0`.
+The beta channel is an opt-in prerelease for trying changes before they reach production. Check what each channel currently points to with `npm view @thebackstoryis/engineering-with-ai dist-tags`.
 
 For one project:
 
@@ -57,7 +57,7 @@ npm install --save-dev @thebackstoryis/engineering-with-ai@beta
 npx ewai
 ```
 
-To pin this specific beta instead of following the beta channel, replace `@beta` with `@0.3.1-beta.0`. For a global beta installation, use `npm install --global @thebackstoryis/engineering-with-ai@beta`, then start EWAI in your project folder.
+To pin a specific beta instead of following the beta channel, replace `@beta` with that exact version, for example `@0.3.1-beta.0`. For a global beta installation, use `npm install --global @thebackstoryis/engineering-with-ai@beta`, then start EWAI in your project folder.
 
 Initialisation or normal check-in refreshes the EWAI-managed block in `AGENTS.md` and `CLAUDE.md`. Guidance outside that block is preserved. In an existing project, you can refresh explicitly with `npx ewai checkin --project . --json` for a project dependency, or `ewai checkin --project . --json` for a global installation. Start a fresh host conversation after refreshing so it reads the new instructions. Review changes to your project's package, lockfile and instruction files before committing them.
 
@@ -125,17 +125,17 @@ Check-in can start or reuse the dashboard, refresh derived state and check the p
 | Codex | `.agents/skills/` | `.codex/config.toml` |
 | Claude Code | `.claude/skills/` | `.mcp.json` |
 | Google Antigravity | `.agents/skills/` | `.agents/mcp_config.json` |
-| Grok Build (development branch) | `.grok/skills/` | `.grok/config.toml` |
+| Grok Build | `.grok/skills/` | `.grok/config.toml` |
 
 EWAI merges its entries with unrelated host configuration. Don't replace the entire file to update one entry. After an update, check that your other MCP servers are still present.
 
-Grok support is in development and is not in the published `0.3.1-beta.0` package. On that development branch, `EWAI_HOST=grok ewai` opens the native Grok companion without a model override. Install and authenticate the CLI through the [official Grok Build instructions](https://docs.x.ai/build/overview). CLI installation alone does not prove account access or project trust.
+From `0.3.1`, `EWAI_HOST=grok ewai` opens the native Grok companion without a model override. Install and authenticate the CLI through the [official Grok Build instructions](https://docs.x.ai/build/overview). CLI installation alone does not prove account access or project trust.
 
 For explicitly selected global skill installation, EWAI respects `GROK_HOME`; project installation uses `.grok/skills/`. Malformed, conflicting or unsafe TOML configuration stops MCP setup without rewriting that file. Resolve the reported configuration issue and retry; keep other MCP entries.
 
-### Grok Build (development branch)
+### Grok Build
 
-1. Install and authenticate Grok Build using its official instructions. For this branch's isolated unattended workers, the supported identity is `grok 1.0.44 (5b807183dd79) [stable]` on macOS. Other identities stop until their conformance contract is reviewed.
+1. Install and authenticate Grok Build using its official instructions. For isolated unattended workers, the supported identity is `grok 1.0.44 (5b807183dd79) [stable]` on macOS. Other identities stop until their conformance contract is reviewed.
 2. Enable Grok with `ewai validation set grok available --enabled --project .`. For a new project, `ewai init --grok` records the same explicit availability choice.
 3. Choose providers in **Configuration → Coding providers**, or use `ewai providers set --primary grok --secondary codex --tertiary claude --pool grok,codex,claude --project .`. Enable and authenticate the selected reviewers too. Leave model fields blank for native selection.
 4. Before unattended work, open **Configuration → Grok Build credentials** and use **Check and save key**, or run `ewai providers credentials grok configure` in an interactive terminal for hidden input. The key is saved for your account on this computer, outside the project, in an owner-only local file. `XAI_API_KEY` in the launching environment takes precedence. Interactive OAuth sessions can still use the native companion; isolated workers do not copy your personal authentication files. Never put keys in project YAML, command arguments, chat, commits or release notes.

@@ -19,7 +19,7 @@ async function browserFixture(t, title = 'Invoice export') {
   git(root, 'init', '-b', 'fixture'); git(root, 'config', 'user.name', 'Fixture'); git(root, 'config', 'user.email', 'fixture@example.invalid');
   git(root, 'add', '-A'); git(root, 'commit', '-m', 'fixture state');
   let browser;
-  t.after(async () => { await browser?.close(); await stopDashboard(root); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await browser?.close(); await stopDashboard(root); rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   const dashboard = await ensureDashboard(root);
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

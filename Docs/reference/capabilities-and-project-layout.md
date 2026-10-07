@@ -78,7 +78,7 @@ It also safely merges project MCP entries for the supported hosts:
 ```text
 .mcp.json                 Claude Code
 .codex/config.toml        Codex
-.grok/config.toml         Grok Build (development branch)
+.grok/config.toml         Grok Build
 .agents/mcp_config.json   Google Antigravity / AGY CLI
 ```
 
@@ -88,9 +88,9 @@ Before creating EWAI artefacts, initialization checks for existing source files,
 
 `--claude`, `--codex`, `--grok`, and `--antigravity` record validation CLIs that the user has explicitly confirmed are available and initially enabled. Antigravity access uses the `agy` executable. These flags do not install or authenticate those services. At delivery time EWAI excludes the active orchestrator from the independent reviewer set.
 
-## Coding provider and model preferences (development branch)
+## Coding provider and model preferences
 
-Choose a primary coding CLI and distinct secondary/tertiary reviewers in the dashboard or through `ewai providers`. Without this optional policy, existing selection and native models remain unchanged. Suggestions are advisory; unsupported permitted-model restrictions stop invocation. Automatic selection remains inside configured and approved provider pools and does not bypass human checkpoints. Grok unattended modes require their separately verified native identity and private environment authentication. These additions are not in the published `0.3.1-beta.0` package. See [provider controls](cli-and-configuration.md#coding-provider-settings-in-development) and [Grok setup](../operations/installation-updating-and-entitlements.md#grok-build-development-branch).
+Choose a primary coding CLI and distinct secondary/tertiary reviewers in the dashboard or through `ewai providers`. Without this optional policy, existing selection and native models remain unchanged. Suggestions are advisory; unsupported permitted-model restrictions stop invocation. Automatic selection remains inside configured and approved provider pools and does not bypass human checkpoints. Grok unattended modes require their separately verified native identity and private environment authentication. See [provider controls](cli-and-configuration.md#coding-provider-settings) and [Grok setup](../operations/installation-updating-and-entitlements.md#grok-build).
 
 ## Enrich a project from supplied context
 

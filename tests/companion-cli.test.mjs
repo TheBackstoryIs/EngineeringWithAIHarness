@@ -50,7 +50,7 @@ test('exposes bounded companion guidance through the CLI', () => {
   }
 });
 
-test('exposes one read-only companion MCP tool', async () => {
+test('exposes advisory companion MCP guidance with declared optional remote effects', async () => {
   const root = companionProject('Companion MCP');
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -64,7 +64,8 @@ test('exposes one read-only companion MCP tool', async () => {
     const tools = await client.listTools();
     const tool = tools.tools.find((candidate) => candidate.name === 'ewai_companion_status');
     assert.equal(Boolean(tool), true);
-    assert.equal(tool.annotations?.readOnlyHint, true);
+    assert.equal(tool.annotations?.readOnlyHint, false);
+    assert.equal(tool.annotations?.openWorldHint, true);
     assert.equal(tools.tools.some((candidate) => /companion.*(?:write|approve|build|release)/i.test(candidate.name)), false);
 
     const result = await client.callTool({ name: 'ewai_companion_status', arguments: { focus: 'existing-work' } });

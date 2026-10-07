@@ -8,7 +8,7 @@ Context preparation doesn't approve Build or Manual QA, accept risk, certify qua
 
 ## Concise answers and guided decisions
 
-**Availability:** This guidance is included in `0.3.1-beta.0`. Follow [beta installation](operations/installation-updating-and-entitlements.md#try-the-beta-channel), then initialise the project or run its normal EWAI check-in to refresh the managed instructions in `AGENTS.md` and `CLAUDE.md`. Start a fresh host conversation after the refresh. Project-authored guidance outside the managed block is preserved. npm `0.3.0` does not include these new instructions. Tool-result compaction remains planned, and no incremental token or cost saving has been measured for this update.
+**Availability:** This guidance is included from `0.3.1`. [Update EWAI](operations/installation-updating-and-entitlements.md), then initialise the project or run its normal EWAI check-in to refresh the managed instructions in `AGENTS.md` and `CLAUDE.md`. Start a fresh host conversation after the refresh. Project-authored guidance outside the managed block is preserved. Versions `0.3.0` and earlier don't include these instructions. Tool-result compaction remains planned, and no incremental token or cost saving has been measured for this update.
 
 ### Get a useful short answer
 
@@ -153,3 +153,9 @@ If you're changing EWAI itself, follow [maintainer context benchmarks](maintaine
 - If a digest, source, phase or task has changed, prepare a new pack and review the delta.
 
 Context efficiency is useful only when the resulting engineering work remains at least as reliable, testable, secure and accountable as the full-context baseline.
+
+## Jev beta decision assistance
+
+The local `0.3.4-beta.1` experiment adds an opt-in structured decision path before a larger model comparison. Jev can order bounded options, compare supported LLM recommendations and recommend installed personas from metadata. See [Jev setup and experiment limits](operations/jev-beta-experiment.md). It starts off and first enablement should use shadow. No incremental token or cost saving has been measured on equivalent completed coding tasks; the synthetic runner measures Jev's own usage and latency. Publication and human Manual QA remain separate.
+
+OpenAI Decisions joins the shared bounded engine in experimental `0.3.4-beta.2`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

@@ -2,9 +2,9 @@
 
 The dashboard starts with its everyday tools. Extra views are off by default, so you don't have to navigate portfolio management, policy controls or integration tools when your project doesn't need them.
 
-## Coding provider settings (in development)
+## Coding provider settings
 
-The development branch includes **Configuration → Coding providers**. This is not part of the published `0.3.1-beta.0` package. These settings govern host selection and AFK/autonomy dispatch; saving them does not start a delivery or approve execution.
+Open **Configuration → Coding providers** to choose which coding CLIs EWAI uses. These settings govern host selection and AFK/autonomy dispatch; saving them does not start a delivery or approve execution.
 
 Choose the primary coding provider, secondary and tertiary reviewers, and an eligible pool. **Existing behaviour** preserves normal host selection and checkpoint policy. **Choose automatically** creates a draft with automatic roles; it does not run anything or approve a grant. Required review capacity cannot be weakened, and reviewers must differ from the actual coding agent.
 
@@ -14,9 +14,9 @@ Use **Save provider settings** to apply the draft. **Cancel changes** restores t
 
 For automatic unattended work, save an eligible pool, then choose **Automatic from saved pool** in the autonomy controls. Preview and review the exact providers, intents, actions, expiry and limits before approving a grant. Selection uses only providers inside both the saved pool and approved grant that can perform the requested action and enforce any configured model restriction. Automatic roles skip ineligible providers; explicitly selected or inherited required providers stop instead of changing your choice. Changing settings invalidates the old grant: review a fresh one.
 
-Installed CLI status does not prove authentication or unattended capability. Grok coding, review and proposal modes each run an offline conformance check before dispatch. See [Grok setup and limitations](installation-updating-and-entitlements.md#grok-build-development-branch). A failed check stops the run; inspect its reason before retrying.
+Installed CLI status does not prove authentication or unattended capability. Grok coding, review and proposal modes each run an offline conformance check before dispatch. See [Grok setup and limitations](installation-updating-and-entitlements.md#grok-build). A failed check stops the run; inspect its reason before retrying.
 
-## Grok Build credentials (in development)
+## Grok Build credentials
 
 Open **Configuration → Grok Build credentials** to enter an xAI API key in a password field, then choose **Check and save key**. This performs an authentication-only check and saves a key for your account on this computer, across EWAI projects. It does not start work or select a model. The owner-only local credential file is outside the project and is not encrypted.
 
