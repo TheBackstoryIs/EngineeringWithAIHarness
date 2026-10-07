@@ -160,4 +160,4 @@ The local `0.3.4-beta.1` experiment adds an opt-in structured decision path befo
 
 OpenAI Decisions joins the shared bounded engine in experimental `0.3.4-beta.3`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.
 
-`0.3.4-beta.5` includes these integrations. Read the [release update](releases/0.3.4-beta.5.md).
+`0.3.4-beta.6` includes these integrations. Read the [release update](releases/0.3.4-beta.6.md).

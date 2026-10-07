@@ -1,27 +1,27 @@
 # Engineering With AI
 
-## EWAI now supports Jev and the OpenAI Decisions API
+## New in 0.3.4 Beta 6 release
 
-Available in `0.3.4-beta.5` on the npm beta channel.
+**EWAI now supports Jev and the OpenAI Decisions API.**
 
-EWAI can now use Jev or the OpenAI Decisions API during software development to rank options, check an AI's recommended choice and suggest suitable persona reviewers.
+- **Rank options and recommend a choice.** Evaluate available approaches and return an ordered list with a recommended answer.
+- **Check AI recommendations.** Compare supported options returned by a larger language model with a second recommendation.
+- **Recommend suitable personas.** Select from personas available to your project, including core, project, personal and installed premium personas.
+- **Reduce larger-model calls.** Evaluate supported choices through focused decision calls instead of sending the same options to a larger language model.
+- **Prioritise context.** Help order supporting context for coding and review tasks.
+- **Support additional checks.** Assess supplied claim evidence, classify sanitised failures and recommend supplementary impact reviews and tests.
+- **Choose your provider.** Select Jev, OpenAI Decisions or Automatic. Automatic prefers configured and authorised OpenAI access, then Jev.
+- **Configure through the CLI or dashboard.** Save API keys privately, enable either integration and select the uses you want.
+- **Choose shadow or active mode.** Shadow shows recommendations for comparison. Active can apply supported recommendations to context ordering and persona selection.
+- **Track usage and estimated cost.** View decision-call usage and set call and input-token limits.
 
-- **Choose an approach.** Rank an existing set of options and get a recommended choice.
-- **Check an AI's recommendation.** Get a second opinion on supported choices returned by a larger language model.
-- **Find suitable reviewers.** Get suggestions from the personas already available to your project, including installed premium personas.
-- **Control when you use it.** Add API keys privately through the CLI or dashboard. Both services start off; saving a key never enables them. Try shadow mode to see suggestions before they change automatic behaviour.
+Both integrations are optional and start disabled. EWAI continues to work without either service.
 
-These smaller decision calls are intended to reduce the need for a larger model to weigh existing choices. Usage limits and estimated costs help you track the experiment. Savings in completed coding-task time, tokens and cost have not yet been measured.
-
-This is an experimental beta. Required tests, evidence and human approvals still apply. OpenAI integration was tested with mocks; human Manual QA remains pending.
-
-Local beta preparation does not change the production npm channel. Install from the beta channel:
+Install or update from the npm beta channel:
 
 ```sh
 npm install --save-dev @thebackstoryis/engineering-with-ai@beta
 ```
-
-Read the [beta update](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.5/Docs/releases/0.3.4-beta.5.md), [Jev setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.5/Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.5/Docs/operations/openai-decisions-beta.md).
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
@@ -41,7 +41,7 @@ ewai
 
 `ewai` opens your assistant and walks you through setting up the project. See [Install and start](#install-and-start) for details.
 
-Versions `0.3.2` and `0.3.3` update the package's links and documentation. The stable features below arrived in `0.3.1`.
+Versions `0.3.2` and `0.3.3` update the package's links and documentation. The features below arrived in `0.3.1`.
 
 ## New in 0.3.1: concise answers and Grok Build
 
