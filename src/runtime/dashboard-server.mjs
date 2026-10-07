@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {openaiCredentialStatus,configureOpenaiCredentials,checkOpenaiConnection,removeOpenaiCredentials,safeOpenaiCredentialError} from '../openai-credentials.mjs';
 import { readJevSettings,saveJevSettings,readJevMeasurements,safeJevError } from '../jev.mjs';
 import { jevCredentialStatus,configureJevCredentials,checkJevConnection,removeJevCredentials,safeJevCredentialError } from '../jev-credentials.mjs';
 import { decideWithJev,prepareProjectContextWithJev,previewImpactWithJev,recommendPersonasWithJev,readCompanionWithJev } from './jev-operations.mjs';
@@ -461,12 +462,12 @@ const server = createServer(async (request, response) => {
         intents: runtimeIntentSummary(projectRoot)
       });
     }
-    if(url.pathname==='/api/jev'||url.pathname.startsWith('/api/jev/')){
+    if(url.pathname==='/api/jev'||url.pathname.startsWith('/api/jev/')||url.pathname==='/api/decisions'||url.pathname.startsWith('/api/decisions/')){
       let input;
-      const credentialRoute=url.pathname.startsWith('/api/jev/credentials');
+      const credentialRoute=/^\/api\/(?:jev|decisions)\/credentials(?:\/|$)/.test(url.pathname);
       try{
         if(url.search)return json(response,400,{error:'Jev actions do not accept query parameters.'});
-        const action=url.pathname.slice('/api/jev/'.length),reads=['settings','measurements','credentials'];
+        const action=url.pathname.slice(url.pathname.startsWith('/api/decisions')?'/api/decisions/'.length:'/api/jev/'.length),reads=['settings','measurements','credentials'];
         if(![...reads,'decisions','personas','credentials/configure','credentials/check','credentials/remove'].includes(action))return json(response,404,{error:'Jev action not found.'});
         if(request.method!==(reads.includes(action)?'GET':'POST')&&!(action==='settings'&&request.method==='POST'))return json(response,405,{error:'Use the supported Jev action method.'});
         if(request.method==='GET')return json(response,200,action==='settings'?readJevSettings(projectRoot):action==='measurements'?readJevMeasurements(projectRoot):jevCredentialStatus({projectRoot}));
@@ -482,6 +483,26 @@ const server = createServer(async (request, response) => {
       }catch(error){
         const status=[403,415,413,409].includes(error.statusCode)?error.statusCode:400;
         return json(response,status,[403,415,413].includes(status)?{error:status===403?'Use the matching local dashboard origin.':status===415?'Use application/json.':'Jev request is too large.'}:credentialRoute?safeJevCredentialError(error):safeJevError(error));
+      }finally{if(input&&typeof input==='object')input.apiKey=undefined;}
+    }
+    if(url.pathname.startsWith('/api/openai/credentials')){
+      let input;
+      try{
+        if(url.search)return json(response,400,{error:'Credential actions do not accept query parameters.'});
+        const match=url.pathname.match(/^\/api\/openai\/credentials(?:\/(configure|check|remove))?$/),action=match?.[1]??'status';
+        if(!match)return json(response,404,{error:'Credential action not found.'});
+        if(request.method!==(action==='status'?'GET':'POST'))return json(response,405,{error:'Use the supported credential action method.'});
+        const options={projectRoot};
+        if(action==='status')return json(response,200,openaiCredentialStatus(options));
+        if(String(request.headers['content-type']??'').split(';')[0].trim().toLowerCase()!=='application/json')return json(response,415,{error:'Use application/json.'});
+        input=await readJson(request,2048);if(!input||typeof input!=='object'||Array.isArray(input))return json(response,400,{error:'Use a JSON object for a credential action.'});
+        input=strictBody(input,action==='configure'?['confirmed','expectedRevision','apiKey']:action==='remove'?['confirmed','expectedRevision']:['confirmed'],'Credential action');
+        if(input.confirmed!==true)return json(response,400,{error:'Confirm this credential action.'});
+        const result=action==='configure'?await configureOpenaiCredentials(input,options):action==='remove'?removeOpenaiCredentials(input,options):await checkOpenaiConnection(options);
+        return json(response,200,result);
+      }catch(error){
+        const code=[403,415,413].includes(error.statusCode)?error.statusCode:error.code==='openai-credential-stale'||error.code==='openai-credential-busy'?409:400;
+        return json(response,code,[403,415,413].includes(code)?{error:code===403?'Use the matching local dashboard origin.':code===415?'Use application/json.':'Credential request is too large.'}:safeOpenaiCredentialError(error));
       }finally{if(input&&typeof input==='object')input.apiKey=undefined;}
     }
     if(url.pathname.startsWith('/api/coding-providers/grok/credentials')){

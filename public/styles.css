@@ -2796,7 +2796,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .autonomy-button-row button { width: 100%; }
   .autonomy-dialog .action-sheet > footer { flex-wrap: wrap; }
 }
-:is(.grok-credentials-body, .jev-credentials-body) { padding: 18px; display: grid; gap: 14px; }
-:is(.grok-credentials-body, .jev-credentials-body) form { display: grid; gap: 12px; }
-:is(.grok-credentials-body, .jev-credentials-body) input { width: 100%; box-sizing: border-box; min-height: 40px; border: 1px solid var(--line, #cfd8d5); border-radius: 6px; padding: 8px 10px; }
-:is(.grok-credentials-body, .jev-credentials-body) p { margin: 0; }
+:is(.grok-credentials-body, .jev-credentials-body, .openai-credentials-body) { padding: 18px; display: grid; gap: 14px; }
+:is(.grok-credentials-body, .jev-credentials-body, .openai-credentials-body) form { display: grid; gap: 12px; }
+:is(.grok-credentials-body, .jev-credentials-body, .openai-credentials-body) input { width: 100%; box-sizing: border-box; min-height: 40px; border: 1px solid var(--line, #cfd8d5); border-radius: 6px; padding: 8px 10px; }
+:is(.grok-credentials-body, .jev-credentials-body, .openai-credentials-body) p { margin: 0; }
+
+.jev-provider-label { display: grid; gap: 7px; }
+#jevProvider { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; padding: 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
+#jevProvider:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }

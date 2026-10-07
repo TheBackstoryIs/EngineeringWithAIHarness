@@ -24,6 +24,8 @@ Versions `0.3.2` and `0.3.3` update the package's links and documentation. The f
 
 `0.3.4-beta.1` adds opt-in Jev settings, private TypeSafe credentials, ranked options, structured LLM recommendation comparisons and available persona recommendations. It starts off; first enablement should use shadow. See the [Jev beta guide](Docs/operations/jev-beta-experiment.md) for setup, bounded synthetic experiments and measurement limits.
 
+`0.3.4-beta.2` adds optional OpenAI Decisions to the same bounded engine, with separate private credentials and consent. Both providers remain off by default. See the [OpenAI Decisions beta guide](Docs/operations/openai-decisions-beta.md).
+
 This build is prepared locally; it has not been published or accepted through Manual QA. Local beta preparation does not change the production npm channel. To install an authorised local build, use its `.tgz` file. Published beta packages use the beta tag:
 
 ```bash
@@ -153,3 +155,5 @@ Premium personas are optional specialist perspectives. If you have a subscriptio
 ## Contributing to EWAI
 
 If you're changing the harness itself, use the [contributor guide](Docs/maintainers/contributing.md) and [verification walkthroughs](Docs/maintainers/verification-walkthroughs.md). Those source-checkout and regression-test instructions aren't part of setting up your own application.
+
+OpenAI Decisions joins the shared bounded engine in local beta.2. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](Docs/operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

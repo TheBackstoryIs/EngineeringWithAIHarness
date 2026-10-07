@@ -76,3 +76,5 @@ The synthetic runner evaluates at most six labelled challenge cases using the al
 API and model references: [TypeSafe API](https://docs.typesafe.ai/api), [models and pricing](https://docs.typesafe.ai/models), [confidence](https://docs.typesafe.ai/confidence), [coding-agent guidance](https://docs.typesafe.ai/introduction/coding-agents).
 
 This is a local beta experiment. Packaging and automated browser checks do not replace owner Manual QA or authorise npm publication.
+
+OpenAI Decisions joins the shared bounded engine in local beta.2. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

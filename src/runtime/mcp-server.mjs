@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readJevSettings,saveJevSettings,readJevMeasurements,safeJevError } from '../jev.mjs';
+import { readJevSettings,saveJevSettings,readJevMeasurements,readDecisionCredentials,safeJevError } from '../jev.mjs';
 import { jevCredentialStatus,checkJevConnection } from '../jev-credentials.mjs';
 import { decideWithJev,prepareProjectContextWithJev,recommendPersonasWithJev,readCompanionWithJev } from './jev-operations.mjs';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -209,14 +209,14 @@ function portfolioPersonas() {
 
 // Closed shared validators receive the original fields, including attempted extras.
 // Key capture is deliberately absent from model-facing tools.
-for(const [action,fields] of Object.entries({status:[],measurements:[],configure:['confirmed','expectedRevision','policy'],decide:['useCase','source','task','candidates','claim','evidence','quote','diagnostic','summary','origin','recommendedId'],personas:['focus','limit']})){
- server.registerTool('ewai_jev_'+action,{
-  title:'Jev '+action,
-  description:action==='decide'?'Rank bounded options and return a recommendation before using a generative LLM. useCase: skill for answer options or skills, context, personas, claim, failure, impact, tests. source: public, synthetic, cloud-approved or metadata-only. Options require task and up to 31 candidates {id,label,description?}; use origin: llm and recommendedId to compare an LLM recommendation. Unsupported shapes are rejected. Advice cannot approve work. Shadow results are comparison-only.':action==='personas'?'Recommend available core, project, personal and installed premium personas for focus (max 2000 characters), limit 1..8. Catalogue resolution is local; returns bounded recommendations and coverage. No pack downloads or persona bodies are uploaded. Shadow results are comparison-only.':action==='configure'?'Save explicit human-selected Jev settings with confirmed, expectedRevision and a complete policy from status. Off by default; first enablement should use shadow. Never infer cloud-processing consent.':'Read safe Jev policy, credential presence or measurements without inference. Savings remain unknown until measured.',
+for(const prefix of ['jev','decisions'])for(const [action,fields] of Object.entries({status:[],measurements:[],configure:['confirmed','expectedRevision','policy'],decide:['useCase','source','task','candidates','claim','evidence','quote','diagnostic','summary','origin','recommendedId'],personas:['focus','limit']})){
+ server.registerTool('ewai_'+prefix+'_'+action,{
+  title:(prefix==='jev'?'Jev':'Decision assistance')+' '+action,
+  description:action==='decide'?'Rank bounded options and return a recommendation before using a generative LLM. useCase: skill for answer options or skills, context, personas, claim, failure, impact, tests. source: public, synthetic, cloud-approved or metadata-only. Options require task and up to 31 candidates {id,label,description?}; use origin: llm and recommendedId to compare an LLM recommendation. Unsupported shapes are rejected. Advice cannot approve work. Shadow results are comparison-only.':action==='personas'?'Recommend available core, project, personal and installed premium personas for focus (max 2000 characters), limit 1..8. Catalogue resolution is local; returns bounded recommendations and coverage. No pack downloads or persona bodies are uploaded. Shadow results are comparison-only.':action==='configure'?'Save explicit human-selected decision settings with confirmed, expectedRevision and a complete policy from status. Off by default; first enablement should use shadow. Automatic prefers a configured and separately consented OpenAI key, then authorised Jev. Never infer either vendor processing consent.':'Read safe Jev policy, credential presence or measurements without inference. Savings remain unknown until measured.',
   inputSchema:z.object(Object.fromEntries(fields.map(key=>[key,z.unknown().optional()]))).passthrough(),
   annotations:{readOnlyHint:['status','measurements'].includes(action),destructiveHint:false,openWorldHint:!['status','measurements','configure'].includes(action)},
  },async input=>{try{
-  if(action==='status'){if(Object.keys(input).length)throw Error('input');return result({settings:readJevSettings(paths.projectRoot),credentials:jevCredentialStatus({projectRoot:paths.projectRoot})});}
+  if(action==='status'){if(Object.keys(input).length)throw Error('input');return result({settings:readJevSettings(paths.projectRoot),...readDecisionCredentials(paths.projectRoot)});}
   if(action==='measurements'){if(Object.keys(input).length)throw Error('input');return result(readJevMeasurements(paths.projectRoot));}
   if(action==='configure')return result(saveJevSettings(paths.projectRoot,input));
   if(action==='personas')return result(await recommendPersonasWithJev(paths.projectRoot,input,portfolioPersonas()));

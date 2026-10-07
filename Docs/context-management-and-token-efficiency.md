@@ -157,3 +157,5 @@ Context efficiency is useful only when the resulting engineering work remains at
 ## Jev beta decision assistance
 
 The local `0.3.4-beta.1` experiment adds an opt-in structured decision path before a larger model comparison. Jev can order bounded options, compare supported LLM recommendations and recommend installed personas from metadata. See [Jev setup and experiment limits](operations/jev-beta-experiment.md). It starts off and first enablement should use shadow. No incremental token or cost saving has been measured on equivalent completed coding tasks; the synthetic runner measures Jev's own usage and latency. Publication and human Manual QA remain separate.
+
+OpenAI Decisions joins the shared bounded engine in local `0.3.4-beta.2`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

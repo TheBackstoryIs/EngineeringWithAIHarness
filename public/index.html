@@ -87,18 +87,20 @@
           </div>
         </section>
         <section class="configuration-group jev-configuration" aria-labelledby="jevTitle">
-          <header><div><h3 id="jevTitle">Jev decision assistance <span class="jev-beta">Beta</span></h3><p>Rank options, compare recommendations and find relevant reviewers before asking a larger model.</p></div></header>
+          <header><div><h3 id="jevTitle">Decision assistance <span class="jev-beta">Beta</span></h3><p>Rank options, compare recommendations and find relevant reviewers before asking a larger model.</p></div></header>
           <div class="jev-body">
             <form id="jevSettingsForm">
               <fieldset id="jevControls" disabled>
-                <legend>How Jev participates</legend>
+                <legend>How decision assistance participates</legend>
+                <label class="jev-provider-label" for="jevProvider">Decision provider<select id="jevProvider"><option value="auto">Automatic — OpenAI first</option><option value="openai">OpenAI Decisions</option><option value="jev">Jev (TypeSafe)</option></select></label><p>Automatic uses a configured OpenAI key with OpenAI consent first, otherwise a configured Jev key with TypeSafe consent. API access is established by a decision attempt; Codex sign-in is separate.</p>
                 <div class="jev-modes">
                   <label><input type="radio" name="jevMode" value="off" checked> Off <small>Use existing local decisions.</small></label>
                   <label><input type="radio" name="jevMode" value="shadow"> Shadow — recommended first <small>Measure suggestions; keep existing automatic decisions.</small></label>
                   <label><input type="radio" name="jevMode" value="active"> Active <small>Apply eligible context and persona advice. Required evidence and approvals remain.</small></label>
                 </div>
-                <fieldset><legend>Where Jev can help</legend><div id="jevUseCases" class="jev-use-cases"></div></fieldset>
-                <div class="jev-disclosure"><strong>Text processing by TypeSafe</strong><p>Enabled decisions send your focus and selected labels or descriptions to TypeSafe. Explicit claim and diagnostic checks can send eligible evidence you supply. Persona bodies and project source files are excluded from automatic ranking.</p><label><input id="jevCloudConsent" type="checkbox"> I accept this text disclosure for enabled decisions.</label></div>
+                <fieldset><legend>Where decision assistance can help</legend><div id="jevUseCases" class="jev-use-cases"></div></fieldset>
+                <div class="jev-disclosure"><strong>Text processing by TypeSafe</strong><p>Enabled decisions send your focus and selected labels or descriptions to TypeSafe. Explicit claim and diagnostic checks can send eligible evidence you supply. Persona bodies and project source files are excluded from automatic ranking.</p><label><input id="jevCloudConsent" type="checkbox"> I accept TypeSafe text processing for enabled decisions.</label></div>
+                <div class="jev-disclosure"><strong>Text processing by OpenAI</strong><p>Enabled OpenAI decisions send the same eligible focus, labels, descriptions or supplied evidence to OpenAI. Persona bodies and project source files are excluded from automatic ranking.</p><label><input id="openaiCloudConsent" type="checkbox"> I accept OpenAI text processing for enabled decisions.</label></div>
                 <div class="jev-limits">
                   <label>Maximum calls per saved policy<input id="jevMaxCalls" type="number" min="1" max="1000" required></label>
                   <label>Input-token reservation budget<input id="jevMaxTokens" type="number" min="2000" max="1000000" required></label>
@@ -107,10 +109,10 @@
                 </div>
                 <p>Saving a new policy starts a new bounded budget. Timeouts or unknown usage stop further calls within that budget. Confidence is advisory.</p>
               </fieldset>
-              <div class="coding-provider-actions"><button id="jevSettingsSave" type="submit" class="primary-action" disabled>Save Jev settings</button><button id="jevRefresh" type="button" class="quiet-button">Refresh settings and measurements</button></div>
-              <output id="jevNotice" role="status" aria-live="polite">Loading Jev settings…</output>
+              <div class="coding-provider-actions"><button id="jevSettingsSave" type="submit" class="primary-action" disabled>Save decision settings</button><button id="jevRefresh" type="button" class="quiet-button">Refresh settings and measurements</button></div>
+              <output id="jevNotice" role="status" aria-live="polite">Loading decision settings…</output>
             </form>
-            <section aria-labelledby="jevMeasurementsTitle"><h4 id="jevMeasurementsTitle">Measured results</h4><div id="jevMeasurements" aria-live="polite">Unknown — no measurements loaded.</div><p>Latency and cost describe Jev calls. Downstream token savings and coding speed remain unknown until compared with equivalent work.</p></section>
+            <section aria-labelledby="jevMeasurementsTitle"><h4 id="jevMeasurementsTitle">Measured results</h4><div id="jevMeasurements" aria-live="polite">Unknown — no measurements loaded.</div><p>Latency and cost describe the selected provider calls. Base estimates precede OpenAI free-cache adjustments and regional or long-context premiums. Downstream token savings and coding speed remain unknown until compared with equivalent work.</p></section>
           </div>
         </section>
         <section class="configuration-group jev-credentials" aria-labelledby="jevCredentialsTitle">
@@ -126,6 +128,21 @@
             <div class="coding-provider-actions"><button id="jevCredentialCheck" type="button" class="quiet-button" disabled>Check connection</button><button id="jevCredentialRemove" type="button" class="quiet-button" disabled>Remove saved key</button><button id="jevCredentialRefresh" type="button" class="quiet-button">Refresh status</button></div>
             <p>Checking authenticates with TypeSafe without generating output. It does not prove available credit or decision quality. Saving a key does not enable Jev.</p>
             <output id="jevCredentialNotice" role="status" aria-live="polite"></output>
+          </div>
+        </section>
+        <section class="configuration-group openai-credentials" aria-labelledby="openaiCredentialsTitle">
+          <header><div><h3 id="openaiCredentialsTitle">OpenAI API credentials</h3><p>Connect OpenAI for bounded decision assistance. Saving a key does not enable decision assistance.</p></div></header>
+          <div class="openai-credentials-body">
+            <p id="openaiCredentialStatus" role="status">Checking credential status…</p>
+            <form id="openaiCredentialForm">
+              <label for="openaiCredentialKey">OpenAI API key</label>
+              <input id="openaiCredentialKey" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="512" required aria-describedby="openaiCredentialHelp" disabled>
+              <p id="openaiCredentialHelp">Saved for your account on this computer, across EWAI projects, outside the project in an owner-only local file. The stored key is not encrypted. OPENAI_API_KEY overrides it.</p>
+              <div class="coding-provider-actions"><button id="openaiCredentialSave" type="submit" class="primary-action" disabled>Check and save key</button><button id="openaiCredentialCancel" type="button" class="quiet-button" disabled>Cancel key entry</button></div>
+            </form>
+            <div class="coding-provider-actions"><button id="openaiCredentialCheck" type="button" class="quiet-button" disabled>Check connection</button><button id="openaiCredentialRemove" type="button" class="quiet-button" disabled>Remove saved key</button><button id="openaiCredentialRefresh" type="button" class="quiet-button">Refresh status</button></div>
+            <p>Checking authenticates with OpenAI without generating output. It does not prove Decisions access, available credit or decision quality. Saving a key does not enable decisions.</p>
+            <output id="openaiCredentialNotice" role="status" aria-live="polite"></output>
           </div>
         </section>
         <section class="configuration-group autonomy-configuration" aria-labelledby="autonomyConfigurationTitle">
@@ -888,6 +905,7 @@
     <script src="/app.js" type="module"></script>
     <script src="/jev.js" type="module"></script>
     <script src="/jev-credentials.js" type="module"></script>
+    <script src="/openai-credentials.js" type="module"></script>
     <script src="/coding-providers.js" type="module"></script>
     <script src="/grok-credentials.js" type="module"></script>
   </body>

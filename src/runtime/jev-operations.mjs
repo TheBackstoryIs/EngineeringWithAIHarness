@@ -1,5 +1,4 @@
-import {jevCredentialIdentity} from '../jev-credentials.mjs';
-import { evaluateJev,readJevSettings,recordJevEffect,JEV_USE_CASES } from '../jev.mjs';
+import { decisionCredentialIdentity,evaluateJev,readJevSettings,recordJevEffect,JEV_USE_CASES } from '../jev.mjs';
 import { prepareProjectContext } from './context-assembly.mjs';
 import { previewImpactAssessment } from './impact-analysis.mjs';
 import {listWorkItems} from './work.mjs';
@@ -65,10 +64,10 @@ function resolvedPersonaCatalogue(catalogue){
 export async function recommendPersonasWithJev(root,input,catalogue,options={}){
  if(!input||Object.keys(input).some(k=>!['focus','limit'].includes(k))||typeof input.focus!=='string'||!input.focus.trim()||input.focus.length>2000||!Number.isInteger(input.limit??4)||(input.limit??4)<1||(input.limit??4)>8)invalid();
  const available=resolvedPersonaCatalogue(catalogue),unique=new Map(available.map(p=>[p.id,p])),items=available.map(p=>({id:p.id,label:text(p.name,120),description:text([text(p.category,80),...(Array.isArray(p.tags)?p.tags.filter(v=>typeof v==='string').slice(0,12):[]),...(Array.isArray(p.capabilities)?p.capabilities.filter(v=>typeof v==='string').slice(0,12):[])].join(' '),160)}));
- const initial=readJevSettings(root),credential=jevCredentialIdentity({...options,projectRoot:root}),ranked=[],measurements=[];let considered=0,reason=items.length?'evaluated':'no-eligible-candidates';
+ const initial=readJevSettings(root),credential=decisionCredentialIdentity(root,options),ranked=[],measurements=[];let considered=0,reason=items.length?'evaluated':'no-eligible-candidates';
  // The hard catalogue cap is visible; finite budgets can stop an earlier batch.
  for(let offset=0;offset<Math.min(items.length,256);offset+=16){
-  if(jevCredentialIdentity({...options,projectRoot:root})!==credential){reason='credential-changed';break;}
+  if(decisionCredentialIdentity(root,options)!==credential){reason='credential-changed';break;}
   const batch=items.slice(offset,Math.min(offset+16,256)),advice=await rank(root,'personas',input.focus,batch,options);
   if(advice.status!=='suggested'){reason=advice.reason;break;}
   considered+=batch.length;measurements.push(advice.measurement);
@@ -76,7 +75,7 @@ export async function recommendPersonasWithJev(root,input,catalogue,options={}){
  }
  const current=readJevSettings(root),complete=considered===items.length;
  if(JSON.stringify(initial)!==JSON.stringify(current)){reason='policy-changed';ranked.length=0;}
- if(jevCredentialIdentity({...options,projectRoot:root})!==credential){reason='credential-changed';ranked.length=0;}
+ if(decisionCredentialIdentity(root,options)!==credential){reason='credential-changed';ranked.length=0;}
  const recommendations=ranked.filter(p=>p.score>=0.8).sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)).slice(0,input.limit??4).map(p=>{const persona=unique.get(p.id);return {...p,name:text(persona.name,120),tier:persona.tier,available:true};});
  return {schema:'ewai.jev-personas/v1',authority:'advisory',mode:initial.policy.mode,status:complete&&ranked.length?'suggested':'fallback',reason:complete?reason:reason==='evaluated'?'catalogue-limit':reason,availableCount:items.length,consideredCount:considered,complete,recommendations,measurements};
 }
@@ -87,7 +86,7 @@ export async function prepareProjectContextWithJev(root,input,options={}){
  if(settings.policy.mode==='off')return baseline;
  // Only explicitly disclosed catalogue/segment labels and user focus leave
  // the machine. No fragment, import body, persona body or source path is read.
- let credential;try{credential=jevCredentialIdentity({...options,projectRoot:root});}catch{return baseline;}
+ let credential;try{credential=decisionCredentialIdentity(root,options);}catch{return baseline;}
  const segments=baseline.segments.filter(s=>s.evidenceClass!=='mandatory').slice(0,32).map(s=>({id:s.id,label:s.label}));
  const contextAdvice=settings.policy.useCases.includes('context')&&input.focus?await rank(root,'context',input.focus,segments,options):null;
  const personaAdvice=settings.policy.useCases.includes('personas')&&input.focus?await recommendPersonasWithJev(root,{focus:input.focus},input.personaCatalogue,options):null;
@@ -99,7 +98,7 @@ export async function prepareProjectContextWithJev(root,input,options={}){
   // application, even if the remote evaluation itself completed successfully.
   const fresh=prepareProjectContext(root,input);
   if(fresh.digest!==baseline.digest)return fresh;
-  if(jevCredentialIdentity({...options,projectRoot:root})!==credential)return fresh;
+  if(decisionCredentialIdentity(root,options)!==credential)return fresh;
   if(settings.policy.mode==='active'&&JSON.stringify(current)===JSON.stringify(settings)&&fresh.digest===baseline.digest){
    const personaIds=personaAdvice?.status==='suggested'?personaAdvice.recommendations.map(p=>p.id):[];
    result=prepareProjectContext(root,{...input,personaCatalogue:resolvedPersonaCatalogue(input.personaCatalogue),advisoryRanking:ranking,retainedPersonas:baseline.activePersonas,advisoryPersonaIds:personaIds});
@@ -115,18 +114,19 @@ export async function prepareProjectContextWithJev(root,input,options={}){
 export async function enrichImpactWithJev(root,baseline,options={}){
  let settings;try{settings=readJevSettings(root);}catch{return baseline;}
  if(settings.policy.mode==='off'||!settings.policy.useCases.includes('impact'))return baseline;
- let credential;try{credential=jevCredentialIdentity({...options,projectRoot:root});}catch{return baseline;}
+ let credential;try{credential=decisionCredentialIdentity(root,options);}catch{return baseline;}
  const advice=await decideWithJev(root,{useCase:'impact',source:'metadata-only',summary:text(baseline.summary)},options);
  if(advice.status!=='suggested')return baseline;
  const routeIds={security:'security-identity',accessibility:'accessibility-review',performance:'performance-review'},id=routeIds[advice.decision];
  const current=readJevSettings(root);
  let result=baseline;
- if(settings.policy.mode==='active'&&JSON.stringify(current)===JSON.stringify(settings)&&jevCredentialIdentity({...options,projectRoot:root})===credential&&id){
+ if(settings.policy.mode==='active'&&JSON.stringify(current)===JSON.stringify(settings)&&decisionCredentialIdentity(root,options)===credential&&id){
+  const providerLabel=advice.measurement?.provider==='openai'?'OpenAI Decisions':'Jev';
   const existing=baseline.reviewRoutes.find(r=>r.id===id);
-  const added={id,label:{security:'Security or identity owner',accessibility:'Accessibility reviewer',performance:'Performance reviewer'}[advice.decision],recommendation:'recommended',reason:'Jev indicated an additional specialist concern. Verify against source and human evidence.',authorityBoundary:'Advisory enrichment; no Build or release authority.'};
+  const added={id,label:{security:'Security or identity owner',accessibility:'Accessibility reviewer',performance:'Performance reviewer'}[advice.decision],recommendation:'recommended',reason:providerLabel+' indicated an additional specialist concern. Verify against source and human evidence.',authorityBoundary:'Advisory enrichment; no Build or release authority.'};
   // Jev advice is rendered in the existing inferred-consequences cards.
   // Canonical route recommendations stay exact for preview -> confirmation.
-  result={...baseline,supplementalReviewRoutes:[added],impactAreas:[...(baseline.impactAreas??[]),{id:'jev-specialist-review',authority:'inferred',label:'Jev suggests '+added.label.toLowerCase()+' (advisory)',signals:['Verify against source; human routing decision required'],evidencePaths:[]}]};
+  result={...baseline,supplementalReviewRoutes:[added],impactAreas:[...(baseline.impactAreas??[]),{id:'jev-specialist-review',authority:'inferred',label:providerLabel+' suggests '+added.label.toLowerCase()+' (advisory)',signals:['Verify against source; human routing decision required'],evidencePaths:[]}]};
  }
  try{recordJevEffect(root,advice,{effect:result===baseline?'unchanged':'review-addition',baselineIds:baseline.reviewRoutes.map(r=>r.id),suggestedIds:id?[id]:[],actualIds:result.reviewRoutes.map(r=>r.id)});}catch{/* Keep the proven baseline if local telemetry is unavailable. */return baseline;}
  return result;
@@ -140,12 +140,12 @@ export async function readCompanionWithJev(root,options={}){
  if(settings.policy.mode==='off'||!settings.policy.useCases.includes('skill')||!baseline.focus||!baseline.recommendations.length)return baseline;
  const eligible=baseline.recommendations.filter(r=>['start','continue'].includes(r.class));
  if(!eligible.length)return baseline;
- let credential;try{credential=jevCredentialIdentity({...options,projectRoot:root});}catch{return baseline;}
+ let credential;try{credential=decisionCredentialIdentity(root,options);}catch{return baseline;}
  const advice=await decideWithJev(root,{useCase:'skill',source:'metadata-only',task:baseline.focus,candidates:eligible.map((r,i)=>({id:'option'+i,label:text(r.title,150),description:text(r.reason,100)}))},options);
  if(advice.status!=='suggested')return baseline;
  const ids=advice.orderedIds.map(id=>eligible[Number(id.slice(6))]?.id).filter(Boolean),recommended=advice.recommendedId?eligible[Number(advice.recommendedId.slice(6))]?.id:null;
  const fresh=readCompanionGuidance(root,options);
- if(JSON.stringify(readJevSettings(root))!==JSON.stringify(settings)||jevCredentialIdentity({...options,projectRoot:root})!==credential||JSON.stringify(fresh)!==JSON.stringify(baseline))return fresh;
+ if(JSON.stringify(readJevSettings(root))!==JSON.stringify(settings)||decisionCredentialIdentity(root,options)!==credential||JSON.stringify(fresh)!==JSON.stringify(baseline))return fresh;
  // Human-decision classes and blocked routes stay in their original positions.
  // Only equal-class eligible recommendations may be reordered automatically.
  let recommendations=baseline.recommendations;

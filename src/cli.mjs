@@ -1,5 +1,6 @@
+import {openaiCredentialStatus,configureOpenaiCredentials,checkOpenaiConnection,removeOpenaiCredentials,safeOpenaiCredentialError} from './openai-credentials.mjs';
 import {jevCredentialStatus,configureJevCredentials,checkJevConnection,removeJevCredentials} from './jev-credentials.mjs';
-import {readJevSettings,saveJevSettings,readJevMeasurements,safeJevError} from './jev.mjs';
+import {readJevSettings,saveJevSettings,readJevMeasurements,readDecisionCredentials,safeJevError} from './jev.mjs';
 import {decideWithJev,prepareProjectContextWithJev,recommendPersonasWithJev,readCompanionWithJev} from './runtime/jev-operations.mjs';
 import {runJevExperiment} from '../scripts/jev-experiment.mjs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
@@ -535,6 +536,9 @@ Commands:
   ewai discover [--project PATH] [--answers FILE] [--stack PACK] [--force]
   ewai context register FOLDER [--project PATH] --yes [--label NAME] [--classification public|internal|confidential|restricted] [--cloud-processing allowed|denied|unknown]
   ewai jev status|measurements [--project PATH] [--json]
+  ewai decisions status|measurements|decide|personas [--project PATH] [--json]
+  ewai decisions configure --mode off|shadow|active --provider auto|openai|jev --yes [--acknowledge-openai-processing] [--acknowledge-cloud-processing] [--revoke-openai-processing] [--revoke-cloud-processing]
+  ewai providers credentials openai status|configure|check|remove [--project PATH]
   ewai jev credentials status|configure|check|remove [--project PATH]
   ewai jev configure --mode off|shadow|active --yes [--acknowledge-cloud-processing] [--use-cases context,personas,skill,claim,failure,impact,tests]
   ewai jev decide --input PROJECT_JSON [--project PATH]
@@ -920,9 +924,9 @@ export async function run(args) {
     }
 
     if(command==='providers'&&subcommand==='credentials'||command==='jev'&&subcommand==='credentials'){
-      const isJev=command==='jev',action=args[isJev?2:3];
-      const statusCredential=isJev?jevCredentialStatus:grokCredentialStatus,configureCredential=isJev?configureJevCredentials:configureGrokCredentials,checkConnection=isJev?checkJevConnection:checkGrokConnection,removeCredential=isJev?removeJevCredentials:removeGrokCredentials;
-      if(!isJev&&args[2]!=='grok'||!['status','configure','check','remove'].includes(action))throw new Error('Choose providers credentials grok status, configure, check or remove.');
+      const isJev=command==='jev',isOpenai=!isJev&&args[2]==='openai',action=args[isJev?2:3];
+      const statusCredential=isJev?jevCredentialStatus:isOpenai?openaiCredentialStatus:grokCredentialStatus,configureCredential=isJev?configureJevCredentials:isOpenai?configureOpenaiCredentials:configureGrokCredentials,checkConnection=isJev?checkJevConnection:isOpenai?checkOpenaiConnection:checkGrokConnection,removeCredential=isJev?removeJevCredentials:isOpenai?removeOpenaiCredentials:removeGrokCredentials;
+      if(!isJev&&!['grok','openai'].includes(args[2])||!['status','configure','check','remove'].includes(action))throw new Error('Choose providers credentials grok or openai, then status, configure, check or remove.');
       const allowedValues=['--project',...(action==='remove'?['--expected-revision']:[])],allowedFlags=['--json',...(action==='remove'?['--yes']:[])];
       for(let i=isJev?3:4;i<args.length;i++){
         if(allowedValues.includes(args[i])){if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('A credential option requires a value.');i++;}
@@ -938,27 +942,32 @@ export async function run(args) {
         const previous=statusCredential(credentialOptions),muted=new Writable({write(_chunk,_encoding,callback){callback();}});muted.isTTY=true;muted.columns=process.stdout.columns;
         const prompt=createInterface({input:process.stdin,output:muted,terminal:true,historySize:0});let apiKey;
         try{
-          process.stdout.write(isJev?'This checks TypeSafe authentication without inference and saves an owner-only local key outside the project (not encrypted). TYPESAFE_API_KEY overrides it. Saving does not enable Jev. Cancel with Ctrl+C.\nTypeSafe API key (hidden): ':'This checks xAI authentication without generated output and saves the key for your account on this computer, outside the project, in an owner-only local file (not encrypted). XAI_API_KEY overrides the saved key. Cancel with Ctrl+C.\nxAI API key (hidden): ');
+          process.stdout.write(isOpenai?'This checks OpenAI metadata authentication without inference and saves an owner-only local key outside the project (not encrypted). OPENAI_API_KEY overrides it. This does not prove Decisions access; saving does not enable decisions. Cancel with Ctrl+C.\nOpenAI API key (hidden): ':isJev?'This checks TypeSafe authentication without inference and saves an owner-only local key outside the project (not encrypted). TYPESAFE_API_KEY overrides it. Saving does not enable Jev. Cancel with Ctrl+C.\nTypeSafe API key (hidden): ':'This checks xAI authentication without generated output and saves the key for your account on this computer, outside the project, in an owner-only local file (not encrypted). XAI_API_KEY overrides the saved key. Cancel with Ctrl+C.\nxAI API key (hidden): ');
           apiKey=await prompt.question('');process.stdout.write('\n');
           result=await configureCredential({confirmed:true,expectedRevision:previous.revision,apiKey},credentialOptions);
         }finally{apiKey=undefined;prompt.close();}
       }
-      print(json?result:result.message??((isJev?'Jev':'Grok')+' credential: '+result.source+'. Saved key: '+(result.saved?'available':'absent')+'.'),json);
+      print(json?result:result.message??((isJev?'Jev':isOpenai?'OpenAI':'Grok')+' credential: '+result.source+'. Saved key: '+(result.saved?'available':'absent')+'.'),json);
       if(result.status==='failed')process.exitCode=1;return;
     }
 
-    if(command==='jev'){
+    if(['jev','decisions'].includes(command)){
       const actions=['status','configure','measurements','decide','experiment','personas'];
       if(!actions.includes(subcommand))throw new Error('Choose Jev status, configure, measurements, decide, experiment or credentials.');
-      const valued=['--project',...(subcommand==='configure'?['--mode','--use-cases','--max-calls','--max-input-tokens','--timeout-ms','--minimum-confidence','--expected-revision']:[]),...(subcommand==='decide'?['--input']:[]),...(subcommand==='experiment'?['--limit']:[]),...(subcommand==='personas'?['--focus','--limit']:[])];
-      const flags=['--json',...(subcommand==='configure'?['--yes','--acknowledge-cloud-processing']:[])],seen=new Set();
+      const valued=['--project',...(subcommand==='configure'?['--provider','--mode','--use-cases','--max-calls','--max-input-tokens','--timeout-ms','--minimum-confidence','--expected-revision']:[]),...(subcommand==='decide'?['--input']:[]),...(subcommand==='experiment'?['--limit']:[]),...(subcommand==='personas'?['--focus','--limit']:[])];
+      const flags=['--json',...(subcommand==='configure'?['--yes','--acknowledge-cloud-processing','--acknowledge-openai-processing','--revoke-cloud-processing','--revoke-openai-processing']:[])],seen=new Set();
       for(let i=2;i<args.length;i++){const argument=args[i];if(seen.has(argument))throw new Error('Do not repeat Jev options.');seen.add(argument);if(valued.includes(argument)){if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('A Jev option requires a value.');i++;}else if(!flags.includes(argument))throw new Error('Unsupported Jev option. Never put API keys in command arguments.');}
       const root=selectedProject(args),current=readJevSettings(root);let value;
-      if(subcommand==='status')value={settings:current,credentials:jevCredentialStatus({projectRoot:root}),measurements:readJevMeasurements(root)};
+      if(subcommand==='status')value={settings:current,...readDecisionCredentials(root),measurements:readJevMeasurements(root)};
       if(subcommand==='measurements')value=readJevMeasurements(root);
       if(subcommand==='configure'){
         const policy=structuredClone(current.policy);
+        for(const vendor of ['openai','cloud'])if(has(args,'--acknowledge-'+vendor+'-processing')&&has(args,'--revoke-'+vendor+'-processing'))throw new Error('Choose acknowledgement or revocation for each provider.');
         if(has(args,'--mode'))policy.mode=option(args,'--mode');
+        if(has(args,'--provider'))policy.provider=option(args,'--provider');
+        if(has(args,'--acknowledge-openai-processing'))policy.openaiConsent=true;
+        if(has(args,'--revoke-openai-processing'))policy.openaiConsent=false;
+        if(has(args,'--revoke-cloud-processing'))policy.cloudConsent=false;
         if(has(args,'--use-cases'))policy.useCases=option(args,'--use-cases').split(',').map(s=>s.trim());
         for(const [flag,key]of [['--max-calls','maxCalls'],['--max-input-tokens','maxInputTokens'],['--timeout-ms','timeoutMs'],['--minimum-confidence','minConfidence']])if(has(args,flag))policy[key]=Number(option(args,flag));
         if(has(args,'--acknowledge-cloud-processing'))policy.cloudConsent=true;
@@ -2552,7 +2561,8 @@ export async function run(args) {
 
     throw new Error(`Unknown command: ${args.join(' ')}`);
   } catch (error) {
-    if(command==='jev'){const safe=safeJevError(error);console.error(json?JSON.stringify(safe):safe.error);process.exitCode=1;return;}
+    if(command==='providers'&&subcommand==='credentials'&&args[2]==='openai'){const safe=safeOpenaiCredentialError(error);console.error(json?JSON.stringify(safe):safe.error);process.exitCode=1;return;}
+    if(['jev','decisions'].includes(command)){const safe=safeJevError(error);console.error(json?JSON.stringify(safe):safe.error);process.exitCode=1;return;}
     if (command !== 'error-report') {
       try {
         const projectRoot = selectedProject(args);

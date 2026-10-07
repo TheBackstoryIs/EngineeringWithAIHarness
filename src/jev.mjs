@@ -2,11 +2,13 @@ import { constants,openSync,closeSync,readFileSync,writeFileSync,lstatSync,fstat
 import { resolve,dirname,relative } from 'node:path';
 import { randomUUID,createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { resolveJevApiKey,jevCredentialIdentity } from './jev-credentials.mjs';
+import { resolveJevApiKey,jevCredentialIdentity,jevCredentialStatus } from './jev-credentials.mjs';
+import {resolveOpenaiApiKey,openaiCredentialIdentity,openaiCredentialStatus} from './openai-credentials.mjs';
+import {OPENAI_DECISIONS_MODEL,buildOpenaiDecisionPayload,normaliseOpenaiDecisionResponse,openaiDecisionUsage} from './openai-decisions.mjs';
 
 export const JEV_MODEL='jev-1.13.0';
 export const JEV_USE_CASES=Object.freeze(['context','personas','skill','claim','failure','impact','tests']);
-const defaultPolicy=Object.freeze({mode:'off',useCases:['context','personas'],cloudConsent:false,maxCalls:100,maxInputTokens:100000,timeoutMs:3000,minConfidence:0.65});
+const defaultPolicy=Object.freeze({mode:'off',provider:'auto',openaiConsent:false,useCases:['context','personas'],cloudConsent:false,maxCalls:100,maxInputTokens:100000,timeoutMs:3000,minConfidence:0.65});
 const sources=new Set(['public','synthetic','cloud-approved','metadata-only']);
 const validId=value=>/^[-a-zA-Z0-9_.]{1,80}$/.test(value)&&!['__proto__','constructor','prototype'].includes(value);
 const sensitive=/(?:apikey_[A-Za-z0-9_-]{16,}|xai-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{16,}|AKIA[A-Z0-9]{16}|-----BEGIN[^\n]*PRIVATE KEY-----|authorization\s*[:=]|(?:password|api[_-]?key|access[_-]?token)["']?\s*[:=]\s*["']?\S{4,})/i;
@@ -53,11 +55,37 @@ function locked(root,fn){
  try{return fn();}finally{const current=stat(lock);if(owned(current)&&current.ino===identity.ino&&current.dev===identity.dev)rmSync(lock,{recursive:true});}
 }
 function policy(value){
- if(!own(value,Object.keys(defaultPolicy))||Object.keys(value).length!==Object.keys(defaultPolicy).length||!['off','shadow','active'].includes(value.mode)||typeof value.cloudConsent!=='boolean'||!Array.isArray(value.useCases)||value.useCases.length>7||new Set(value.useCases).size!==value.useCases.length||value.useCases.some(v=>!JEV_USE_CASES.includes(v)))invalid();
+ // Historical policies disclosed only TypeSafe. Reading or saving that shape
+ // never opts the account into a second vendor or changes its preference.
+ if(plain(value)&&!Object.hasOwn(value,'provider')&&!Object.hasOwn(value,'openaiConsent'))value={...value,provider:'jev',openaiConsent:false};
+ if(!own(value,Object.keys(defaultPolicy))||Object.keys(value).length!==Object.keys(defaultPolicy).length||!['off','shadow','active'].includes(value.mode)||!['auto','openai','jev'].includes(value.provider)||typeof value.openaiConsent!=='boolean'||typeof value.cloudConsent!=='boolean'||!Array.isArray(value.useCases)||value.useCases.length>7||new Set(value.useCases).size!==value.useCases.length||value.useCases.some(v=>!JEV_USE_CASES.includes(v)))invalid();
  for(const [key,min,max]of [['maxCalls',1,1000],['maxInputTokens',2000,1000000],['timeoutMs',100,10000]])if(!Number.isSafeInteger(value[key])||value[key]<min||value[key]>max)invalid();
  if(!Number.isFinite(value.minConfidence)||value.minConfidence<0.5||value.minConfidence>1)invalid();
- if(value.mode!=='off'&&!value.cloudConsent)fail('jev-consent','Confirm the text disclosure consent before enabling Jev.');
+ if(value.mode!=='off'&&!(value.provider==='openai'?value.openaiConsent:value.provider==='jev'?value.cloudConsent:value.openaiConsent||value.cloudConsent))fail('jev-consent','Confirm the selected provider text disclosure consent before enabling decision assistance.');
  return structuredClone(value);
+}
+function selectedProvider(root,settings,options={}){
+ const order=settings.policy.provider==='auto'?['openai','jev']:[settings.policy.provider];
+ for(const provider of order){
+  if(!(provider==='openai'?settings.policy.openaiConsent:settings.policy.cloudConsent))continue;
+  try{
+   const o={...options,projectRoot:root},apiKey=provider==='openai'?resolveOpenaiApiKey(o):resolveJevApiKey(o);if(!apiKey)continue;
+   return {provider,apiKey,model:provider==='openai'?OPENAI_DECISIONS_MODEL:JEV_MODEL,endpoint:provider==='openai'?'https://api.openai.com/v1/decisions':'https://api.typesafe.ai/v1/systemone',price:provider==='openai'?0.10:0.042,identity:provider==='openai'?openaiCredentialIdentity(o):jevCredentialIdentity(o)};
+  }catch(error){if(settings.policy.provider!=='auto')throw error;/* An unusable, unselected credential must not disable another authorised vendor. */}
+ }
+ return null;
+}
+const selectedIdentity=selected=>selected?digest({provider:selected.provider,model:selected.model,credential:selected.identity,keyDigest:digest(selected.apiKey)}):'local';
+export function decisionCredentialIdentity(root,options={}){
+ const settings=readJevSettings(root);
+ if(settings.policy.mode==='off')return 'local';
+ // Credential failures cannot interrupt optional persona/context assistance.
+ // A changed identity still invalidates any advice from an earlier request.
+ try{return selectedIdentity(selectedProvider(root,settings,options));}catch{return 'credential-unavailable';}
+}
+export function readDecisionCredentials(root,options={}){
+ const readStatus=(provider,fn)=>{try{return fn({...options,projectRoot:root});}catch{return {provider,configured:null,saved:null,source:'unavailable',storageSupported:false,storageIssue:'credential-unavailable',authority:'credentials-only'};}};
+ return {credentials:readStatus('jev',jevCredentialStatus),openaiCredentials:readStatus('openai',openaiCredentialStatus)};
 }
 export function readJevSettings(root){
  const value=read(root,'settings',{schema:'ewai.jev-settings/v1',revision:'missing',policy:structuredClone(defaultPolicy)});
@@ -69,21 +97,21 @@ export function saveJevSettings(root,input){
  const next=policy(input.policy);
  return locked(root,()=>{const current=readJevSettings(root);if(current.revision!==input.expectedRevision)fail('jev-settings-stale','Jev settings changed. Refresh before saving again.');const value={schema:'ewai.jev-settings/v1',revision:randomUUID(),policy:next};write(root,'settings',value);return value;});
 }
-function emptyState(revision){return{schema:'ewai.jev-runtime/v1',revision,calls:0,reservedTokens:0,inputTokens:0,unknownUsage:false,budgetBlocked:false,observations:[],cache:{},pending:{}};}
-function state(root,revision){const value=read(root,'state',emptyState(revision));value.pending??={};if(!plain(value.pending)||Object.keys(value.pending).length>1000||Object.entries(value.pending).some(([id,p])=>!validId(id)||!own(p,['settingsRevision'])||typeof p.settingsRevision!=='string'))fail('jev-storage','Jev pending usage could not be read safely.');if(value.schema!=='ewai.jev-runtime/v1'||!Number.isSafeInteger(value.calls)||value.calls<0||!Number.isSafeInteger(value.reservedTokens)||value.reservedTokens<0||!Number.isSafeInteger(value.inputTokens)||value.inputTokens<0||typeof value.unknownUsage!=='boolean'||typeof value.budgetBlocked!=='boolean'||!Array.isArray(value.observations)||value.observations.length>500||!plain(value.cache))fail('jev-storage','Jev measurements could not be read safely.');return value.revision===revision?value:{...value,revision,calls:0,reservedTokens:0,budgetBlocked:false,cache:{},pending:{},unknownUsage:value.unknownUsage||Object.keys(value.pending).length>0};}
+function emptyState(revision){return{schema:'ewai.jev-runtime/v1',revision,calls:0,reservedTokens:0,inputTokens:0,estimatedUSD:0,unknownUsage:false,budgetBlocked:false,observations:[],cache:{},pending:{}};}
+function state(root,revision){const value=read(root,'state',emptyState(revision));if(!Object.hasOwn(value,'pending'))value.pending={};if(!Object.hasOwn(value,'estimatedUSD'))value.estimatedUSD=value.inputTokens*0.042/1000000;if(!plain(value.pending)||Object.keys(value.pending).length>1000||Object.entries(value.pending).some(([id,p])=>!validId(id)||!own(p,['settingsRevision'])||typeof p.settingsRevision!=='string'))fail('jev-storage','Jev pending usage could not be read safely.');if(value.schema!=='ewai.jev-runtime/v1'||!Number.isSafeInteger(value.calls)||value.calls<0||!Number.isSafeInteger(value.reservedTokens)||value.reservedTokens<0||!Number.isSafeInteger(value.inputTokens)||value.inputTokens<0||!Number.isFinite(value.estimatedUSD)||value.estimatedUSD<0||typeof value.unknownUsage!=='boolean'||typeof value.budgetBlocked!=='boolean'||!Array.isArray(value.observations)||value.observations.length>500||!plain(value.cache))fail('jev-storage','Jev measurements could not be read safely.');return value.revision===revision?value:{...value,revision,calls:0,reservedTokens:0,budgetBlocked:false,cache:{},pending:{},unknownUsage:value.unknownUsage||Object.keys(value.pending).length>0};}
 function observe(root,revision,observation,cacheEntry){
- locked(root,()=>{const current=readJevSettings(root),value=state(root,current.revision);delete value.pending[observation.id];value.observations.push({...observation,id:observation.id??randomUUID(),settingsRevision:revision});value.observations=value.observations.slice(-500);if(observation.providerCall){if(observation.inputTokens===null){value.unknownUsage=true;if(current.revision===revision)value.budgetBlocked=true;}else value.inputTokens+=observation.inputTokens;}if(observation.reason==='token-reservation-exceeded'&&current.revision===revision)value.budgetBlocked=true;if(cacheEntry&&current.revision===revision){value.cache[cacheEntry.key]=cacheEntry.value;while(Buffer.byteLength(JSON.stringify(value.cache))>131072)delete value.cache[Object.keys(value.cache)[0]];}write(root,'state',value);});
+ locked(root,()=>{const current=readJevSettings(root),value=state(root,current.revision);delete value.pending[observation.id];value.observations.push({...observation,id:observation.id??randomUUID(),settingsRevision:revision});value.observations=value.observations.slice(-500);if(observation.providerCall){if(observation.inputTokens===null){value.unknownUsage=true;if(current.revision===revision)value.budgetBlocked=true;}else {value.inputTokens+=observation.inputTokens;value.estimatedUSD+=observation.estimatedUSD;}}if(observation.reason==='token-reservation-exceeded'&&current.revision===revision)value.budgetBlocked=true;if(cacheEntry&&current.revision===revision){value.cache[cacheEntry.key]=cacheEntry.value;while(Buffer.byteLength(JSON.stringify(value.cache))>131072)delete value.cache[Object.keys(value.cache)[0]];}write(root,'state',value);});
 }
 export function readJevMeasurements(root){
  const settings=readJevSettings(root),value=state(root,settings.revision),latencies=value.observations.filter(o=>o.providerCall).map(o=>o.elapsedMs).sort((a,b)=>a-b);
- return {schema:'ewai.jev-measurements/v1',revision:settings.revision,budget:{callsUsed:value.calls,maxCalls:settings.policy.maxCalls,reservedTokens:value.reservedTokens,maxInputTokens:settings.policy.maxInputTokens},summary:{unresolvedCalls:Object.keys(value.pending).length,historyLimit:500,historyScope:'latest 500 observation events; input/cost totals cover all recorded provider calls',providerCalls:value.observations.filter(o=>o.providerCall).length,cacheHits:value.observations.filter(o=>o.cacheHit).length,fallbacks:value.observations.filter(o=>o.status==='fallback').length,inputTokens:value.unknownUsage||Object.keys(value.pending).length?null:value.inputTokens,estimatedUSD:value.unknownUsage||Object.keys(value.pending).length?null:value.inputTokens*0.042/1000000,medianMs:latencies.length?latencies[Math.floor(latencies.length/2)]:null,p95Ms:latencies.length?latencies[Math.min(latencies.length-1,Math.ceil(latencies.length*0.95)-1)]:null,downstreamSavings:null,priceSource:'https://docs.typesafe.ai/models',priceUSDPerMillionInputTokens:0.042},observations:value.observations};
+ return {schema:'ewai.jev-measurements/v1',revision:settings.revision,budget:{callsUsed:value.calls,maxCalls:settings.policy.maxCalls,reservedTokens:value.reservedTokens,maxInputTokens:settings.policy.maxInputTokens},summary:{unresolvedCalls:Object.keys(value.pending).length,historyLimit:500,historyScope:'latest 500 observation events; input/cost totals cover all recorded provider calls',providerCalls:value.observations.filter(o=>o.providerCall).length,cacheHits:value.observations.filter(o=>o.cacheHit).length,fallbacks:value.observations.filter(o=>o.status==='fallback').length,inputTokens:value.unknownUsage||Object.keys(value.pending).length?null:value.inputTokens,estimatedUSD:value.unknownUsage||Object.keys(value.pending).length?null:value.estimatedUSD,medianMs:latencies.length?latencies[Math.floor(latencies.length/2)]:null,p95Ms:latencies.length?latencies[Math.min(latencies.length-1,Math.ceil(latencies.length*0.95)-1)]:null,downstreamSavings:null,priceSource:'Base-rate estimates: TypeSafe models and OpenAI Decisions guide; OpenAI estimate precedes free cache adjustments and regional/long-context premiums',priceUSDPerMillionInputTokens:null,priceByProvider:{jev:0.042,openai:0.10}},observations:value.observations};
 }
 export function recordJevEffect(root,decision,details){
  if(!decision?.measurement?.id)return;
  if(!own(details,['effect','baselineIds','suggestedIds','actualIds'])||!['unchanged','context-ordering','persona-additions','review-addition'].includes(details.effect))invalid();
  for(const ids of [details.baselineIds,details.suggestedIds,details.actualIds])if(!Array.isArray(ids)||ids.length>64||ids.some(id=>!validId(id)))invalid();
  const revision=readJevSettings(root).revision;
- observe(root,revision,{id:randomUUID(),decisionId:decision.measurement.id,useCase:decision.measurement.useCase,model:JEV_MODEL,mode:decision.mode,status:'effect-recorded',providerCall:false,cacheHit:false,elapsedMs:0,inputTokens:0,outputTokens:0,estimatedUSD:0,downstreamSavings:null,...details});
+ observe(root,revision,{id:randomUUID(),decisionId:decision.measurement.id,useCase:decision.measurement.useCase,provider:decision.measurement.provider??'jev',model:decision.measurement.model??JEV_MODEL,mode:decision.mode,status:'effect-recorded',providerCall:false,cacheHit:false,elapsedMs:0,inputTokens:0,outputTokens:0,estimatedUSD:0,downstreamSavings:null,...details});
 }
 function question(q){
  if(!own(q,['type','instructions','criteria'])||!['choice','score','noul'].includes(q.type)||typeof q.instructions!=='string'||!q.instructions.trim()||q.instructions.length>2000)invalid();
@@ -105,7 +133,7 @@ function validatedAnswers(body,questions){
    if(!keys.includes(a.choice)||a.probabilities[a.choice]+1e-9<Math.max(...Object.values(a.probabilities)))throw Error('invalid-response');output[id]={type:'choice',choice:a.choice,probabilities:a.probabilities,confidence:a.confidence};
   }else{
    const expected=keys.reduce((s,k)=>s+Number(k)*a.probabilities[k],0);
-   if(!Number.isFinite(a.score)||Math.abs(a.score-expected)>0.01||!plain(a.legend)||Object.keys(a.legend).length!==keys.length||!keys.every(k=>a.legend[k]===q.criteria[Number(k)]))throw Error('invalid-response');output[id]={type:'score',score:a.score,confidence:a.confidence,probabilities:a.probabilities,legend:a.legend};
+   if(!Number.isFinite(a.score)||a.score<0||a.score>q.criteria.length-1||Math.abs(a.score-expected)>0.01||!plain(a.legend)||Object.keys(a.legend).length!==keys.length||!keys.every(k=>a.legend[k]===q.criteria[Number(k)]))throw Error('invalid-response');output[id]={type:'score',score:a.score,confidence:a.confidence,probabilities:a.probabilities,legend:a.legend};
   }
  }
  return output;
@@ -117,7 +145,7 @@ async function boundedResponse(response){
  try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw Error('invalid-response');}
 }
 export async function evaluateJev(root,input,options={}){
- const started=performance.now();let settings,apiKey,reservation,controller,timer,watcher,providerUsage=null,dispatched=false;
+ const started=performance.now();let settings,selected,apiKey,reservation,controller,timer,watcher,providerUsage=null,dispatched=false;
  const fallback=(reason,status='fallback',extra={})=>({schema:'ewai.jev-decision/v1',status,reason,mode:settings?.policy.mode??'off',authority:'advisory',...extra});
  try{
   settings=readJevSettings(root);
@@ -125,18 +153,21 @@ export async function evaluateJev(root,input,options={}){
   if(!own(input,['useCase','source','state','questions'])||!JEV_USE_CASES.includes(input.useCase))invalid();
   if(!settings.policy.useCases.includes(input.useCase))return fallback('use-case-disabled','disabled');
   if(!sources.has(input.source))return fallback('source-ineligible');
-  if(!settings.policy.cloudConsent)return fallback('consent-required');
+
   if(!plain(input.questions)||Object.keys(input.questions).length<1||Object.keys(input.questions).length>32||Object.keys(input.questions).some(id=>!validId(id)))invalid();
   Object.values(input.questions).forEach(question);
-  const payload={model:JEV_MODEL,state:input.state,questions:input.questions},serialised=JSON.stringify(payload);
+  const neutralPayload={model:JEV_MODEL,state:input.state,questions:input.questions};
+  if(sensitiveInput(neutralPayload))return fallback('sensitive-input');
+  selected=selectedProvider(root,settings,options);if(!selected)return fallback('missing-key');apiKey=selected.apiKey;
+  const payload=selected.provider==='openai'?buildOpenaiDecisionPayload(input.state,input.questions):neutralPayload,serialised=JSON.stringify(payload);
   if(!['string','object'].includes(typeof input.state)||input.state===null||Buffer.byteLength(serialised)>16000)invalid();
   if(sensitiveInput(payload))return fallback('sensitive-input');
-  apiKey=resolveJevApiKey({...options,projectRoot:root});if(!apiKey)return fallback('missing-key');
+
   if(serialised.includes(apiKey))return fallback('sensitive-input');
   // UTF-8 bytes plus headroom is a conservative local reservation, not a
   // claimed token count. Unknown/over-reservation usage exhausts the budget.
-  const namespace=jevCredentialIdentity({...options,projectRoot:root});
-  const reserve=Buffer.byteLength(serialised)+1024,cacheKey=digest({revision:settings.revision,credential:namespace,source:input.source,useCase:input.useCase,payload});
+  const namespace=selectedIdentity(selected);
+  const reserve=Buffer.byteLength(serialised)+1024,cacheKey=digest({revision:settings.revision,credential:namespace,provider:selected.provider,model:selected.model,source:input.source,useCase:input.useCase,payload});
   reservation=locked(root,()=>{
    if(digest(readJevSettings(root))!==digest(settings))return {reason:'policy-changed'};
    const value=state(root,settings.revision),cached=value.cache[cacheKey];
@@ -145,10 +176,10 @@ export async function evaluateJev(root,input,options={}){
    const id=randomUUID();value.calls++;value.reservedTokens+=reserve;value.pending[id]={settingsRevision:settings.revision};write(root,'state',value);return {id,reserve,cacheKey};
   });
   if(reservation.reason)return fallback(reservation.reason);
-  const stillCurrent=()=>digest(readJevSettings(root))===digest(settings)&&resolveJevApiKey({...options,projectRoot:root})===apiKey&&jevCredentialIdentity({...options,projectRoot:root})===namespace;
+  const stillCurrent=()=>digest(readJevSettings(root))===digest(settings)&&decisionCredentialIdentity(root,options)===namespace;
   if(reservation.cached){
    if(!stillCurrent())return fallback('policy-changed');
-   const measurement={id:randomUUID(),useCase:input.useCase,model:JEV_MODEL,mode:settings.policy.mode,status:'suggested',providerCall:false,cacheHit:true,elapsedMs:Math.round(performance.now()-started),inputTokens:0,outputTokens:0,estimatedUSD:0,effect:settings.policy.mode==='shadow'?'shadow':'advisory',downstreamSavings:null};
+   const measurement={id:randomUUID(),useCase:input.useCase,provider:selected?.provider??null,model:selected?.model??null,mode:settings.policy.mode,status:'suggested',providerCall:false,cacheHit:true,elapsedMs:Math.round(performance.now()-started),inputTokens:0,outputTokens:0,estimatedUSD:0,effect:settings.policy.mode==='shadow'?'shadow':'advisory',downstreamSavings:null};
    observe(root,settings.revision,measurement);return {...fallback('cached','suggested'),answers:reservation.cached.answers,cacheHit:true,measurement};
   }
   if(!stillCurrent())throw Error('policy-changed');
@@ -156,17 +187,17 @@ export async function evaluateJev(root,input,options={}){
   const deadline=new Promise((_,reject)=>{rejectDeadline=reject;timer=setTimeout(()=>{controller.abort();reject(Error('timeout'));},settings.policy.timeoutMs);});
   watcher=setInterval(()=>{try{if(!stillCurrent()){controller.abort();rejectDeadline(Error('policy-changed'));}}catch{controller.abort();rejectDeadline(Error('policy-changed'));}},100);
   const operation=(async()=>{
-   dispatched=true;const response=await(options.fetchImpl??fetch)('https://api.typesafe.ai/v1/systemone',{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:serialised,redirect:'manual',signal:controller.signal});
+   dispatched=true;const response=await(options.fetchImpl??fetch)(selected.endpoint,{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:serialised,redirect:'manual',signal:controller.signal});
    if(!response.ok){if(response.body)void response.body.cancel().catch(()=>{});throw Error('http-'+response.status);}
    return boundedResponse(response);
   })();
-  const body=await Promise.race([operation,deadline]);providerUsage=usage(body);
+  const body=await Promise.race([operation,deadline]);providerUsage=selected.provider==='openai'?openaiDecisionUsage(body):usage(body);
   if(!providerUsage)throw Error('missing-usage');
   if(providerUsage.inputTokens>reserve)throw Error('token-reservation-exceeded');
-  const answers=validatedAnswers(body,input.questions);
+  const answers=validatedAnswers(selected.provider==='openai'?normaliseOpenaiDecisionResponse(body,input.questions):body,input.questions);
   if(!stillCurrent())throw Error('policy-changed');
   if(Object.values(answers).some(a=>a.type!=='noul'&&a.confidence<settings.policy.minConfidence))throw Error('low-confidence');
-  const measurement={id:reservation.id,useCase:input.useCase,model:JEV_MODEL,mode:settings.policy.mode,status:'suggested',providerCall:true,cacheHit:false,elapsedMs:Math.round(performance.now()-started),...providerUsage,estimatedUSD:providerUsage.inputTokens*0.042/1000000,effect:settings.policy.mode==='shadow'?'shadow':'advisory',downstreamSavings:null};
+  const measurement={id:reservation.id,useCase:input.useCase,provider:selected?.provider??null,model:selected?.model??null,mode:settings.policy.mode,status:'suggested',providerCall:true,cacheHit:false,elapsedMs:Math.round(performance.now()-started),...providerUsage,estimatedUSD:providerUsage.inputTokens*selected.price/1000000,effect:settings.policy.mode==='shadow'?'shadow':'advisory',downstreamSavings:null};
   // Choice cache carries bounded IDs and numeric probabilities/confidence,
   // never rubrics, instructions or source bodies.
   const cachedAnswers=Object.fromEntries(Object.entries(answers).map(([id,a])=>[id,a.type==='choice'?{...a}:a.type==='noul'?{...a}:{...a,legend:{}}]));
@@ -176,11 +207,11 @@ export async function evaluateJev(root,input,options={}){
   observe(root,settings.revision,measurement,cacheEntry);
   return {...fallback('evaluated','suggested'),answers,cacheHit:false,measurement};
  }catch(error){
-  const allowed=/^(?:timeout|policy-changed|invalid-response|response-too-large|missing-usage|token-reservation-exceeded|low-confidence|http-\d{3})$/;
+  const allowed=/^(?:timeout|policy-changed|invalid-response|refusal|response-too-large|missing-usage|token-reservation-exceeded|low-confidence|http-\d{3})$/;
   const reason=allowed.test(error?.message??'')?error.message:error.code?.startsWith('jev-')?'local-state-or-input-unavailable':'provider-unavailable';
   const result=fallback(reason);
   if(reservation?.reserve){
-   const measurement={id:reservation.id,useCase:input.useCase,model:JEV_MODEL,mode:settings.policy.mode,status:'fallback',reason,providerCall:dispatched,cacheHit:false,elapsedMs:Math.round(performance.now()-started),inputTokens:providerUsage?.inputTokens??(dispatched?null:0),outputTokens:providerUsage?.outputTokens??(dispatched?null:0),estimatedUSD:providerUsage?providerUsage.inputTokens*0.042/1000000:dispatched?null:0,effect:'none',downstreamSavings:null};
+   const measurement={id:reservation.id,useCase:input.useCase,provider:selected?.provider??null,model:selected?.model??null,mode:settings.policy.mode,status:'fallback',reason,providerCall:dispatched,cacheHit:false,elapsedMs:Math.round(performance.now()-started),...providerUsage,inputTokens:providerUsage?.inputTokens??(dispatched?null:0),outputTokens:providerUsage?.outputTokens??(dispatched?null:0),estimatedUSD:providerUsage?providerUsage.inputTokens*selected.price/1000000:dispatched?null:0,effect:'none',downstreamSavings:null};
    try{observe(root,settings.revision,measurement);}catch{/* No unsafe diagnostic or source is emitted. */}result.measurement=measurement;
   }
   return result;
