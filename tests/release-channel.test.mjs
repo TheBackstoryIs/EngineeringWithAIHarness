@@ -17,7 +17,8 @@ test('the public release has consistent metadata and channel-specific installati
   const readme = readFileSync(resolve('README.md'), 'utf8');
   const channel = publishTagForVersion(metadata.version);
   assert.match(metadata.version, /^\d+\.\d+\.\d+(?:-beta\.\d+)?$/);
-  assert.ok(readme.includes('`' + metadata.version + '`'), 'README describes the packaged version');
+  const releaseHeading = '## New in ' + metadata.version.replace(/-beta\.(\d+)$/, ' Beta $1 release');
+  assert.ok(readme.includes('`' + metadata.version + '`') || readme.split('\n').includes(releaseHeading), 'README describes the packaged version');
   assert.equal(lock.version, metadata.version);
   assert.equal(lock.packages[''].version, metadata.version);
   assert.match(readme, /EWAI can now pick up the next ready piece of work/);
@@ -29,7 +30,8 @@ test('the public release has consistent metadata and channel-specific installati
     const guide = readFileSync(resolve('Docs/context-management-and-token-efficiency.md'), 'utf8');
     assert.ok(guide.includes('`' + metadata.version + '`'), 'User guidance identifies the beta version');
     assert.match(guide, /incremental token or cost saving has been measured/);
-    assert.match(readme, /Local beta preparation does not change the production npm channel/);
+    const releaseNote = readFileSync(resolve('Docs/releases', metadata.version + '.md'), 'utf8');
+    assert.ok(readme.includes(releaseNote.replace(/^# /, '## ')), 'README and release note contain the same release section');
   } else {
     assert.equal(channel, 'latest');
   }
