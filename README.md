@@ -2,7 +2,7 @@
 
 ## EWAI now supports Jev and the OpenAI Decisions API
 
-Available in `0.3.4-beta.4` on the npm beta channel.
+Available in `0.3.4-beta.5` on the npm beta channel.
 
 EWAI can now use Jev or the OpenAI Decisions API during software development to rank options, check an AI's recommended choice and suggest suitable persona reviewers.
 
@@ -13,8 +13,6 @@ EWAI can now use Jev or the OpenAI Decisions API during software development to 
 
 These smaller decision calls are intended to reduce the need for a larger model to weigh existing choices. Usage limits and estimated costs help you track the experiment. Savings in completed coding-task time, tokens and cost have not yet been measured.
 
-**Time allowances:** existing unattended-run time and attempt limits remain available. A new overall allowance for each task, reserving time for tests and review, is still a proposal and is not included in this update.
-
 This is an experimental beta. Required tests, evidence and human approvals still apply. OpenAI integration was tested with mocks; human Manual QA remains pending.
 
 Local beta preparation does not change the production npm channel. Install from the beta channel:
@@ -23,7 +21,7 @@ Local beta preparation does not change the production npm channel. Install from 
 npm install --save-dev @thebackstoryis/engineering-with-ai@beta
 ```
 
-Read the [beta update](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.4/Docs/releases/0.3.4-beta.4.md), [Jev setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.4/Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.4/Docs/operations/openai-decisions-beta.md).
+Read the [beta update](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.5/Docs/releases/0.3.4-beta.5.md), [Jev setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.5/Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.5/Docs/operations/openai-decisions-beta.md).
 
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
