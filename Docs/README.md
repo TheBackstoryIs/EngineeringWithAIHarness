@@ -55,4 +55,4 @@ The [complete guide catalogue](guide-catalogue.md) separates everyday use, engin
 
 If you're changing EWAI itself, start in the [maintainer section](guide-catalogue.md#maintaining-ewai), not the application delivery instructions.
 
-OpenAI Decisions joins the shared bounded engine in local beta.2. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.
+OpenAI Decisions joins the shared bounded engine in `0.3.4-beta.2`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

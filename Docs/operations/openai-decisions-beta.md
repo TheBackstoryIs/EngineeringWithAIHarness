@@ -1,6 +1,6 @@
 # OpenAI Decisions beta
 
-Local `0.3.4-beta.2` adds OpenAI Decisions to the bounded decision assistance introduced with Jev. It is unpublished. Start in shadow mode and compare suggestions before explicitly choosing active mode.
+Experimental `0.3.4-beta.2` adds OpenAI Decisions to the bounded decision assistance introduced with Jev. Start in shadow mode and compare suggestions before explicitly choosing active mode.
 
 ## Private setup
 

@@ -4,7 +4,7 @@ Jev evaluates bounded choice, score and yes/no questions. Use it to rank an exis
 
 ## Enablement and credentials
 
-Jev is off by default. In Configuration, use **Jev API credentials** to check and save a TypeSafe key, then select **Shadow** in **Jev decision assistance**, choose uses, accept the text-processing disclosure and save. First enablement should use shadow. Select Active explicitly after reviewing measurements. Saving credentials does not enable inference.
+Jev is off by default. In Configuration, use **Jev API credentials** to check and save a TypeSafe key, then select **Shadow** in **Decision assistance**, choose uses, accept the text-processing disclosure and save. First enablement should use shadow. Select Active explicitly after reviewing measurements. Saving credentials does not enable inference.
 
 CLI equivalents:
 
@@ -75,6 +75,6 @@ The synthetic runner evaluates at most six labelled challenge cases using the al
 
 API and model references: [TypeSafe API](https://docs.typesafe.ai/api), [models and pricing](https://docs.typesafe.ai/models), [confidence](https://docs.typesafe.ai/confidence), [coding-agent guidance](https://docs.typesafe.ai/introduction/coding-agents).
 
-This is a local beta experiment. Packaging and automated browser checks do not replace owner Manual QA or authorise npm publication.
+This is an experimental beta. Packaging and automated browser checks do not replace owner Manual QA or establish completed coding-task savings.
 
-OpenAI Decisions joins the shared bounded engine in local beta.2. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.
+OpenAI Decisions joins the shared bounded engine in `0.3.4-beta.2`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

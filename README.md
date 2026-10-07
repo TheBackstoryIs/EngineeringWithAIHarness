@@ -20,19 +20,19 @@ ewai
 
 Versions `0.3.2` and `0.3.3` update the package's links and documentation. The features below arrived in `0.3.1`.
 
-## Local Jev beta experiment
+## Optional decision assistance beta
 
-`0.3.4-beta.1` adds opt-in Jev settings, private TypeSafe credentials, ranked options, structured LLM recommendation comparisons and available persona recommendations. It starts off; first enablement should use shadow. See the [Jev beta guide](Docs/operations/jev-beta-experiment.md) for setup, bounded synthetic experiments and measurement limits.
+`0.3.4-beta.2` adds optional help from Jev and OpenAI Decisions. Use it to weigh existing options, compare an AI recommendation, or suggest suitable persona reviewers from those already available to your project.
 
-`0.3.4-beta.2` adds optional OpenAI Decisions to the same bounded engine, with separate private credentials and consent. Both providers remain off by default. See the [OpenAI Decisions beta guide](Docs/operations/openai-decisions-beta.md).
+Both providers start off. Add their keys privately through the CLI or dashboard, then choose whether to use them. Start with shadow mode to see recommendations without changing existing behaviour. Required evidence, tests and human approvals still apply.
 
-This build is prepared locally; it has not been published or accepted through Manual QA. Local beta preparation does not change the production npm channel. To install an authorised local build, use its `.tgz` file. Published beta packages use the beta tag:
+This is an experimental beta: completed coding-task time, token and cost savings have not been measured. Local beta preparation does not change the production npm channel. Install from the beta channel:
 
 ```bash
 npm install --save-dev @thebackstoryis/engineering-with-ai@beta
 ```
 
-The registry's beta tag may refer to an earlier build until this version is separately published.
+Read the [beta update](Docs/releases/0.3.4-beta.2.md), [Jev setup guide](Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](Docs/operations/openai-decisions-beta.md).
 
 ## New in 0.3.1: concise answers and Grok Build
 
@@ -155,5 +155,3 @@ Premium personas are optional specialist perspectives. If you have a subscriptio
 ## Contributing to EWAI
 
 If you're changing the harness itself, use the [contributor guide](Docs/maintainers/contributing.md) and [verification walkthroughs](Docs/maintainers/verification-walkthroughs.md). Those source-checkout and regression-test instructions aren't part of setting up your own application.
-
-OpenAI Decisions joins the shared bounded engine in local beta.2. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](Docs/operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.
