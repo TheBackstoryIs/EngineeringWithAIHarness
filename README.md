@@ -1,5 +1,30 @@
 # Engineering With AI
 
+## EWAI now supports Jev and the OpenAI Decisions API
+
+Available in `0.3.4-beta.4` on the npm beta channel.
+
+EWAI can now use Jev or the OpenAI Decisions API during software development to rank options, check an AI's recommended choice and suggest suitable persona reviewers.
+
+- **Choose an approach.** Rank an existing set of options and get a recommended choice.
+- **Check an AI's recommendation.** Get a second opinion on supported choices returned by a larger language model.
+- **Find suitable reviewers.** Get suggestions from the personas already available to your project, including installed premium personas.
+- **Control when you use it.** Add API keys privately through the CLI or dashboard. Both services start off; saving a key never enables them. Try shadow mode to see suggestions before they change automatic behaviour.
+
+These smaller decision calls are intended to reduce the need for a larger model to weigh existing choices. Usage limits and estimated costs help you track the experiment. Savings in completed coding-task time, tokens and cost have not yet been measured.
+
+**Time allowances:** existing unattended-run time and attempt limits remain available. A new overall allowance for each task, reserving time for tests and review, is still a proposal and is not included in this update.
+
+This is an experimental beta. Required tests, evidence and human approvals still apply. OpenAI integration was tested with mocks; human Manual QA remains pending.
+
+Local beta preparation does not change the production npm channel. Install from the beta channel:
+
+```sh
+npm install --save-dev @thebackstoryis/engineering-with-ai@beta
+```
+
+Read the [beta update](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.4/Docs/releases/0.3.4-beta.4.md), [Jev setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.4/Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/v0.3.4-beta.4/Docs/operations/openai-decisions-beta.md).
+
 Engineering With AI (EWAI) helps you plan, build and review software with an AI assistant. It gives the assistant a shared record of the project, a delivery workflow and checks against your engineering standards. You keep control of the decisions and approve implementation before it starts.
 
 [![Intent Studio in the EWAI dashboard: describing a feature, agreeing its acceptance criteria and engaging specialist personas before any code is written](https://www.conversationalcoding.dev/wp-content/uploads/sites/5/2026/09/intent-studio-full-be7758ffd224-1536x704.webp)](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
@@ -18,21 +43,7 @@ ewai
 
 `ewai` opens your assistant and walks you through setting up the project. See [Install and start](#install-and-start) for details.
 
-Versions `0.3.2` and `0.3.3` update the package's links and documentation. The features below arrived in `0.3.1`.
-
-## Optional decision assistance beta
-
-`0.3.4-beta.3` adds optional help from Jev and OpenAI Decisions. Use it to weigh existing options, compare an AI recommendation, or suggest suitable persona reviewers from those already available to your project.
-
-Both providers start off. Add their keys privately through the CLI or dashboard, then choose whether to use them. Start with shadow mode to see recommendations without changing existing behaviour. Required evidence, tests and human approvals still apply.
-
-This is an experimental beta: completed coding-task time, token and cost savings have not been measured. Local beta preparation does not change the production npm channel. Install from the beta channel:
-
-```bash
-npm install --save-dev @thebackstoryis/engineering-with-ai@beta
-```
-
-Read the [beta update](Docs/releases/0.3.4-beta.3.md), [Jev setup guide](Docs/operations/jev-beta-experiment.md) or [OpenAI Decisions setup guide](Docs/operations/openai-decisions-beta.md).
+Versions `0.3.2` and `0.3.3` update the package's links and documentation. The stable features below arrived in `0.3.1`.
 
 ## New in 0.3.1: concise answers and Grok Build
 
