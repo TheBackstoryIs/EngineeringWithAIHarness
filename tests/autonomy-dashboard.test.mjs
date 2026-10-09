@@ -59,7 +59,7 @@ test('revoked authority disables dispatch and shows preserved pending work', { t
 
   await page.locator('[data-view="companion"]').first().click();
   const dispatch = page.getByRole('button', { name: 'Run next action' });
-  await dispatch.waitFor();
+  await dispatch.and(page.locator(':enabled')).waitFor();
   assert.equal(await dispatch.isEnabled(), true);
 
   await page.locator('#configurationNav').click();

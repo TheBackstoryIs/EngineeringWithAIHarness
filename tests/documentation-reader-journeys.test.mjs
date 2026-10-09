@@ -15,7 +15,7 @@ const repo = fileURLToPath(new URL('../', import.meta.url));
 
 test('README leads with installing EWAI and launching guided project setup', () => {
   const text = readFileSync(resolve(repo, 'README.md'), 'utf8');
-  const start = text.slice(text.indexOf('## Install and start'), text.indexOf('## Start with a conversation'));
+  const start = text.slice(text.search(/^#{2,3} Install and start$/m), text.indexOf('## Start with a conversation'));
   assert.ok(start.length > 0, 'Installation and launch should come before conversational examples');
   const commands = /```bash\n([\s\S]*?)\n```/.exec(start)?.[1];
   assert.equal(commands, 'npm install --global @thebackstoryis/engineering-with-ai\ncd /path/to/your/project\newai');
