@@ -8,6 +8,8 @@ For feature delivery, **`ewai-deliver` coordinates the full fourteen-stage workf
 
 If you want EWAI to act on an approved, exact pool of registered intents, read [governed autonomous intent delivery](autonomous-intent-delivery.md). It starts off, needs a named and bounded grant, and leaves human Build approval and Manual QA separate.
 
+Read [what's new in version 0.3.4](releases/0.3.4.md), or the [earlier Jev and OpenAI Decisions beta notes](releases/0.3.4-beta.6.md).
+
 ## New to EWAI?
 
 1. [Install EWAI](operations/installation-updating-and-entitlements.md) and open it in your project folder.
@@ -36,6 +38,8 @@ To try the beta communication guidance, read [concise answers and guided decisio
 
 [Choose which views you need](operations/dashboard-configuration.md). Portfolio, Team Hub, policy tools and the other advanced views are optional and start hidden. Showing a view doesn't configure the service behind it; hiding one doesn't remove checks your project requires.
 
+Try the optional [Jev decision-assistance beta](operations/jev-beta-experiment.md) to rank bounded options, compare LLM recommendations and recommend available personas. Start with shadow mode; overall coding savings remain unmeasured.
+
 ## Something isn't working?
 
 Start with [troubleshooting and recovery](operations/troubleshooting-and-recovery.md). For a problem that needs support, [prepare a private error report](error-reporting-guide.md) and review it before sharing.
@@ -52,3 +56,5 @@ The [complete guide catalogue](guide-catalogue.md) separates everyday use, engin
 - **An installed pack isn't automatically suitable.** Review shared guidance before adopting it. Executable adapters need explicit registration and run with your operating-system permissions; they aren't OS-sandboxed.
 
 If you're changing EWAI itself, start in the [maintainer section](guide-catalogue.md#maintaining-ewai), not the application delivery instructions.
+
+OpenAI Decisions joins the shared bounded engine in `0.3.4-beta.3`. New settings default off with Automatic provider preference; historical Jev policies retain their vendor consent. Private CLI/dashboard OpenAI key setup, independent text consent, typed conversion and provider-aware costs are described in the [OpenAI Decisions beta guide](operations/openai-decisions-beta.md). Live OpenAI access and completed-task savings remain unmeasured.

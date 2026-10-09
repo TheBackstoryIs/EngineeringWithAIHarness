@@ -27,7 +27,7 @@ test('real dashboard supports quiet defaults, shared settings, premium states an
   assert.equal(await page.locator('#dashboardSidebar [data-optional-view]:visible').count(),0);
   assert.ok(!requests.some(p=>['/api/portfolio','/api/team-hub','/api/security-validation','/api/starters'].includes(p)));
   await capture('desktop-board');
-  await page.locator('#configurationNav').click();assert.equal(await page.locator('#configurationView input[type=checkbox]').count(),9);
+  await page.locator('#configurationNav').click();assert.equal(await page.locator('#dashboardPreferencesForm input[type=checkbox]').count(),9);
   await page.getByRole('checkbox',{name:'Show Portfolio',exact:true}).check();await page.getByRole('button',{name:'Save changes',exact:true}).click();
   await page.getByText('Dashboard preferences saved.',{exact:true}).waitFor();
   await page.reload();await page.waitForFunction(()=>document.querySelector('#configurationNav')?.disabled===false);
@@ -45,7 +45,7 @@ test('real dashboard supports quiet defaults, shared settings, premium states an
   await page.getByText('Unsaved changes discarded.',{exact:true}).waitFor();
   assert.equal(await page.getByRole('checkbox',{name:'Show Team Hub',exact:true}).isChecked(),false);
   assert.equal(await page.getByRole('checkbox',{name:'Show Starters',exact:true}).isChecked(),true);
-  for(const checkbox of await page.locator('#configurationView input[type=checkbox]').all())await checkbox.check();
+  for(const checkbox of await page.locator('#dashboardPreferencesForm input[type=checkbox]').all())await checkbox.check();
   await page.getByRole('button',{name:'Save changes',exact:true}).click();await page.getByText('Dashboard preferences saved.',{exact:true}).waitFor();
   assert.equal(await page.locator('#dashboardSidebar [data-optional-view]:visible').count(),9);
   await capture('desktop-configuration');

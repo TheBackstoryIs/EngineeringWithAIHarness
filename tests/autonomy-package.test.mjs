@@ -204,8 +204,8 @@ test('package includes autonomy runtime, assets and public guidance but no priva
   }
   for (const path of paths) {
     // Credential setup code ships with the engine; account credential data never does.
-    const credentialCode = ['src/grok-credentials.mjs', 'public/grok-credentials.js'].includes(path);
-    if (path !== 'tests/fixtures/context-benchmarks.json' && !credentialCode) {
+    const credentialCode = ['src/grok-credentials.mjs', 'public/grok-credentials.js', 'src/jev-credentials.mjs', 'public/jev-credentials.js', 'src/openai-credentials.mjs', 'public/openai-credentials.js'].includes(path);
+    if (!['tests/fixtures/context-benchmarks.json', 'tests/fixtures/jev-synthetic.json'].includes(path) && !credentialCode) {
       assert.doesNotMatch(path, /^(?:SPECS\/|tests\/|\.ewai-pipeline\/)|(?:\.env|\.npmrc|credential|private-key)/i);
     }
   }

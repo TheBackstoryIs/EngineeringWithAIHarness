@@ -6,6 +6,14 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 **Website, guides and books:** [conversationalcoding.dev](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai) · [Online documentation](https://www.conversationalcoding.dev/engineering-with-ai-harness/docs/?utm_source=readme&utm_medium=referral&utm_campaign=ewai) · [Persona library](https://www.conversationalcoding.dev/personas/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
 
+## What's new in this version
+
+Version `0.3.4` adds optional **Jev and OpenAI Decisions** support to rank choices, compare AI recommendations, prioritise context and suggest personas or additional checks. Both start switched off. Configure them privately through the CLI or dashboard, compare advice in shadow mode or apply supported recommendations in active mode, and track usage, estimated cost and call limits.
+
+**Concise answers and Grok Build.** EWAI puts the result or recommendation first, with clearer choices and less repetition. Grok Build is available as a coding companion, with dashboard and CLI controls for choosing your primary assistant and independent reviewers.
+
+**Pick up the next ready piece of work.** Approve a list of work items and EWAI can select the next ready item using your recorded priorities. Set time and attempt limits, follow progress, and pause or recover a run. Build approval, required reviews, Manual QA and release decisions stay with you.
+
 ## Quick start
 
 EWAI is free and works with Claude Code, Codex, Google Antigravity and Grok Build. You'll need Node.js 22.5 or newer and one of those assistants, installed and signed in.
@@ -18,27 +26,7 @@ ewai
 
 `ewai` opens your assistant and walks you through setting up the project. See [Install and start](#install-and-start) for details.
 
-Versions `0.3.2` and `0.3.3` update the package's links and documentation. The features below arrived in `0.3.1`.
-
-## New in 0.3.1: concise answers and Grok Build
-
-Version `0.3.1` makes EWAI's guidance more concise and adds Grok Build as a coding provider.
-
-**Concise answers and guided decisions.** EWAI's managed instructions now prioritise correctness and usefulness, then brevity. Expect the result or recommendation first, with less repetition and routine narration. Decision requests explain the action, options and consequences, then give a recommendation with its reason and a suggested response when useful. When a request is unclear, EWAI leads with its recommended interpretation and states the assumptions that matter. The guidance is designed to cut unnecessary output; tool-result compaction is still planned, and token or cost savings haven't been measured yet. See [concise answers and guided decisions](Docs/context-management-and-token-efficiency.md#concise-answers-and-guided-decisions).
-
-**Grok Build and coding provider settings.** EWAI can open Grok Build as a native companion, install its skills and set up project MCP. **Configuration → Coding providers** in the dashboard, or `ewai providers` in a terminal, lets you choose a primary coding CLI, independent reviewers and an eligible pool for unattended work. Each CLI keeps its own model choice by default. Grok can run isolated coding, read-only review and restricted proposal workers. Each mode passes an offline conformance check before dispatch, and your xAI key is saved privately outside the project. Build approval, required review and Manual QA stay with you. See [provider settings](Docs/reference/cli-and-configuration.md#coding-provider-settings) and [Grok Build setup](Docs/operations/installation-updating-and-entitlements.md#grok-build).
-
-After updating, initialisation or the next check-in refreshes EWAI's managed instructions in `AGENTS.md` and `CLAUDE.md`, preserving project-authored guidance outside that block. Start a fresh host conversation after the refresh.
-
-## EWAI can now pick up the next ready piece of work
-
-If you’ve prepared several work items, you can choose which ones EWAI is allowed to take on. EWAI checks what’s ready, uses the priorities you’ve recorded to pick the next item, and starts its delivery workflow. Once you’ve separately approved the Build, it can run the approved build tasks, their tests and a fresh review.
-
-This `0.3.0` release brings the capability out of beta. It adds dashboard and command-line controls to preview the work, approve the exact list, set time and attempt limits, follow progress, and pause, cancel or recover a run. New work isn’t added to the list automatically. EWAI stops when it needs a decision from you.
-
-The final whole-delivery test stage, Manual QA and release preparation still happen through the normal EWAI workflow. EWAI doesn’t approve or complete those steps for you.
-
-To use the release in a project without replacing a global installation, run:
+To use EWAI in a project without replacing a global installation, run:
 
 ```bash
 npm install --save-dev @thebackstoryis/engineering-with-ai
@@ -47,7 +35,7 @@ npx ewai
 
 To install or update EWAI globally, run `npm install --global @thebackstoryis/engineering-with-ai`.
 
-## Install and start
+### Install and start
 
 You'll need Node.js 22.5 or newer, npm, and a supported AI command-line tool such as Codex or Claude Code, installed and signed in.
 
@@ -65,12 +53,12 @@ It first asks where to keep your project's SPECS records, then helps you describ
 
 To return to the project, run `ewai` in the same folder again. It picks up the saved project state rather than starting setup from scratch. Keep your normal Git workflow for your application's code; EWAI itself is installed and updated through npm.
 
-If npm returns `E404`, follow [installation troubleshooting](Docs/operations/installation-updating-and-entitlements.md). That's a package-acquisition failure, not a premium-persona licence error. Don't paste licence keys into npm commands or chat.
+If npm returns `E404`, follow [installation troubleshooting](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/operations/installation-updating-and-entitlements.md). That's a package-acquisition failure, not a premium-persona licence error. Don't paste licence keys into npm commands or chat.
 
-- [First session: set up a small project](Docs/tutorials/first-session.md)
-- [First delivery: work through a CSV export](Docs/tutorials/first-delivery.md)
-- [Already have a codebase?](Docs/existing-project-onboarding-guide.md) Archaeology can reconstruct missing documentation, but it's your choice whether to run it.
-- [Installation, updates and host options](Docs/operations/installation-updating-and-entitlements.md)
+- [First session: set up a small project](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/tutorials/first-session.md)
+- [First delivery: work through a CSV export](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/tutorials/first-delivery.md)
+- [Already have a codebase?](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/existing-project-onboarding-guide.md) Archaeology can reconstruct missing documentation, but it's your choice whether to run it.
+- [Installation, updates and host options](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/operations/installation-updating-and-entitlements.md)
 
 ## Start with a conversation
 
@@ -90,7 +78,7 @@ The supporting CLI commands are available for direct control, troubleshooting an
 
 **SPECS** means Scope, Purpose, Evidence, Constraints and Strategy. These readable project records hold the purpose, requirements, decisions and evidence the team has agreed. They remain useful outside an AI session.
 
-The dashboard runs locally and lets you inspect work and make supported choices. Its loopback address isn't a shared team website. The AI host does the guided work; the runtime records progress and checks the conditions for moving on. [How these parts fit together](Docs/explanation/core-concepts.md).
+The dashboard runs locally and lets you inspect work and make supported choices. Its loopback address isn't a shared team website. The AI host does the guided work; the runtime records progress and checks the conditions for moving on. [How these parts fit together](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/explanation/core-concepts.md).
 
 Human judgement remains essential. A persona isn't a real stakeholder, green tests aren't human acceptance, and a delivery handoff isn't permission to deploy.
 
@@ -104,21 +92,21 @@ The source is published for transparency and review, but EWAI is not open
 source. You may not modify, repackage, redistribute, rebrand or commercially
 exploit the EWAI core without separate written permission from Backstory Group.
 The licence does not restrict the project content or output you create by using
-EWAI. Read the [Backstory Group Source-Available Licence](LICENSE) for the full
+EWAI. Read the [Backstory Group Source-Available Licence](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/LICENSE) for the full
 terms.
 
 ## Choose what you need
 
 | When you want to… | Start here |
 | --- | --- |
-| Decide which work needs attention next | [Companion](Docs/context-aware-delivery-companion-user-guide.md) |
-| Describe a feature and agree its boundaries | [Intent Studio](Docs/guided-intent-workspace-guide.md) |
-| Understand how delivery moves through its stages | [The fourteen-stage workflow](Docs/explanation/delivery-workflow.md) |
-| Investigate dependencies before a change | [Source Map](Docs/repository-source-map-guide.md) and [Blast Radius](Docs/blast-radius-and-impact-routing-guide.md) |
-| Turn a meeting into reviewed project evidence | [Meeting evidence](Docs/meeting-evidence-user-guide.md) |
-| Check an implemented feature with a person | [Manual QA](Docs/quality/manual-qa-and-acceptance.md) |
-| Adapt the dashboard to your work | [Dashboard configuration](Docs/operations/dashboard-configuration.md) |
-| Use shared organisational guidance | [Blueprints](Docs/designing-organisation-blueprint-packs.md) and [rollout](Docs/organisation-rollout-guide.md) |
+| Decide which work needs attention next | [Companion](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/context-aware-delivery-companion-user-guide.md) |
+| Describe a feature and agree its boundaries | [Intent Studio](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/guided-intent-workspace-guide.md) |
+| Understand how delivery moves through its stages | [The fourteen-stage workflow](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/explanation/delivery-workflow.md) |
+| Investigate dependencies before a change | [Source Map](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/repository-source-map-guide.md) and [Blast Radius](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/blast-radius-and-impact-routing-guide.md) |
+| Turn a meeting into reviewed project evidence | [Meeting evidence](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/meeting-evidence-user-guide.md) |
+| Check an implemented feature with a person | [Manual QA](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/quality/manual-qa-and-acceptance.md) |
+| Adapt the dashboard to your work | [Dashboard configuration](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/operations/dashboard-configuration.md) |
+| Use shared organisational guidance | [Blueprints](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/designing-organisation-blueprint-packs.md) and [rollout](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/organisation-rollout-guide.md) |
 
 Start with the parts your project needs. Portfolio, Team Hub and other advanced dashboard views are optional; hiding a view doesn't disable mandatory project checks.
 
@@ -126,18 +114,18 @@ Start with the parts your project needs. Portfolio, Team Hub and other advanced 
 
 The included personas support the normal workflow. You can also create project-specific personas and use your own personal library.
 
-Premium personas are optional specialist perspectives. If you have a subscription, [enter your key privately and install the pack](Docs/operations/premium-personas-setup.md) before the analysis you want it to support. Installing a persona doesn't give it authority to approve a requirement, bypass a check or speak for a real user.
+Premium personas are optional specialist perspectives. If you have a subscription, [enter your key privately and install the pack](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/operations/premium-personas-setup.md) before the analysis you want it to support. Installing a persona doesn't give it authority to approve a requirement, bypass a check or speak for a real user.
 
 ## Go deeper
 
-- [User guides and learning routes](Docs/README.md)
-- [Complete guide catalogue](Docs/guide-catalogue.md)
-- [Capabilities and project layout](Docs/reference/capabilities-and-project-layout.md)
-- [Commands and configuration](Docs/reference/cli-and-configuration.md)
-- [Troubleshooting and recovery](Docs/operations/troubleshooting-and-recovery.md)
+- [User guides and learning routes](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/README.md)
+- [Complete guide catalogue](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/guide-catalogue.md)
+- [Capabilities and project layout](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/reference/capabilities-and-project-layout.md)
+- [Commands and configuration](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/reference/cli-and-configuration.md)
+- [Troubleshooting and recovery](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/operations/troubleshooting-and-recovery.md)
 - [EWAI on the web: harness overview, online docs and changelog](https://www.conversationalcoding.dev/engineering-with-ai-harness/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
 - [Engineering With AI, the book behind the method](https://www.conversationalcoding.dev/books/?utm_source=readme&utm_medium=referral&utm_campaign=ewai)
 
 ## Contributing to EWAI
 
-If you're changing the harness itself, use the [contributor guide](Docs/maintainers/contributing.md) and [verification walkthroughs](Docs/maintainers/verification-walkthroughs.md). Those source-checkout and regression-test instructions aren't part of setting up your own application.
+If you're changing the harness itself, use the [contributor guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/maintainers/contributing.md) and [verification walkthroughs](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/maintainers/verification-walkthroughs.md). Those source-checkout and regression-test instructions aren't part of setting up your own application.
