@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
-  copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync,
+  copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { deliveryPaths, atomicJson, isWithin, sha256, now } from '../delivery-documents.mjs';
 import { projectPaths } from '../paths.mjs';
 import { loadProjectConfig, validationStatus } from '../project.mjs';
-import { validateTaskGraph, validateTaskReport } from '../task-graph.mjs';
+import { validateTaskGraph, validateTaskReport, parseCompletionClaimReview } from '../task-graph.mjs';
 import { syncIntentIndex } from './intents.mjs';
 import {
   abandonExecutionLeasesForRun,
@@ -74,6 +74,49 @@ function requireRun(projectRoot, runId) {
   return { paths, run };
 }
 
+export function deriveAfkCheckpoint(projectRoot, run) {
+  try { return deriveCheckpointFromEvidence(projectRoot,run); }
+  catch {
+    // A derived convenience view must never obstruct durable control writes.
+    return {schema:'ewai.afk-checkpoint/v1',runId:run.id,status:'unavailable',updatedAt:run.updatedAt,
+      repositories:[],tasks:[],done:[],openQuestions:['Recovery checkpoint unavailable: task or run evidence is malformed; inspect preserved records.'],
+      next:run.executionStopped!==true || run.unconfirmedExecution
+        ? {action:'confirm-worker-termination',instruction:'Establish owned worker termination before a human recovery decision.'}
+        : {action:'inspect-evidence',instruction:'Repair or reconcile malformed saved evidence through existing guarded operations.'}};
+  }
+}
+
+function deriveCheckpointFromEvidence(projectRoot, run) {
+  const checkpoint = {schema:'ewai.afk-checkpoint/v1',runId:run.id,status:run.status,updatedAt:run.updatedAt,
+    repositories:(run.topology?.repositories ?? []).map(repo=>({name:repo.name,integrationBranch:repo.parentBranch})),tasks:[],done:[],openQuestions:[],next:null};
+  let graph;
+  try { graph = readGraph(projectRoot,run.slug); if (!Array.isArray(graph.tasks)) throw new Error('Malformed task graph'); }
+  catch { graph=null; checkpoint.openQuestions.push('The task graph cannot be read; inspect saved delivery evidence.'); }
+  for (const task of graph?.tasks ?? []) {
+    const state=run.tasks?.[task.id] ?? {};
+    let report;
+    try { report=validateTaskReport(deliveryPaths(projectRoot,run.slug).deliveryRoot,task); }
+    catch { report={status:'incomplete'}; }
+    checkpoint.tasks.push({id:task.id,repository:task.repo,declaredBranch:task.branch,actualBranch:state.actualBranch ?? null,
+      worktree:state.worktree ?? null,status:state.status ?? 'pending',evidenceStatus:report.status});
+    if (report.status === 'complete') checkpoint.done.push({taskId:task.id,claims:task.completion_evidence ?? []});
+    else if (state.status === 'completed') checkpoint.openQuestions.push(`${task.id} recorded completion has missing or invalid evidence; inspect it before continuing.`);
+    if (state.error) checkpoint.openQuestions.push(`${task.id}: ${state.error}`);
+  }
+  if (['blocked','cancel-unknown'].includes(run.status)) for(const message of (run.messages ?? []).slice(-1)) checkpoint.openQuestions.push(message.message);
+  const stopped=run.executionStopped===true && !run.unconfirmedExecution && !(run.activeWorkers ?? []).length;
+  const orphaned = run.status==='running' && !processAlive(run.pid);
+  if (!stopped && (!['running','starting'].includes(run.status) || orphaned)) checkpoint.next={action:'confirm-worker-termination',instruction:'Establish that owned workers stopped; inspect preserved work before a human recovery decision.'};
+  else if (checkpoint.openQuestions.some(question=>question.includes('evidence') || question.includes('task graph'))) checkpoint.next={action:'inspect-evidence',instruction:'Resolve missing or changed task evidence before claiming completion or resuming.'};
+  else if (run.status==='cancelled') checkpoint.next={action:'cancelled',instruction:'Work is preserved; starting further work needs a new permitted action.'};
+  else if (run.status==='completed' && graph?.tasks?.length && checkpoint.done.length===graph.tasks.length) checkpoint.next={action:'complete-build-gate',instruction:'All task evidence validates; use the canonical Build gate and subsequent phases. Human acceptance is still separate.'};
+  else if (orphaned) checkpoint.next={action:'guarded-resume',instruction:'The saved conductor is no longer running; inspect preserved work and use the existing guarded recovery preflight.'};
+  else if (run.status==='paused') checkpoint.next={action:'guarded-resume',instruction:'Inspect the preserved checkpoint, then use the existing resume preflight; this checkpoint grants no authority.'};
+  else if (run.status==='blocked') checkpoint.next={action:'inspect-blocker',instruction:'Diagnose the recorded blocker and preserved logs; resume only through existing guarded recovery.'};
+  else checkpoint.next={action:'continue-bounded-work',instruction:'The conductor continues only permitted tasks under its saved controls; inspect status before any manual intervention.'};
+  return checkpoint;
+}
+
 function saveRun(paths, run, resumeFrom = null) {
   if (existsSync(paths.runPath)) {
     const current = JSON.parse(readFileSync(paths.runPath, 'utf8'));
@@ -84,6 +127,7 @@ function saveRun(paths, run, resumeFrom = null) {
     }
   }
   run.updatedAt = now();
+  run.checkpoint = deriveAfkCheckpoint(paths.projectRoot,run);
   atomicJson(paths.runPath, run);
   return run;
 }
@@ -420,7 +464,7 @@ export function afkRunStatus(projectRoot, runId = '') {
   const root = resolve(projectRoot);
   if (runId) {
     const { run } = requireRun(root, runId);
-    return { ...run, alive: processAlive(run.pid) };
+    return { ...run, checkpoint:deriveAfkCheckpoint(root,run), alive: processAlive(run.pid) };
   }
   const { runsRoot } = pathsFor(root);
   if (!existsSync(runsRoot)) return [];
@@ -428,7 +472,7 @@ export function afkRunStatus(projectRoot, runId = '') {
     .filter((entry) => entry.isDirectory() && existsSync(resolve(runsRoot, entry.name, 'run.json')))
     .map((entry) => JSON.parse(readFileSync(resolve(runsRoot, entry.name, 'run.json'), 'utf8')))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .map((run) => ({ ...run, alive: processAlive(run.pid) }));
+    .map((run) => ({ ...run, checkpoint:deriveAfkCheckpoint(root,run), alive: processAlive(run.pid) }));
 }
 
 export function pauseAfkRun(projectRoot, runId) {
@@ -509,7 +553,7 @@ export function prepareAfkContext(projectRoot, task, repository, options = {}) {
   const implementationCommit = String(options.implementationCommit ?? '').trim();
   const taskContent = JSON.stringify(task);
   let rules = review
-    ? `TESTS_FIRST Read tests before implementation. Read cited standards from ${specsRoot}. Review implementation commit ${implementationCommit}. Check the diff, exact task contract, write_set, desired outcome, stop conditions, test evidence, correctness, standards, security and scope. Do not edit files. End with exactly one line: VERDICT: PASS or VERDICT: FAIL.`
+    ? `TESTS_FIRST Read tests before implementation. Read cited standards from ${specsRoot}. Review implementation commit ${implementationCommit}. Check the diff, exact task contract, write_set, desired outcome, stop conditions, test evidence, correctness, standards, security and scope. Do not edit files. For EVERY completion_evidence name, assess whether the claimed result is actually delivered. Cite specific test assertions, source symbols or observed check results that support it; a generic green exit is insufficient. Never infer deployment, release or human acceptance from code/tests. Emit one line per name: COMPLETION_CHECK: followed by JSON with name (exact approved label), status (pass or fail), and support (specific evidence and reasoning), challenge (object with attempt and result), and observation (object with evidence_type, expected, actual and evidence). Try to falsify each claim using a concrete counterexample, boundary, missing input, retry or state sequence; report the attempt and what it showed, including if you could only trace source rather than execute it. Observation must describe what was actually observed, not an intention or a configured setting. Evidence type must match completion_requirements for that name; default is behaviour. Configuration proves only configuration; a command-result proves only its check; behaviour requires the claimed outcome; review-result proves only a completed review. Keep skipped or unavailable checks unverified, never invent human acceptance or deployment. Missing or unsupported delivery must be fail. End with exactly one line: VERDICT: PASS or VERDICT: FAIL.`
     : `You are an EWAI Build worker in an isolated Git worktree. Read standards from ${specsRoot} and tests before implementation. Repository ${repository.name} (${repository.role}). Work only inside write_set. Run only allowed_commands. Stop on every stop_condition. Make the smallest code and test change. Do not create SPECS records, commit, merge, change delivery state or update phase status. AUTHORITY_NONE. Finish with files changed and commands run.`;
   if(options.evidenceCandidates?.length)rules += ' For this isolated Grok worker, read the complete source-standard and recorded-check sections supplied in this context. Host paths and Git history are inaccessible. Use the supplied exact commit diff for review. Do not execute commands: the conductor runs approved checks and owns commits. Read tests from the declared file snapshot before implementation.';
   const ruleMarkers = review
@@ -712,7 +756,7 @@ async function executeCommand(command, cwd, outputPath, timeoutMs, projectRoot, 
   const result = await invokeControlled(projectRoot, run, task, { provider: 'command', command: '/bin/sh',
     args: ['-lc', command], cwd, prompt: '', timeoutMs, logPath: outputPath });
   if (result.cancelled || result.timedOut || requireRun(projectRoot, run.id).run.desiredState === 'cancelled') throw new Error('AFK command stopped before completion.');
-  return { command, exitCode: result.exitCode, outputPath };
+  return { command, exitCode: result.exitCode, outputPath, outputSha256: sha256(readFileSync(outputPath)) };
 }
 
 function writeTaskEvidence(projectRoot, run, result, postMerge) {
@@ -722,14 +766,15 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
   const delivery = deliveryPaths(projectRoot, run.slug);
   const evidencePath = resolve(delivery.deliveryRoot, task.evidence_path);
   const reportPath = resolve(delivery.deliveryRoot, task.report_path);
-  const reviewRelative = `tasks/${task.id}/evidence/fresh-context-review.md`;
+  const reviewRelative = `tasks/${task.id}/evidence/fresh-context-review.json`;
   const reviewPath = resolve(delivery.deliveryRoot, reviewRelative);
   mkdirSync(dirname(reviewPath), { recursive: true });
-  writeFileSync(reviewPath, `${review.output.trim()}\n`, 'utf8');
+  writeFileSync(reviewPath, JSON.stringify({schema:'ewai.claim-review/v1',reviews:review.reviewResults.map(item=>({reviewer:item.reviewer,output:item.output}))},null,2)+'\n', 'utf8');
   const commands = verifiedCommands.map((commandResult) => {
     const relativePath = `tasks/${task.id}/evidence/${commandResult.stage}.txt`;
     const destination = resolve(delivery.deliveryRoot, relativePath);
     mkdirSync(dirname(destination), { recursive: true });
+    if (sha256(readFileSync(commandResult.outputPath)) !== commandResult.outputSha256) throw new Error('Captured command output changed before acceptance.');
     copyFileSync(commandResult.outputPath, destination);
     return {
       stage: commandResult.stage,
@@ -740,9 +785,22 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
       output_sha256: sha256(readFileSync(destination)),
     };
   });
-  const green = commands.find((command) => command.stage === 'green');
+  const continuation = result.continuation && {
+    enabled: result.continuation.enabled,
+    max_iterations: result.continuation.maxIterations,
+    iterations: result.continuation.iterations.map(entry => {
+      const verification = entry.verification;
+      if (!verification) return { iteration: entry.iteration, provider_exit_code: entry.providerExitCode, execution_stopped: entry.executionStopped };
+      const outputPath = `tasks/${task.id}/evidence/green-iteration-${entry.iteration}.txt`;
+      const destination = resolve(delivery.deliveryRoot, outputPath);
+      if (sha256(readFileSync(verification.outputPath)) !== verification.outputSha256) throw new Error('Continuation verification output changed before acceptance.');
+      copyFileSync(verification.outputPath, destination);
+      return { iteration: entry.iteration, provider_exit_code: entry.providerExitCode, execution_stopped: entry.executionStopped,
+        verification: { command: verification.command, exit_code: verification.exitCode, output_path: outputPath, output_sha256: sha256(readFileSync(destination)) } };
+    }),
+  };
   const evidence = {
-    schema: 'ewai.task-evidence/v1',
+    schema: 'ewai.task-evidence/v3',
     task_id: task.id,
     repository: repository.name,
     task_branch: task.branch,
@@ -751,19 +809,22 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
     commit: implementationCommit,
     changed_files: changedFiles,
     commands,
+    ...(continuation ? { continuation } : {}),
     review: {
       fresh_context: true,
       tests_reviewed_first: true,
       status: 'pass',
       reviewer,
+      claim_results: review.claimResults,
       evidence_path: reviewRelative,
       evidence_sha256: sha256(readFileSync(reviewPath)),
     },
     completion_checks: (task.completion_evidence ?? []).map((name) => ({
       name,
       status: 'pass',
-      evidence_path: green.output_path,
-      evidence_sha256: green.output_sha256,
+      ...review.claimResults.find(result => result.name === name),
+      evidence_path: reviewRelative,
+      evidence_sha256: sha256(readFileSync(reviewPath)),
     })),
     post_merge_checks: postMerge,
   };
@@ -778,7 +839,7 @@ Implemented ${task.name} in repository ${repository.name} on branch \`${actualBr
 The declared red command failed as expected; the green and refactor verification commands passed. Exact outputs and hashes are recorded in the evidence sidecar.
 
 ## Feedback loops run
-The conductor ran the task's bounded verification commands, a fresh-context review, and ${postMerge.length} post-merge check(s).
+The conductor ran ${result.continuation?.iterations.length ?? 1} implementation turn(s), the task's bounded verification commands, a fresh-context review, and ${postMerge.length} post-merge check(s). Per-turn verification outputs are retained in the evidence sidecar.
 
 ## Files changed
 ${changedFiles.map((file) => `- ${file}`).join('\n')}
@@ -798,7 +859,24 @@ No declared stop condition occurred.
 Automated task and integration evidence passed. Human QA remains governed by the later EWAI delivery gate.
 `;
   writeFileSync(reportPath, report, 'utf8');
-  return [reportPath, evidencePath, reviewPath, ...commands.map(command => resolve(delivery.deliveryRoot, command.output_path))];
+  return [reportPath, evidencePath, reviewPath, ...commands.map(command => resolve(delivery.deliveryRoot, command.output_path)),
+    ...(continuation?.iterations ?? []).filter(entry => entry.verification).map(entry => resolve(delivery.deliveryRoot, entry.verification.output_path))];
+}
+
+// Only assistant/result messages can signal a blocker. Tool output may quote it.
+function workerReportedBlocker(output) {
+  const blocked = value => typeof value === 'string' && /^EWAI_BLOCKED:/m.test(value);
+  if (blocked(output)) return true;
+  for (const line of String(output ?? '').split('\n')) {
+    let event;
+    try { event = JSON.parse(line); } catch { continue; }
+    if (event?.type === 'item.completed' && event.item?.type === 'agent_message' && blocked(event.item.text)) return true;
+    if (event?.type === 'result' && blocked(event.result)) return true;
+    const message = event?.type === 'assistant' ? event.message : event?.role === 'assistant' ? event : null;
+    if (message && (blocked(message.content) || Array.isArray(message.content)
+      && message.content.some(part => part?.type === 'text' && blocked(part.text)))) return true;
+  }
+  return false;
 }
 
 async function implementTask(projectRoot, run, task, provider, dependencies = {}) {
@@ -806,9 +884,20 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
   const paths = pathsFor(projectRoot, run.id);
   const repository = repositoryForTask(run, task);
   const attempt = Number(run.tasks?.[task.id]?.attempt ?? 0) + 1;
+  const loop = task.ralph_loop?.allowed === true;
+  const maxIterations = loop ? task.ralph_loop.max_iterations : 1;
+  const monotonicNow = dependencies.monotonicNow ?? (() => performance.now());
+  const deadline = monotonicNow() + run.timeoutMs;
+  const remainingTaskMs = () => {
+    if (!loop) return run.timeoutMs;
+    const remaining = Math.floor(deadline - monotonicNow());
+    if (remaining < 1) throw new Error(`${task.id} exhausted its task deadline.`);
+    return remaining;
+  };
+  const continuation = { enabled: loop, maxIterations, iterations: [] };
   const worktree = resolve(paths.worktreesRoot, run.id, repository.name, `${task.id}-attempt-${attempt}`);
   const actualBranch = taskBranch(repository.root, run, task, attempt);
-  const logRoot = resolve(paths.runRoot, 'tasks', task.id);
+  const logRoot = resolve(paths.runRoot, 'tasks', task.id, `attempt-${attempt}`);
   let lease = null;
   try {
     lease = acquireExecutionLease(projectRoot, run.intentId, {
@@ -832,50 +921,65 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
       task.red_green_refactor.red_command,
       worktree,
       resolve(logRoot, 'red.txt'),
-      run.timeoutMs, projectRoot, run, task,
+      remainingTaskMs(), projectRoot, run, task,
     );
     red.stage = 'red';
     if (red.exitCode === 0) throw new Error(`${task.id} red command already passes; the task contract is stale and must be reconciled.`);
-    taskState(run, task, { status: 'implementing' });
-    saveRun(paths, run);
-    event(projectRoot, run, `Agent implementing ${task.id}.`, `${provider} · ${task.name}`);
-    const implementationEvidence=provider==='grok'?prepareGrokTaskEvidence(projectRoot,worktree,task,{mode:'implementation',commands:[red]}):null;
-    const invocation = buildProviderInvocation(provider, {
-      cwd: worktree,
-      prompt: taskPrompt(projectRoot, task, repository,implementationEvidence),
-      grokEvidence:implementationEvidence,
-      task,
-      timeoutMs: run.timeoutMs,
-      mode: 'implementation',
-      codingPolicy:run.codingPolicy,policyDigest:run.codingPolicyDigest,policyRoot:projectRoot,
-    });
-    invocation.logPath = resolve(logRoot, 'implementation.log');
-    const result = await invokeControlled(projectRoot, run, task, invocation, invoke);
-    if (requireRun(projectRoot, run.id).run.desiredState === 'cancelled') {
-      throw new Error('AFK run was cancelled while the task agent was active.');
+    let green;
+    for (let iteration = 1; iteration <= maxIterations; iteration++) {
+      const control = requireRun(projectRoot, run.id).run;
+      if (control.desiredState === 'cancelled' || iteration > 1 && control.desiredState === 'paused') throw new Error(`AFK continuation stopped: ${control.desiredState}.`);
+      const timeoutMs = remainingTaskMs();
+      heartbeatExecutionLease(projectRoot, lease.id, {
+        token: lease.token, durationMs: Math.min(86_400_000, timeoutMs + 10 * 60 * 1000),
+      });
+      taskState(run, task, { status: 'implementing', continuation });
+      saveRun(paths, run);
+      event(projectRoot, run, `Agent implementing ${task.id}.`, `${provider} · iteration ${iteration}/${maxIterations}`);
+      const prior = continuation.iterations.at(-1)?.verification;
+      const feedback = prior
+        ? `\nCONTINUATION ${iteration}/${maxIterations}: the previous turn ended, but the task is incomplete. Continue from the files already in this worktree. The declared green command exited ${prior.exitCode}. Read its captured output at ${prior.outputPath}, repair only within write_set and recheck the declared tests. A summary or completion promise is not completion.`
+        : '';
+      if (prior && sha256(readFileSync(prior.outputPath)) !== prior.outputSha256) throw new Error('Continuation verification output changed; inspect preserved evidence.');
+      const continuationPrompt = (loop ? '\nWork to completion within this task. If a stop condition or owner decision prevents completion, end with EWAI_BLOCKED: followed by the reason.' : '') + feedback;
+      const implementationEvidence = provider === 'grok' ? prepareGrokTaskEvidence(projectRoot, worktree, task, { mode: 'implementation', commands: [red, ...(green ? [green] : [])] }) : null;
+      const invocation = buildProviderInvocation(provider, {
+        cwd: worktree, prompt: taskPrompt(projectRoot, task, repository, implementationEvidence) + continuationPrompt,
+        grokEvidence: implementationEvidence, task, timeoutMs: remainingTaskMs(), mode: 'implementation',
+        codingPolicy: run.codingPolicy, policyDigest: run.codingPolicyDigest, policyRoot: projectRoot,
+      });
+      invocation.logPath = resolve(logRoot, loop ? `implementation-iteration-${iteration}.log` : 'implementation.log');
+      const result = await invokeControlled(projectRoot, run, task, invocation, invoke);
+      const entry = { iteration, providerExitCode: result.exitCode, executionStopped: result.executionStopped === true };
+      continuation.iterations.push(entry);
+      taskState(run, task, { continuation });
+      atomicJson(resolve(logRoot, 'continuation.json'), continuation);
+      saveRun(paths, run);
+      if (requireRun(projectRoot, run.id).run.desiredState === 'cancelled' || result.cancelled) throw new Error('AFK run was cancelled while the task agent was active.');
+      if (git(worktree, ['rev-parse', 'HEAD']) !== baseHead) throw new Error(`${task.id} created a commit; commits and merges belong to the conductor.`);
+      if (result.timedOut) throw new Error(`${provider} exceeded the task timeout.`);
+      if (result.exitCode !== 0) throw new Error(`${provider} exited ${result.exitCode}; see ${relative(projectRoot, result.logPath)}.`);
+      // Check scope before running tests or giving another worker turn authority.
+      const outside = changedPaths(worktree).filter(path => !allowedPath(path, task));
+      if (outside.length) throw new Error(`${task.id} changed files outside its write_set: ${outside.join(', ')}.`);
+      if (loop && workerReportedBlocker(result.output)) throw new Error(`${task.id} worker reported a blocker; inspect its preserved log.`);
+      green = await executeCommand(task.red_green_refactor.green_command, worktree,
+        resolve(logRoot, loop ? `green-iteration-${iteration}.txt` : 'green.txt'), remainingTaskMs(), projectRoot, run, task);
+      green.stage = 'green';
+      entry.verification = green;
+      atomicJson(resolve(logRoot, 'continuation.json'), continuation);
+      taskState(run, task, { continuation });
+      saveRun(paths, run);
+      if (green.exitCode === 0) break;
+      if (!loop) throw new Error(`${task.id} green command failed after implementation.`);
+      if (iteration === maxIterations) throw new Error(`${task.id} reached its continuation iteration limit (${maxIterations}).`);
+      event(projectRoot, run, `Continuing incomplete task ${task.id}.`, `Green verification failed on iteration ${iteration}; remaining work stays in its isolated worktree.`);
     }
-    if (git(worktree, ['rev-parse', 'HEAD']) !== baseHead) {
-      throw new Error(`${task.id} created a commit; commits and merges belong to the conductor.`);
-    }
-    if (result.timedOut) throw new Error(`${provider} exceeded the ${run.timeoutMs}ms task timeout.`);
-    if (result.exitCode !== 0) throw new Error(`${provider} exited ${result.exitCode}; see ${relative(projectRoot, result.logPath)}.`);
-    heartbeatExecutionLease(projectRoot, lease.id, {
-      token: lease.token,
-      durationMs: Math.min(86_400_000, run.timeoutMs + 10 * 60 * 1000),
-    });
-    const green = await executeCommand(
-      task.red_green_refactor.green_command,
-      worktree,
-      resolve(logRoot, 'green.txt'),
-      run.timeoutMs, projectRoot, run, task,
-    );
-    green.stage = 'green';
-    if (green.exitCode !== 0) throw new Error(`${task.id} green command failed after implementation.`);
     const refactor = await executeCommand(
       task.red_green_refactor.green_command,
       worktree,
       resolve(logRoot, 'refactor.txt'),
-      run.timeoutMs, projectRoot, run, task,
+      remainingTaskMs(), projectRoot, run, task,
     );
     refactor.stage = 'refactor';
     if (refactor.exitCode !== 0) throw new Error(`${task.id} refactor verification failed.`);
@@ -903,7 +1007,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
       prompt: reviewPrompt(projectRoot, task, implementationCommit,reviewEvidence),
       grokEvidence:reviewEvidence,
       task,
-      timeoutMs: run.timeoutMs,
+      timeoutMs: remainingTaskMs(),
       mode: 'review',
       codingPolicy:run.codingPolicy,policyDigest:run.codingPolicyDigest,policyRoot:projectRoot,
     });
@@ -916,6 +1020,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
     if (review.timedOut || review.exitCode !== 0 || !/^VERDICT:\s*PASS\s*$/im.test(review.output)) {
       throw new Error(`Fresh-context review did not pass; see ${relative(projectRoot, review.logPath)}.`);
     }
+    review.claimResults = parseCompletionClaimReview(review.output, task.completion_evidence ?? [], {observed:true,requirements:task.completion_requirements ?? []});
     authorityChecks.get(run)?.({ stage: 'accept', mode: 'review' });
     if (git(worktree, ['rev-parse', 'HEAD']) !== implementationCommit || gitDirty(worktree)) {
       throw new Error('Fresh-context review changed the inspected implementation.');
@@ -927,6 +1032,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
       token: lease.token,
       durationMs: Math.min(86_400_000, run.timeoutMs + 10 * 60 * 1000),
     });
+    review.reviewResults = reviewResults;
     const branchHead = git(worktree, ['rev-parse', 'HEAD']);
     const reviewerIdentity = reviewers.map(reviewer=>`${reviewer}/${reviewer === provider ? 'fresh-session' : 'independent-cli'}`).join(',');
     taskState(run, task, { status: 'ready-to-integrate', implementationCommit, branchHead, reviewer: reviewerIdentity });
@@ -934,7 +1040,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
     return {
       task, lease, worktree, branchHead, implementationCommit, review,
       reviewer: reviewerIdentity, verifiedCommands: [red, green, refactor], changedFiles: changed,
-      actualBranch, repository,
+      actualBranch, repository, continuation, remainingTaskMs,
     };
   } catch (error) {
     const control = requireRun(projectRoot, run.id).run;
@@ -960,6 +1066,7 @@ async function integrateTask(projectRoot, run, result) {
   const specsRepository = run.topology.repositories.find((candidate) => candidate.name === run.topology.specsRepository);
   if (!specsRepository) throw new Error('AFK run has no configured SPECS repository.');
   const paths = pathsFor(projectRoot, run.id);
+  result.remainingTaskMs?.();
   taskState(run, task, { status: 'integrating' });
   saveRun(paths, run);
   event(projectRoot, run, `Integrating ${task.id}.`, 'The orchestrator is merging sequentially and running post-merge checks.');
@@ -982,7 +1089,7 @@ async function integrateTask(projectRoot, run, result) {
       const untracked = git(root, ['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean);
       if (git(root, ['rev-parse', 'HEAD']) !== baseline.head || git(root, ['branch', '--show-current']) !== baseline.branch
         || stagedDelta.some(path => !staged || !owned(path) || sha256(execFileSync('git', ['show', `:${path}`],
-          { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })) !== ownedEvidence.get(resolve(root, path)))
+          { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: Math.max(1024 * 1024, statSync(resolve(root, path)).size + 1024) })) !== ownedEvidence.get(resolve(root, path)))
         || [...workingDelta, ...untracked].some(path => !owned(path))) {
         integrationConflict = true;
         throw new Error('Repository changed outside the owned integration; preserve the checkout for review.');
@@ -1008,7 +1115,7 @@ async function integrateTask(projectRoot, run, result) {
     const postMerge = [];
     for (const [index, command] of (task.merge?.post_merge_checks ?? []).entries()) {
       const outputPath = resolve(delivery.deliveryRoot, 'tasks', task.id, 'evidence', `post-merge-${index + 1}.txt`);
-      const check = await executeCommand(command, repository.root, outputPath, run.timeoutMs, projectRoot, run, task);
+      const check = await executeCommand(command, repository.root, outputPath, result.remainingTaskMs?.() ?? run.timeoutMs, projectRoot, run, task);
       const evidencePath = relative(delivery.deliveryRoot, outputPath).replaceAll('\\', '/');
       postMerge.push({ command, exit_code: check.exitCode, output_path: evidencePath, output_sha256: sha256(readFileSync(outputPath)) });
       ownedEvidence.set(realpathSync(outputPath), postMerge.at(-1).output_sha256);
@@ -1145,14 +1252,15 @@ export async function executeAfkRun(projectRoot, runId, dependencies = {}) {
   } catch (error) {
     const control = requireRun(paths.projectRoot, run.id).run;
     run.desiredState = control.desiredState;
-    run.status = control.desiredState === 'cancelled' ? run.unconfirmedExecution ? 'cancel-unknown' : 'cancelled' : 'blocked';
+    run.status = control.desiredState === 'cancelled' ? run.unconfirmedExecution ? 'cancel-unknown' : 'cancelled'
+      : error.message === 'AFK continuation stopped: paused.' && !run.unconfirmedExecution ? 'paused' : 'blocked';
     if (control.desiredState === 'cancelled') run.cancellation = { ...control.cancellation,
       status: run.unconfirmedExecution ? 'unknown' : 'confirmed', settledAt: now() };
     run.pid = null;
     run.messages.push({ at: now(), message: error.message });
     run.executionStopped = !run.unconfirmedExecution;
     if (!run.unconfirmedExecution) abandonExecutionLeasesForRun(paths.projectRoot, run.id, { outcome: 'conductor-blocked' });
-    event(paths.projectRoot, run, 'Unattended Build is blocked.', error.message, 'blocked', true);
+    event(paths.projectRoot, run, run.status === 'paused' ? 'Unattended Build safely paused.' : 'Unattended Build is blocked.', error.message, run.status === 'paused' ? 'progress' : 'blocked', run.status !== 'paused');
     saveRun(paths, run);
     return run;
   } finally { authorityChecks.delete(run); }

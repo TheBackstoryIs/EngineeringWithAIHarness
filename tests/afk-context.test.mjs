@@ -37,6 +37,10 @@ test('fresh-context review keeps tests first, diff commit and exact verdict', ()
   });
   assert.equal(pack.profile, 'fresh-context-review');
   assert.match(pack.modelContext, /TESTS_FIRST/);
+  assert.match(pack.modelContext, /Try to falsify each claim/);
+  assert.match(pack.modelContext, /Configuration proves only configuration/);
+  assert.match(pack.modelContext, /challenge/);
+  assert.match(pack.modelContext, /observed/);
   assert.match(pack.modelContext, /deadbeef/);
   assert.match(pack.modelContext, /VERDICT: PASS or VERDICT: FAIL/);
   assert.match(pack.modelContext, /mandatory evidence is lost/);

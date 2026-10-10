@@ -152,6 +152,7 @@ export function invokeProvider(invocation, options = {}) {
   const maxCapture = Number(options.maxCaptureBytes ?? 1024 * 1024);
 
   return new Promise((resolvePromise, reject) => {
+    output.once('error', reject);
     const child = spawn(invocation.command, invocation.args, {
       cwd: invocation.cwd,
       env: options.env ?? process.env,
@@ -204,8 +205,9 @@ export function invokeProvider(invocation, options = {}) {
         try { process.kill(-child.pid, 0); kill('SIGKILL'); }
         catch (error) { processGroupStopped = error.code === 'ESRCH'; }
       }
-      output.end();
-      resolvePromise({
+      // Return only after the captured log has finished flushing. Callers hash
+      // this file immediately; a process exit alone does not settle its stream.
+      output.end(() => resolvePromise({
         provider: invocation.provider,
         exitCode: exitCode ?? -1,
         signal: signal ?? '',
@@ -223,7 +225,7 @@ export function invokeProvider(invocation, options = {}) {
           invocation.provider,
           options.providerUsage ?? invocation.providerUsage,
         ),
-      });
+      }));
     });
     options.signal?.addEventListener('abort', cancel, { once: true });
     if (options.signal?.aborted) cancel();
