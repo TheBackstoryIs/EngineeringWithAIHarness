@@ -281,7 +281,7 @@ for (const pause of [false, true]) test(`two-task service ${pause ? 'pauses acro
   const cli = resolve(root, '.test-bin/codex');
   writeFileSync(cli, `#!/usr/bin/env node
 const fs=require('node:fs'); process.stdin.resume();
-if(process.argv.includes('read-only')) { process.stdout.write('Tests reviewed first.\\nCOMPLETION_CHECK: '+JSON.stringify({name:'tests pass',status:'pass',support:'test/output.test.mjs verifies the ready message export.'})+'\\nVERDICT: PASS\\n'); }
+if(process.argv.includes('read-only')) { process.stdout.write('Tests reviewed first.\\nCOMPLETION_CHECK: '+JSON.stringify({name:'tests pass',status:'pass',support:'test/output.test.mjs verifies the ready message export.',challenge:{attempt:'Trace absent message export',result:'Equality assertion rejects absence'},observation:{evidence_type:'behaviour',expected:'ready',actual:'ready',evidence:'test/output.test.mjs and captured green'}})+'\\nVERDICT: PASS\\n'); }
 else {
   fs.writeFileSync(${JSON.stringify(marker)},String(process.pid));
   const timer=setInterval(()=>{

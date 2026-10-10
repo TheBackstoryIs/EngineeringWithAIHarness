@@ -74,6 +74,49 @@ function requireRun(projectRoot, runId) {
   return { paths, run };
 }
 
+export function deriveAfkCheckpoint(projectRoot, run) {
+  try { return deriveCheckpointFromEvidence(projectRoot,run); }
+  catch {
+    // A derived convenience view must never obstruct durable control writes.
+    return {schema:'ewai.afk-checkpoint/v1',runId:run.id,status:'unavailable',updatedAt:run.updatedAt,
+      repositories:[],tasks:[],done:[],openQuestions:['Recovery checkpoint unavailable: task or run evidence is malformed; inspect preserved records.'],
+      next:run.executionStopped!==true || run.unconfirmedExecution
+        ? {action:'confirm-worker-termination',instruction:'Establish owned worker termination before a human recovery decision.'}
+        : {action:'inspect-evidence',instruction:'Repair or reconcile malformed saved evidence through existing guarded operations.'}};
+  }
+}
+
+function deriveCheckpointFromEvidence(projectRoot, run) {
+  const checkpoint = {schema:'ewai.afk-checkpoint/v1',runId:run.id,status:run.status,updatedAt:run.updatedAt,
+    repositories:(run.topology?.repositories ?? []).map(repo=>({name:repo.name,integrationBranch:repo.parentBranch})),tasks:[],done:[],openQuestions:[],next:null};
+  let graph;
+  try { graph = readGraph(projectRoot,run.slug); if (!Array.isArray(graph.tasks)) throw new Error('Malformed task graph'); }
+  catch { graph=null; checkpoint.openQuestions.push('The task graph cannot be read; inspect saved delivery evidence.'); }
+  for (const task of graph?.tasks ?? []) {
+    const state=run.tasks?.[task.id] ?? {};
+    let report;
+    try { report=validateTaskReport(deliveryPaths(projectRoot,run.slug).deliveryRoot,task); }
+    catch { report={status:'incomplete'}; }
+    checkpoint.tasks.push({id:task.id,repository:task.repo,declaredBranch:task.branch,actualBranch:state.actualBranch ?? null,
+      worktree:state.worktree ?? null,status:state.status ?? 'pending',evidenceStatus:report.status});
+    if (report.status === 'complete') checkpoint.done.push({taskId:task.id,claims:task.completion_evidence ?? []});
+    else if (state.status === 'completed') checkpoint.openQuestions.push(`${task.id} recorded completion has missing or invalid evidence; inspect it before continuing.`);
+    if (state.error) checkpoint.openQuestions.push(`${task.id}: ${state.error}`);
+  }
+  if (['blocked','cancel-unknown'].includes(run.status)) for(const message of (run.messages ?? []).slice(-1)) checkpoint.openQuestions.push(message.message);
+  const stopped=run.executionStopped===true && !run.unconfirmedExecution && !(run.activeWorkers ?? []).length;
+  const orphaned = run.status==='running' && !processAlive(run.pid);
+  if (!stopped && (!['running','starting'].includes(run.status) || orphaned)) checkpoint.next={action:'confirm-worker-termination',instruction:'Establish that owned workers stopped; inspect preserved work before a human recovery decision.'};
+  else if (checkpoint.openQuestions.some(question=>question.includes('evidence') || question.includes('task graph'))) checkpoint.next={action:'inspect-evidence',instruction:'Resolve missing or changed task evidence before claiming completion or resuming.'};
+  else if (run.status==='cancelled') checkpoint.next={action:'cancelled',instruction:'Work is preserved; starting further work needs a new permitted action.'};
+  else if (run.status==='completed' && graph?.tasks?.length && checkpoint.done.length===graph.tasks.length) checkpoint.next={action:'complete-build-gate',instruction:'All task evidence validates; use the canonical Build gate and subsequent phases. Human acceptance is still separate.'};
+  else if (orphaned) checkpoint.next={action:'guarded-resume',instruction:'The saved conductor is no longer running; inspect preserved work and use the existing guarded recovery preflight.'};
+  else if (run.status==='paused') checkpoint.next={action:'guarded-resume',instruction:'Inspect the preserved checkpoint, then use the existing resume preflight; this checkpoint grants no authority.'};
+  else if (run.status==='blocked') checkpoint.next={action:'inspect-blocker',instruction:'Diagnose the recorded blocker and preserved logs; resume only through existing guarded recovery.'};
+  else checkpoint.next={action:'continue-bounded-work',instruction:'The conductor continues only permitted tasks under its saved controls; inspect status before any manual intervention.'};
+  return checkpoint;
+}
+
 function saveRun(paths, run, resumeFrom = null) {
   if (existsSync(paths.runPath)) {
     const current = JSON.parse(readFileSync(paths.runPath, 'utf8'));
@@ -84,6 +127,7 @@ function saveRun(paths, run, resumeFrom = null) {
     }
   }
   run.updatedAt = now();
+  run.checkpoint = deriveAfkCheckpoint(paths.projectRoot,run);
   atomicJson(paths.runPath, run);
   return run;
 }
@@ -420,7 +464,7 @@ export function afkRunStatus(projectRoot, runId = '') {
   const root = resolve(projectRoot);
   if (runId) {
     const { run } = requireRun(root, runId);
-    return { ...run, alive: processAlive(run.pid) };
+    return { ...run, checkpoint:deriveAfkCheckpoint(root,run), alive: processAlive(run.pid) };
   }
   const { runsRoot } = pathsFor(root);
   if (!existsSync(runsRoot)) return [];
@@ -428,7 +472,7 @@ export function afkRunStatus(projectRoot, runId = '') {
     .filter((entry) => entry.isDirectory() && existsSync(resolve(runsRoot, entry.name, 'run.json')))
     .map((entry) => JSON.parse(readFileSync(resolve(runsRoot, entry.name, 'run.json'), 'utf8')))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .map((run) => ({ ...run, alive: processAlive(run.pid) }));
+    .map((run) => ({ ...run, checkpoint:deriveAfkCheckpoint(root,run), alive: processAlive(run.pid) }));
 }
 
 export function pauseAfkRun(projectRoot, runId) {
@@ -509,7 +553,7 @@ export function prepareAfkContext(projectRoot, task, repository, options = {}) {
   const implementationCommit = String(options.implementationCommit ?? '').trim();
   const taskContent = JSON.stringify(task);
   let rules = review
-    ? `TESTS_FIRST Read tests before implementation. Read cited standards from ${specsRoot}. Review implementation commit ${implementationCommit}. Check the diff, exact task contract, write_set, desired outcome, stop conditions, test evidence, correctness, standards, security and scope. Do not edit files. For EVERY completion_evidence name, assess whether the claimed result is actually delivered. Cite specific test assertions, source symbols or observed check results that support it; a generic green exit is insufficient. Never infer deployment, release or human acceptance from code/tests. Emit one line per name: COMPLETION_CHECK: followed by JSON with name (exact approved label), status (pass or fail), and support (specific evidence and reasoning). Missing or unsupported delivery must be fail. End with exactly one line: VERDICT: PASS or VERDICT: FAIL.`
+    ? `TESTS_FIRST Read tests before implementation. Read cited standards from ${specsRoot}. Review implementation commit ${implementationCommit}. Check the diff, exact task contract, write_set, desired outcome, stop conditions, test evidence, correctness, standards, security and scope. Do not edit files. For EVERY completion_evidence name, assess whether the claimed result is actually delivered. Cite specific test assertions, source symbols or observed check results that support it; a generic green exit is insufficient. Never infer deployment, release or human acceptance from code/tests. Emit one line per name: COMPLETION_CHECK: followed by JSON with name (exact approved label), status (pass or fail), and support (specific evidence and reasoning), challenge (object with attempt and result), and observation (object with evidence_type, expected, actual and evidence). Try to falsify each claim using a concrete counterexample, boundary, missing input, retry or state sequence; report the attempt and what it showed, including if you could only trace source rather than execute it. Observation must describe what was actually observed, not an intention or a configured setting. Evidence type must match completion_requirements for that name; default is behaviour. Configuration proves only configuration; a command-result proves only its check; behaviour requires the claimed outcome; review-result proves only a completed review. Keep skipped or unavailable checks unverified, never invent human acceptance or deployment. Missing or unsupported delivery must be fail. End with exactly one line: VERDICT: PASS or VERDICT: FAIL.`
     : `You are an EWAI Build worker in an isolated Git worktree. Read standards from ${specsRoot} and tests before implementation. Repository ${repository.name} (${repository.role}). Work only inside write_set. Run only allowed_commands. Stop on every stop_condition. Make the smallest code and test change. Do not create SPECS records, commit, merge, change delivery state or update phase status. AUTHORITY_NONE. Finish with files changed and commands run.`;
   if(options.evidenceCandidates?.length)rules += ' For this isolated Grok worker, read the complete source-standard and recorded-check sections supplied in this context. Host paths and Git history are inaccessible. Use the supplied exact commit diff for review. Do not execute commands: the conductor runs approved checks and owns commits. Read tests from the declared file snapshot before implementation.';
   const ruleMarkers = review
@@ -756,7 +800,7 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
     }),
   };
   const evidence = {
-    schema: 'ewai.task-evidence/v2',
+    schema: 'ewai.task-evidence/v3',
     task_id: task.id,
     repository: repository.name,
     task_branch: task.branch,
@@ -778,7 +822,7 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
     completion_checks: (task.completion_evidence ?? []).map((name) => ({
       name,
       status: 'pass',
-      support: review.claimResults.find(result => result.name === name).support,
+      ...review.claimResults.find(result => result.name === name),
       evidence_path: reviewRelative,
       evidence_sha256: sha256(readFileSync(reviewPath)),
     })),
@@ -976,7 +1020,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
     if (review.timedOut || review.exitCode !== 0 || !/^VERDICT:\s*PASS\s*$/im.test(review.output)) {
       throw new Error(`Fresh-context review did not pass; see ${relative(projectRoot, review.logPath)}.`);
     }
-    review.claimResults = parseCompletionClaimReview(review.output, task.completion_evidence ?? []);
+    review.claimResults = parseCompletionClaimReview(review.output, task.completion_evidence ?? [], {observed:true,requirements:task.completion_requirements ?? []});
     authorityChecks.get(run)?.({ stage: 'accept', mode: 'review' });
     if (git(worktree, ['rev-parse', 'HEAD']) !== implementationCommit || gitDirty(worktree)) {
       throw new Error('Fresh-context review changed the inspected implementation.');

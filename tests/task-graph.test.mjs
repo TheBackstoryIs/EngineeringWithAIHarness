@@ -371,3 +371,36 @@ test('v2 completion claims must cite supporting review rather than unrelated gre
     assert.equal(validateTaskEvidence(root,task).status,'incomplete');
   } finally {rmSync(root,{recursive:true,force:true});}
 });
+
+
+test('observed claim validation distinguishes configuration from delivered behaviour', () => {
+  const result={name:'Users receive ready output',status:'pass',support:'src/output.mjs exports ready',
+    challenge:{attempt:'Remove the output export',result:'The output assertion rejects the missing export'},
+    observation:{evidence_type:'behaviour',expected:'ready',actual:'ready',evidence:'test/output.test.mjs output assertion'}};
+  const review=value=>'COMPLETION_CHECK: '+JSON.stringify(value);
+  const options={observed:true,requirements:[]};
+  assert.deepEqual(parseCompletionClaimReview(review(result),[result.name],options),[result]);
+  assert.throws(()=>parseCompletionClaimReview(review({...result,observation:{...result.observation,evidence_type:'configuration'}}),[result.name],options),/evidence type/);
+  assert.throws(()=>parseCompletionClaimReview(review({...result,challenge:undefined}),[result.name],options),/challenge/);
+  assert.throws(()=>parseCompletionClaimReview(review({...result,observation:{...result.observation,actual:''}}),[result.name],options),/observed/);
+  const configured={...result,observation:{...result.observation,evidence_type:'configuration'}};
+  assert.deepEqual(parseCompletionClaimReview(review(configured),[result.name],{observed:true,requirements:[{name:result.name,evidence_type:'configuration'}]}),[configured]);
+});
+
+
+test('v3 evidence binds observed results and cannot downgrade required obligations', () => {
+  const root=mkdtempSync(resolve(tmpdir(),'ewai-v3-evidence-'));
+  try {
+    const task=validGraph().tasks[0]; task.claim_validation={required:true,version:3};seedEvidence(root,task);
+    const path=resolve(root,task.evidence_path),evidence=JSON.parse(readFileSync(path));
+    const result={name:task.completion_evidence[0],status:'pass',support:'Tracer dispatch assertion',challenge:{attempt:'Trace null alert input',result:'Guard returns without dispatch'},observation:{evidence_type:'behaviour',expected:'Dispatch valid alert',actual:'Dispatch valid alert',evidence:'src/tracer.mjs and tracer assertion'}};
+    evidence.schema='ewai.task-evidence/v3';evidence.review.claim_results=[result];
+    writeFileSync(resolve(root,evidence.review.evidence_path),JSON.stringify({schema:'ewai.claim-review/v1',reviews:[{reviewer:evidence.review.reviewer,output:'COMPLETION_CHECK: '+JSON.stringify(result)+'\nVERDICT: PASS\n'}]}));
+    evidence.review.evidence_sha256=sha256(readFileSync(resolve(root,evidence.review.evidence_path)));
+    evidence.completion_checks=[{...result,evidence_path:evidence.review.evidence_path,evidence_sha256:evidence.review.evidence_sha256}];
+    writeFileSync(path,JSON.stringify(evidence));assert.equal(validateTaskEvidence(root,task).status,'complete');
+    evidence.completion_checks[0].observation={...result.observation,actual:'Invented observation'};
+    writeFileSync(path,JSON.stringify(evidence));assert.match(validateTaskEvidence(root,task).errors.join(' '),/supporting review/);
+    evidence.schema='ewai.task-evidence/v2';writeFileSync(path,JSON.stringify(evidence));assert.match(validateTaskEvidence(root,task).errors.join(' '),/earlier evidence/);
+  } finally {rmSync(root,{recursive:true,force:true});}
+});

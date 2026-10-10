@@ -112,7 +112,7 @@ function evidenceFile(root, configuredPath, expectedHash, label, errors) {
 
 // Semantic support is assessed by the existing fresh reviewer; the host enforces
 // complete, explicit results rather than inferring every claim from one green exit.
-export function validateCompletionClaims(results, names) {
+export function validateCompletionClaims(results, names, options = {}) {
   const errors = [], expected = new Set(names), seen = new Set();
   if (!Array.isArray(results)) return ['completion claim validation results are missing'];
   for (const result of results) {
@@ -121,11 +121,18 @@ export function validateCompletionClaims(results, names) {
     seen.add(result?.name);
     if (result?.status !== 'pass' || !text(result?.support)) errors.push('completion claim validation requires a passing result with specific supporting evidence');
   }
+  if (options.observed) for (const result of results) {
+    const requiredType = options.requirements?.find(item => item.name === result?.name)?.evidence_type ?? 'behaviour';
+    const observation = result?.observation, challenge = result?.challenge;
+    if (!['behaviour','configuration','command-result','review-result'].includes(requiredType) || observation?.evidence_type !== requiredType) errors.push('completion claim evidence type does not match its planned obligation');
+    if (!['expected','actual','evidence'].every(key => typeof observation?.[key] === 'string' && observation[key].trim())) errors.push('completion claim requires expected and actual observed result with evidence');
+    if (!['attempt','result'].every(key => typeof challenge?.[key] === 'string' && challenge[key].trim())) errors.push('completion claim requires a concrete challenge attempt and result');
+  }
   for (const name of expected) if (!seen.has(name)) errors.push(`completion claim validation is missing: ${name}`);
   return errors;
 }
 
-export function parseCompletionClaimReview(output, names) {
+export function parseCompletionClaimReview(output, names, options = {}) {
   const results = [];
   for (const line of String(output).split(/\r?\n/)) {
     const match = /^COMPLETION_CHECK:\s*(.+)$/.exec(line.trim());
@@ -133,7 +140,7 @@ export function parseCompletionClaimReview(output, names) {
     try { results.push(JSON.parse(match[1])); }
     catch { throw new Error('Completion claim validation contains malformed JSON.'); }
   }
-  const errors = validateCompletionClaims(results, names);
+  const errors = validateCompletionClaims(results, names, options);
   if (errors.length) throw new Error(errors.join('; '));
   return results;
 }
@@ -157,9 +164,12 @@ export function validateTaskEvidence(deliveryRoot, task) {
       errors.push(`structured task evidence is not valid JSON: ${error.message}`);
     }
     if (evidence) {
-      if (!['ewai.task-evidence/v1', 'ewai.task-evidence/v2'].includes(evidence.schema)) errors.push('unsupported task evidence schema');
-      const claimValidation = evidence.schema === 'ewai.task-evidence/v2' || task.claim_validation?.required === true;
-      if (task.claim_validation?.required === true && evidence.schema !== 'ewai.task-evidence/v2') errors.push('required completion claim validation cannot use legacy evidence');
+      if (!['ewai.task-evidence/v1', 'ewai.task-evidence/v2', 'ewai.task-evidence/v3'].includes(evidence.schema)) errors.push('unsupported task evidence schema');
+      const observedValidation = evidence.schema === 'ewai.task-evidence/v3' || task.claim_validation?.version === 3;
+      const claimOptions = {observed:observedValidation,requirements:task.completion_requirements ?? []};
+      if (task.claim_validation?.version === 3 && evidence.schema !== 'ewai.task-evidence/v3') errors.push('required observed claim validation cannot use earlier evidence');
+      const claimValidation = ['ewai.task-evidence/v2','ewai.task-evidence/v3'].includes(evidence.schema) || task.claim_validation?.required === true;
+      if (task.claim_validation?.required === true && !['ewai.task-evidence/v2','ewai.task-evidence/v3'].includes(evidence.schema)) errors.push('required completion claim validation cannot use legacy evidence');
       if (evidence.task_id !== task.id) errors.push(`task_id must be ${task.id}`);
       if (text(evidence.task_branch)) {
         if (evidence.task_branch !== task.branch) errors.push(`task_branch must be ${task.branch}`);
@@ -232,12 +242,12 @@ export function validateTaskEvidence(deliveryRoot, task) {
             let recorded;
             for (const item of captured.reviews) {
               if (!identities.includes(item.reviewer)) throw new Error('unknown captured claim reviewer');
-              recorded = parseCompletionClaimReview(item.output, list(task.completion_evidence));
+              recorded = parseCompletionClaimReview(item.output, list(task.completion_evidence), claimOptions);
             }
             if (JSON.stringify(recorded) !== JSON.stringify(review.claim_results)) throw new Error('claim results differ from captured review');
           } catch (error) { errors.push(`completion claim validation differs from captured review: ${error.message}`); }
         }
-        errors.push(...validateCompletionClaims(review.claim_results, list(task.completion_evidence)));
+        errors.push(...validateCompletionClaims(review.claim_results, list(task.completion_evidence), claimOptions));
         if (checks.length !== list(task.completion_evidence).length || checksByName.size !== checks.length) errors.push('completion claim validation must cover exactly the planned checks');
       }
       for (const planned of list(task.completion_evidence)) {
@@ -247,7 +257,7 @@ export function validateTaskEvidence(deliveryRoot, task) {
           evidenceFile(root, check.evidence_path, check.evidence_sha256, `completion check ${planned}`, errors);
           if (claimValidation) {
             const result = Array.isArray(review.claim_results) ? review.claim_results.find(item => item?.name === planned) : null;
-            if (!result || check.support !== result.support || check.evidence_path !== review.evidence_path || check.evidence_sha256 !== review.evidence_sha256) errors.push(`completion claim validation is not bound to its supporting review: ${planned}`);
+            if (!result || check.support !== result.support || observedValidation && (JSON.stringify(check.observation) !== JSON.stringify(result.observation) || JSON.stringify(check.challenge) !== JSON.stringify(result.challenge)) || check.evidence_path !== review.evidence_path || check.evidence_sha256 !== review.evidence_sha256) errors.push(`completion claim validation is not bound to its supporting review: ${planned}`);
           }
         }
       }
@@ -491,6 +501,16 @@ export function validateTaskGraph(deliveryRoot, options = {}) {
       }
       if (task?.merge?.orchestrator_owned !== true) add('merge-not-orchestrator-owned', `${id} merge must be orchestrator-owned.`, id);
       if (task?.review?.fresh_context_required !== true) add('fresh-review-required', `${id} requires fresh-context review.`, id);
+    }
+
+    for (const task of tasks) {
+      if (task.completion_requirements !== undefined) {
+        const requirements = task.completion_requirements;
+        const names = Array.isArray(requirements) ? requirements.map(item => item?.name) : [];
+        if (!Array.isArray(requirements) || names.length !== list(task.completion_evidence).length || new Set(names).size !== names.length || names.some(name => !list(task.completion_evidence).includes(name))
+          || requirements.some(item => !['behaviour','configuration','command-result','review-result'].includes(item?.evidence_type))) add('completion-requirements-invalid', `${task.id} requires one valid evidence type per completion claim.`, task.id);
+      }
+      if (task.claim_validation?.version !== undefined && task.claim_validation.version !== 3) add('claim-validation-version-invalid', `${task.id} declares an unsupported claim validation version.`, task.id);
     }
 
     const ledgerClaims = recordsFrom(claimLedger, ['implementation_claims', 'claims']);

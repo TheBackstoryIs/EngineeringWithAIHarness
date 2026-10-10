@@ -153,7 +153,7 @@ function seed(root, options = {}) {
 async function fakeProvider(invocation, options = {}) {
   options.onStart?.(999999);
   if (invocation.mode === 'review') {
-    return { exitCode: 0, timedOut: false, executionStopped: true, output: 'Tests reviewed first. The change is scoped and correct.\n' + invocation.task.completion_evidence.map(name => 'COMPLETION_CHECK: ' + JSON.stringify({name,status:'pass',support:'test/output.test.mjs asserts message equals ready; src/output.mjs exports message.'})).join('\n') + '\nVERDICT: PASS\n', logPath: invocation.logPath };
+    return { exitCode: 0, timedOut: false, executionStopped: true, output: 'Tests reviewed first. The change is scoped and correct.\n' + invocation.task.completion_evidence.map(name => 'COMPLETION_CHECK: ' + JSON.stringify({name,status:'pass',support:'test/output.test.mjs asserts message equals ready; src/output.mjs exports message.',challenge:{attempt:'Trace missing export and non-ready value',result:'The equality assertion rejects either case'},observation:{evidence_type:'behaviour',expected:'ready',actual:'ready',evidence:'test/output.test.mjs equality assertion and captured green result'}})).join('\n') + '\nVERDICT: PASS\n', logPath: invocation.logPath };
   }
   const root = invocation.cwd;
   mkdirSync(resolve(root, 'src'), { recursive: true });
@@ -722,4 +722,36 @@ test('AFK blocks a generic review PASS without per-claim validation', async t =>
   assert.equal(run.status, 'blocked');
   assert.match(run.messages.map(item => item.message).join(' '), /completion claim/i);
   assert.throws(() => readFileSync(resolve(root, 'src/output.mjs')), /ENOENT/, 'unsupported completion must not integrate');
+});
+
+
+test('AFK checkpoint reports verified work and refuses tampered completion or unknown recovery', async t => {
+  const root=mkdtempSync(resolve(tmpdir(),'ewai-checkpoint-')),oldPath=process.env.PATH;
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  process.env.PATH=`${prepareProject(root)}${delimiter}${oldPath}`;
+  const run=await startAfkRun(root,'safe-change',{foreground:true,dependencies:{invokeProvider:fakeProvider}});
+  const status=afkRunStatus(root,run.id);
+  assert.equal(status.checkpoint.done.length,1);
+  assert.deepEqual(status.checkpoint.done[0].claims,['tests pass']);
+  assert.equal(status.checkpoint.repositories[0].integrationBranch,'feature/safe-change');
+  assert.equal(status.checkpoint.tasks[0].actualBranch,run.tasks['T-001'].actualBranch);
+  assert.equal(status.checkpoint.next.action,'complete-build-gate');
+  const runPath=resolve(root,'.ewai-pipeline/afk/runs',run.id,'run.json');
+  assert.equal(JSON.parse(readFileSync(runPath)).checkpoint.done.length,1,'checkpoint persisted atomically with run');
+  writeFileSync(resolve(root,'SPECS/6.Build/safe-change/tasks/T-001/evidence/green.txt'),'changed output');
+  const stale=afkRunStatus(root,run.id).checkpoint;
+  assert.equal(stale.done.length,0);
+  assert.equal(stale.next.action,'inspect-evidence');
+  assert.match(stale.openQuestions.join(' '),/evidence/i);
+  const saved=JSON.parse(readFileSync(runPath));saved.status='blocked';saved.executionStopped=false;saved.unconfirmedExecution=true;
+  writeFileSync(runPath,JSON.stringify(saved));
+  assert.equal(afkRunStatus(root,run.id).checkpoint.next.action,'confirm-worker-termination');
+  saved.status='running';saved.pid=999999;writeFileSync(runPath,JSON.stringify(saved));
+  assert.equal(afkRunStatus(root,run.id).checkpoint.next.action,'confirm-worker-termination','lost conductor is not active work');
+  writeFileSync(resolve(root,'SPECS/6.Build/safe-change/task-graph.json'),JSON.stringify({tasks:{corrupt:true}}));
+  const corrupt=afkRunStatus(root,run.id).checkpoint;assert.equal(corrupt.done.length,0);assert.match(corrupt.openQuestions.join(' '),/task graph/);
+  writeFileSync(resolve(root,'SPECS/6.Build/safe-change/task-graph.json'),JSON.stringify({tasks:[null]}));
+  assert.equal(afkRunStatus(root,run.id).checkpoint.done.length,0);
+  const cancelled=cancelAfkRun(root,run.id);assert.equal(cancelled.desiredState,'cancelled');
+  assert.equal(JSON.parse(readFileSync(runPath)).desiredState,'cancelled','bad checkpoint cannot obstruct cancellation');
 });
