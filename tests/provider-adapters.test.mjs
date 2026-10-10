@@ -261,3 +261,28 @@ test('restriction verification accepts only bounded host cancellation controls',
   assert.equal(result.code, 'phase-cancelled'); assert.equal(result.executionStopped, true);
   assert.equal(JSON.stringify(result).includes('private-reason'), false);
 });
+
+
+test('AFK provider resolution waits for complete captured output with a delayed writer', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-log-flush-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const url = new URL('../src/runtime/provider-adapters.mjs', import.meta.url);
+  let source = readFileSync(url, 'utf8').replace(/from (['"])(\.[^'"]+)\1/g,
+    (_match, _quote, specifier) => `from ${JSON.stringify(new URL(specifier, url).href)}`);
+  source = source.replace('constants, createWriteStream,', 'constants, createWriteStream as realCreateWriteStream,');
+  source = `import { Writable } from 'node:stream';
+function createWriteStream(path, options) {
+  const sink = realCreateWriteStream(path, options);
+  return new Writable({
+    write(chunk, encoding, done) { setTimeout(() => sink.write(chunk, encoding, done), 50); },
+    final(done) { sink.end(done); },
+  });
+}
+` + source;
+  const api = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+  const logPath = resolve(root, 'captured.txt');
+  const result = await api.invokeProvider({ provider: 'codex', command: process.execPath,
+    args: ['-e', 'process.stdout.write("complete captured output")'], cwd: root, prompt: '', timeoutMs: 5000, logPath });
+  assert.equal(result.exitCode, 0);
+  assert.equal(readFileSync(logPath, 'utf8'), 'complete captured output');
+});

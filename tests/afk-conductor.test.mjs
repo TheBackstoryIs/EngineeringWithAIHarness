@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { delimiter, resolve } from 'node:path';
+import { delimiter, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import YAML from 'yaml';
 import { createIntent, updateIntentDeliveryState } from '../src/intents.mjs';
@@ -12,6 +12,7 @@ import {
 } from '../src/runtime/afk-conductor.mjs';
 import { listExecutionLeases } from '../src/runtime/execution-leases.mjs';
 import {readCodingProviders,saveCodingProviders} from '../src/coding-providers.mjs';
+import { sha256 } from '../src/delivery-documents.mjs';
 import {prepareGrokBuildProvider} from '../src/runtime/provider-adapters.mjs';
 
 test('AFK supplies Grok source standards, implementation diff and recorded checks before review dispatch',{skip:process.platform!=='darwin'},async t=>{
@@ -498,4 +499,213 @@ test('a branch change before integration never aborts the owners unrelated merge
     assert.equal(git(root, ['rev-parse', 'HEAD']), head); assert.equal(git(root, ['rev-parse', 'MERGE_HEAD']), mergeHead);
     assert.equal(git(root, ['write-tree']), index); assert.equal(readFileSync(resolve(root, 'owner.txt'), 'utf8'), 'preserve owner merge');
   } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+});
+
+function configureContinuation(root, maxIterations = 3) {
+  const path = resolve(root, 'SPECS/6.Build/safe-change/task-graph.json');
+  const graph = JSON.parse(readFileSync(path));
+  graph.tasks[0].ralph_loop = { allowed: true, max_iterations: maxIterations, completion_promise: '<promise>T-001 COMPLETE</promise>' };
+  writeFileSync(path, JSON.stringify(graph, null, 2));
+  git(root, ['add', 'SPECS/6.Build/safe-change/task-graph.json']);
+  git(root, ['commit', '-m', 'enable bounded continuation']);
+}
+
+function endedTurn(invocation, output = '<promise>T-001 COMPLETE</promise>') {
+  mkdirSync(dirname(invocation.logPath), { recursive: true });
+  writeFileSync(invocation.logPath, output);
+  return { exitCode: 0, executionStopped: true, output, logPath: invocation.logPath };
+}
+
+test('AFK continues an opted-in worker after a premature successful exit', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-continue-')), oldPath = process.env.PATH;
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  configureContinuation(root);
+  const calls = [];
+  const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async (invocation, options) => {
+    if (invocation.mode === 'implementation') {
+      calls.push(invocation);
+      if (calls.length === 1) return endedTurn(invocation);
+    }
+    return fakeProvider(invocation, options);
+  } } });
+  assert.equal(run.status, 'completed', JSON.stringify(run.messages));
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].cwd, calls[1].cwd, 'continue the same worktree');
+  assert.match(calls[1].prompt, /continuation|Continue/i);
+  assert.match(calls[1].prompt, /green-iteration-1/);
+  const evidence = JSON.parse(readFileSync(resolve(root, 'SPECS/6.Build/safe-change/tasks/T-001/evidence.json')));
+  assert.equal(evidence.continuation.iterations.length, 2);
+  assert.notEqual(evidence.continuation.iterations[0].verification.exit_code, 0);
+  assert.equal(evidence.continuation.iterations[1].verification.exit_code, 0);
+  for (const iteration of evidence.continuation.iterations) {
+    assert.equal(sha256(readFileSync(resolve(root, 'SPECS/6.Build/safe-change', iteration.verification.output_path))), iteration.verification.output_sha256);
+  }
+});
+
+test('AFK repairs failed green verification without discarding partial work', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-repair-')), oldPath = process.env.PATH;
+  const oldTestContext = process.env.NODE_TEST_CONTEXT;
+  // Exercise the real subprocess test-runner exit code, outside its parent's IPC context.
+  delete process.env.NODE_TEST_CONTEXT;
+  t.after(() => {
+    process.env.PATH = oldPath;
+    if (oldTestContext === undefined) delete process.env.NODE_TEST_CONTEXT;
+    else process.env.NODE_TEST_CONTEXT = oldTestContext;
+    rmSync(root, { recursive: true, force: true });
+  });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  configureContinuation(root);
+  let turns = 0;
+  const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async (invocation, options) => {
+    if (invocation.mode === 'implementation' && ++turns === 1) {
+      await fakeProvider(invocation, options);
+      writeFileSync(resolve(invocation.cwd, 'src/output.mjs'), "export const message = 'partial';\n");
+      return endedTurn(invocation);
+    }
+    if (invocation.mode === 'implementation') assert.match(readFileSync(resolve(invocation.cwd, 'src/output.mjs'), 'utf8'), /partial/);
+    return fakeProvider(invocation, options);
+  } } });
+  assert.equal(run.status, 'completed', JSON.stringify(run.messages));
+  assert.equal(turns, 2);
+});
+
+for (const [name, enabled, response, expected] of [
+  ['disabled loop', false, {}, /green command failed/],
+  ['exhausted loop', true, {}, /iteration limit/],
+  ['explicit blocker', true, { output: 'EWAI_BLOCKED: requirement needs an owner decision' }, /worker reported a blocker/],
+  ['provider error', true, { exitCode: 1 }, /exited 1/],
+  ['provider timeout', true, { timedOut: true }, /timeout/],
+  ['unknown termination', true, { executionStopped: false }, /not confirmed stopped/],
+]) {
+  test(`AFK stops rather than repeating ${name}`, async t => {
+    const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-stop-')), oldPath = process.env.PATH;
+    t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+    process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+    if (enabled) configureContinuation(root, 2);
+    let calls = 0;
+    const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async invocation => {
+      calls++;
+      return { ...endedTurn(invocation), ...response };
+    } } });
+    assert.equal(run.status, 'blocked');
+    assert.match(run.messages.map(x => x.message).join(' '), expected);
+    assert.equal(calls, name === 'exhausted loop' ? 2 : 1);
+  });
+}
+
+test('AFK checks write scope before another continuation turn', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-scope-loop-')), oldPath = process.env.PATH;
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  configureContinuation(root);
+  let calls = 0;
+  const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async invocation => {
+    calls++;
+    writeFileSync(resolve(invocation.cwd, 'outside.txt'), 'scope breach');
+    return endedTurn(invocation);
+  } } });
+  assert.equal(run.status, 'blocked');
+  assert.match(run.messages.map(x => x.message).join(' '), /outside its write_set/);
+  assert.equal(calls, 1);
+});
+
+test('AFK continuation shares one deadline instead of resetting it per turn', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-deadline-')), oldPath = process.env.PATH;
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  configureContinuation(root);
+  let elapsed = 0, calls = 0;
+  const run = await startAfkRun(root, 'safe-change', { foreground: true, timeoutMs: 60000, dependencies: {
+    monotonicNow: () => elapsed,
+    invokeProvider: async invocation => { calls++; elapsed = 60001; return endedTurn(invocation); },
+  } });
+  assert.equal(run.status, 'blocked');
+  assert.match(run.messages.map(x => x.message).join(' '), /task deadline/);
+  assert.equal(calls, 1);
+});
+
+test('AFK pause prevents a new continuation turn after current worker stops', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-pause-loop-')), oldPath = process.env.PATH;
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  configureContinuation(root);
+  let calls = 0;
+  const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async invocation => {
+    calls++;
+    const runId = invocation.logPath.split('/runs/')[1].split('/')[0];
+    pauseAfkRun(root, runId);
+    return endedTurn(invocation);
+  } } });
+  assert.equal(run.status, 'paused');
+  assert.equal(run.executionStopped, true);
+  assert.equal(calls, 1);
+});
+
+
+for (const [format, output] of [
+  ['Codex JSON', JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'EWAI_BLOCKED: owner decision required' } })],
+  ['Claude stream JSON', JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'EWAI_BLOCKED: owner decision required' }] } })],
+  ['stream result', JSON.stringify({ type: 'result', result: 'EWAI_BLOCKED: owner decision required' })],
+]) {
+  test(`AFK stops on an assistant blocker in ${format}`, async t => {
+    const root = mkdtempSync(resolve(tmpdir(), 'ewai-native-blocker-')), oldPath = process.env.PATH;
+    t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+    process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+    configureContinuation(root);
+    let calls = 0;
+    const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async invocation => {
+      calls++; return endedTurn(invocation, output);
+    } } });
+    assert.equal(run.status, 'blocked');
+    assert.equal(calls, 1);
+    assert.match(run.messages.map(x => x.message).join(' '), /worker reported a blocker/);
+  });
+}
+
+test('AFK preserves hashed failed-iteration evidence across explicit resume', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-loop-resume-')), oldPath = process.env.PATH;
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  configureContinuation(root);
+  const autonomy = { runId: '11111111-1111-1111-1111-111111111111', grantDigest: `sha256:${'a'.repeat(64)}` };
+  const paused = await startAfkRun(root, 'safe-change', { foreground: true, autonomy, timeoutMs: 60000, dependencies: {
+    authority: () => {}, invokeProvider: async invocation => {
+      pauseAfkRun(root, invocation.logPath.split('/runs/')[1].split('/')[0]);
+      return endedTurn(invocation);
+    },
+  } });
+  assert.equal(paused.status, 'paused');
+  const path = paused.tasks['T-001'].continuation.iterations[0].verification.outputPath;
+  const before = readFileSync(path), originalHash = paused.tasks['T-001'].continuation.iterations[0].verification.outputSha256;
+  assert.equal(sha256(before), originalHash);
+  const resumed = await resumeAfkRun(root, paused.id, { foreground: true, autonomy, timeoutMs: 60000, dependencies: { authority: () => {}, invokeProvider: fakeProvider } });
+  assert.equal(resumed.status, 'completed', JSON.stringify(resumed.messages));
+  assert.equal(resumed.tasks['T-001'].attempt, 2);
+  assert.deepEqual(readFileSync(path), before);
+  assert.notEqual(resumed.tasks['T-001'].continuation.iterations[0].verification.outputPath, path);
+  const manifest = JSON.parse(readFileSync(resolve(dirname(path), 'continuation.json')));
+  assert.equal(manifest.iterations[0].verification.outputSha256, originalHash);
+});
+
+
+test('AFK captures complete large command output with quoted log paths before hashing', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), "ewai-loop quote'-")), oldPath = process.env.PATH;
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  configureContinuation(root);
+  const path = resolve(root, 'SPECS/6.Build/safe-change/task-graph.json'), graph = JSON.parse(readFileSync(path));
+  const command = `node --test test/output.test.mjs && node -e 'process.stdout.write("x".repeat(2097152))'`;
+  graph.tasks[0].red_green_refactor.red_command = command;
+  graph.tasks[0].red_green_refactor.green_command = command;
+  graph.tasks[0].allowed_commands.push(command);
+  writeFileSync(path, JSON.stringify(graph));
+  git(root, ['add', 'SPECS/6.Build/safe-change/task-graph.json']);
+  git(root, ['commit', '-m', 'declare large-output checks']);
+  const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: fakeProvider } });
+  assert.equal(run.status, 'completed', JSON.stringify(run.messages));
+  const check = run.tasks['T-001'].continuation.iterations[0].verification;
+  const output = readFileSync(check.outputPath);
+  assert.ok(output.length >= 2097152);
+  assert.equal(sha256(output), check.outputSha256);
 });

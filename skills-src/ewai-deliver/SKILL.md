@@ -109,13 +109,15 @@ Start the intent-level active session with a stable `ownerId`. A different orche
 
 ## Unattended Build conductor
 
-When the user explicitly asks EWAI to continue approved Build work while they are away, use the AFK conductor instead of inventing a host-specific background loop:
+When the user explicitly asks EWAI to continue approved Build work to completion without repeated prompts, or while they are away, use the AFK conductor for eligible tasks instead of inventing a host-specific background loop:
 
 1. Call `ewai_afk_preflight` and explain every blocker. Never weaken the task graph to make preflight pass.
 2. Confirm the user has already approved Build and understands the bounded scope, provider choice, maximum parallel tasks, and timeout.
 3. Call `ewai_afk_start`. Report the durable run ID and how to pause, resume, cancel, and inspect it; do not expose lease tokens or raw prompts.
 4. Use `ewai_afk_status` for updates. Translate semantic run/task states into human language rather than streaming model internals.
-5. A blocked run requires attention; diagnose its preserved log/evidence before `ewai_afk_resume`. Never silently retry a stop condition, failed review, scope breach, merge conflict, or post-merge failure.
+5. For tasks expected to need several implementation turns, propose an explicit `ralph_loop.allowed: true` with a finite `max_iterations` from 1 to 100 (normally 3) before Build approval. Existing disabled contracts remain single-shot; never expand a recorded task or grant to obtain more attempts.
+6. The conductor can continue only a successfully exited, confirmed stopped implementation worker whose declared green check still fails. It keeps the same task worktree, captures each verification output, and rechecks provider/authority/control boundaries on every invocation. The task timeout is shared across its turns, verification, review and post-merge checks. A completion promise never replaces host verification.
+7. A blocked run requires attention; diagnose its preserved log/evidence before `ewai_afk_resume`. Never silently retry a worker-reported `EWAI_BLOCKED:` decision, provider error/timeout, unknown termination, stop condition, failed review, scope breach, merge conflict, or post-merge failure.
 
 The conductor is a local Build executor, not a replacement for the fourteen-stage harness. It detects simple and multi-repository topology from the configured `pipeline.yaml`; every task's `repo` must match a configured repository, and exactly one configured repository must contain the configured SPECS root to own durable evidence. The workspace root need not be a Git repository. It creates a missing integration branch from each selected repository's clean current branch, then creates a real task branch/worktree there, leases only ready AFK tasks, limits concurrency to the validated graph, requires a fresh-context review, merges into that repository's declared parent branch in graph order, and runs post-merge checks. It blocks detached heads and refuses to silently switch when the declared integration branch already exists elsewhere. Use `task-graph.json.repository_branches` when repositories have different parent branches. Completion means all eligible Build tasks were integrated; it does not complete the Build phase, Standards Sweep, Test Execute, external validation, Delivery, Manual QA, or Retro.
 
@@ -124,3 +126,11 @@ The conductor is a local Build executor, not a replacement for the fourteen-stag
 Translate control-plane work into warm, semantic progress such as “Validating the plan against project standards” or “Checking what changed since this work was shelved.” Do not make the user learn the command surface. Ask only decisions the evidence cannot answer.
 
 When blocked, retain the exact phase, evidence, questions, and recovery point. When complete, Retro must capture learning and route accepted improvements into project-owned SPECS assets.
+
+## Execution continuity
+
+After an authorised action completes, inspect the saved next action and continue all remaining permitted work. A successful tool call, completed task, progress summary or model turn is not delivery completion. Do not end the interaction just to offer to continue work the owner has already authorised.
+
+Stop for a real blocker, a required human decision, exhausted configured execution budget, cancellation, or the actual agreed completion boundary. Preserve the exact recovery point and explain the reason. Never interpret an earlier Build instruction as Manual QA, deployment, release or acceptance approval.
+
+For eligible approved Build tasks, the conductor provides execution continuity outside individual worker turns. These instructions improve interactive behaviour but cannot restart a native host conversation after its model ends a turn; do not advertise guaranteed unattended completion for the ordinary interactive companion. Phase preparation remains draft-only and stops for its required human review.

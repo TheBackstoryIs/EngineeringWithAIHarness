@@ -46,3 +46,9 @@ EWAI saves the intent and phase evidence in SPECS. Ask it to show what's complet
 If the outcome changes materially, revisit the intent and plan. A new Build approval may be needed. If only an evidence reference needs a correction, follow the [amendment guide](../completed-phase-evidence-amendments.md), which explains the narrow permitted operations.
 
 Try the [first-delivery tutorial](../tutorials/first-delivery.md). For exact commands and evidence contracts, use the [developer delivery guide](../developer-delivery-guide.md).
+
+## A worker turn is not task completion
+
+The delivery workflow governs what may happen next. For eligible approved Build tasks, the AFK conductor also keeps execution moving between worker turns. A task can approve a finite continuation loop (`ralph_loop.allowed: true`, `max_iterations: 3`, for example). A normal worker exit followed by failing green verification then leads to another turn in the same worktree, within the original deadline and scope. Host verification decides when the task is ready for review. Failed reviews and genuine blockers require attention.
+
+This is distinct from merely instructing the interactive companion to keep going: EWAI cannot restart that host's conversation after a chat turn ends. The conductor supplies the persistent execution path for approved Build tasks, while canonical phase gates continue to govern the wider delivery.

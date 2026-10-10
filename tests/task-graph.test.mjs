@@ -284,3 +284,40 @@ test('rejects red and green commands that were not explicitly allowed', () => {
   assert.equal(result.status, 'fail');
   assert.equal(result.errors.some((error) => error.code === 'task-command-not-allowed'), true);
 });
+
+
+test('rejects excessive continuation budgets before dispatch', () => {
+  const graph = validGraph();
+  graph.tasks[0].ralph_loop = { allowed: true, max_iterations: 101, completion_promise: 'done' };
+  const result = validate(graph);
+  assert.equal(result.status, 'fail');
+  assert.ok(result.errors.some(error => error.code === 'ralph-loop-unbounded'));
+});
+
+
+test('continuation evidence cannot hide failed or tampered verification', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-loop-evidence-'));
+  try {
+    const graph = validGraph(), task = graph.tasks[0];
+    task.ralph_loop = { allowed: true, max_iterations: 3, completion_promise: 'done' };
+    writeFileSync(resolve(root, 'task-graph.json'), JSON.stringify(graph));
+    seedSources(root, graph);
+    mkdirSync(resolve(root, 'tasks/T-001'), { recursive: true });
+    writeFileSync(resolve(root, task.report_path), completedReport());
+    seedEvidence(root, task);
+    const path = resolve(root, task.evidence_path), evidence = JSON.parse(readFileSync(path));
+    const outputPath = 'tasks/T-001/evidence/first-failure.txt';
+    writeFileSync(resolve(root, outputPath), 'actual first failure');
+    evidence.continuation = { enabled: true, max_iterations: 3, iterations: [
+      { iteration: 1, provider_exit_code: 0, execution_stopped: true, verification: { ...evidence.commands[1], exit_code: 1, output_path: outputPath, output_sha256: sha256(readFileSync(resolve(root, outputPath))) } },
+      { iteration: 2, provider_exit_code: 0, execution_stopped: true, verification: { ...evidence.commands[1] } },
+    ] };
+    writeFileSync(path, JSON.stringify(evidence));
+    assert.equal(validateTaskGraph(root).tasks[0].report.status, 'complete');
+    writeFileSync(resolve(root, outputPath), 'replaced failure');
+    assert.equal(validateTaskGraph(root).tasks[0].report.status, 'incomplete');
+    evidence.continuation.iterations[1].execution_stopped = false;
+    writeFileSync(path, JSON.stringify(evidence));
+    assert.ok(validateTaskGraph(root).tasks[0].report.errors.some(error => /confirmed stopped/.test(error)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

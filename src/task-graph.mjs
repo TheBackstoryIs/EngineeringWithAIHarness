@@ -166,6 +166,24 @@ export function validateTaskEvidence(deliveryRoot, task) {
         }
         evidenceFile(root, command.output_path, command.output_sha256, `${command.stage || 'command'} output`, errors);
       }
+      if (evidence.continuation) {
+        const history = evidence.continuation;
+        const enabled = task.ralph_loop?.allowed === true;
+        const limit = enabled ? task.ralph_loop.max_iterations : 1;
+        if (history.enabled !== enabled || history.max_iterations !== limit) errors.push('continuation budget must match the task contract');
+        const iterations = history.iterations;
+        if (!Array.isArray(iterations) || !iterations.length || iterations.length > limit) {
+          errors.push('continuation history must be non-empty and within its iteration budget');
+        } else {
+          for (const [index, iteration] of iterations.entries()) {
+            const check = iteration?.verification;
+            if (iteration?.iteration !== index + 1 || iteration?.provider_exit_code !== 0 || iteration?.execution_stopped !== true) errors.push('continuation iteration must record an ordered, successful, confirmed stopped worker');
+            if (!check || check.command !== task.red_green_refactor?.green_command || !Number.isInteger(check.exit_code)
+              || (index === iterations.length - 1 ? check.exit_code !== 0 : check.exit_code === 0)) errors.push('continuation verification must retain failures before the final passing green');
+            if (check) evidenceFile(root, check.output_path, check.output_sha256, 'continuation verification output', errors);
+          }
+        }
+      }
       const review = evidence.review ?? {};
       if (review.fresh_context !== true) errors.push('review.fresh_context must be true');
       if (review.tests_reviewed_first !== true) errors.push('review.tests_reviewed_first must be true');
@@ -412,8 +430,8 @@ export function validateTaskGraph(deliveryRoot, options = {}) {
         if (!list(task.completion_evidence).length) add('afk-completion-evidence-missing', `${id} requires completion evidence.`, id);
       }
       if (task?.ralph_loop?.allowed === true) {
-        if (!Number.isInteger(task.ralph_loop.max_iterations) || task.ralph_loop.max_iterations < 1) {
-          add('ralph-loop-unbounded', `${id} Ralph loop requires a finite positive max_iterations.`, id);
+        if (!Number.isInteger(task.ralph_loop.max_iterations) || task.ralph_loop.max_iterations < 1 || task.ralph_loop.max_iterations > 100) {
+          add('ralph-loop-unbounded', `${id} Ralph loop requires max_iterations between 1 and 100.`, id);
         }
         if (!text(task.ralph_loop.completion_promise)) add('ralph-loop-promise-missing', `${id} Ralph loop requires a completion promise.`, id);
       }
