@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { validateTaskGraph } from '../src/task-graph.mjs';
+import { validateTaskGraph, validateTaskEvidence, parseCompletionClaimReview } from '../src/task-graph.mjs';
 import { sha256 } from '../src/delivery-documents.mjs';
 
 function validGraph() {
@@ -320,4 +320,54 @@ test('continuation evidence cannot hide failed or tampered verification', () => 
     writeFileSync(path, JSON.stringify(evidence));
     assert.ok(validateTaskGraph(root).tasks[0].report.errors.some(error => /confirmed stopped/.test(error)));
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test('required claim validation cannot be downgraded to legacy evidence', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-claim-downgrade-'));
+  try {
+    const task = validGraph().tasks[0];
+    task.claim_validation = { required: true };
+    seedEvidence(root, task);
+    const result = validateTaskEvidence(root, task);
+    assert.equal(result.status, 'incomplete');
+    assert.match(result.errors.join(' '), /claim validation/i);
+  } finally { rmSync(root, {recursive:true,force:true}); }
+});
+
+
+test('claim review rejects missing failed duplicate unknown and unsupported results', () => {
+  const pass = {name:'Module delivers ready output',status:'pass',support:'test/output.test.mjs asserts ready from src/output.mjs'};
+  const line = result => 'COMPLETION_CHECK: ' + JSON.stringify(result);
+  assert.deepEqual(parseCompletionClaimReview(line(pass), [pass.name]), [pass]);
+  for (const output of ['VERDICT: PASS', line({...pass,status:'fail'}), line({...pass,support:''}), line(pass)+'\n'+line(pass), line({...pass,name:'Production deployed'}), 'COMPLETION_CHECK: broken']) {
+    assert.throws(() => parseCompletionClaimReview(output, [pass.name]), /completion claim/i);
+  }
+});
+
+test('v2 completion claims must cite supporting review rather than unrelated green output', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-claim-binding-'));
+  try {
+    const task = validGraph().tasks[0]; task.claim_validation = {required:true}; seedEvidence(root,task);
+    const path=resolve(root,task.evidence_path), evidence=JSON.parse(readFileSync(path));
+    evidence.schema='ewai.task-evidence/v2';
+    evidence.review.claim_results=[{name:task.completion_evidence[0],status:'pass',support:'src/tracer.mjs dispatch tested by tracer assertion'}];
+    const transcript={schema:'ewai.claim-review/v1',reviews:[{reviewer:evidence.review.reviewer,output:'COMPLETION_CHECK: '+JSON.stringify(evidence.review.claim_results[0])+'\nVERDICT: PASS\n'}]};
+    writeFileSync(resolve(root,evidence.review.evidence_path),JSON.stringify(transcript));
+    evidence.review.evidence_sha256=sha256(readFileSync(resolve(root,evidence.review.evidence_path)));
+    const check=evidence.completion_checks[0]; check.support=evidence.review.claim_results[0].support;
+    writeFileSync(path,JSON.stringify(evidence));
+    assert.match(validateTaskEvidence(root,task).errors.join(' '), /supporting review/);
+    check.evidence_path=evidence.review.evidence_path;check.evidence_sha256=evidence.review.evidence_sha256;
+    writeFileSync(path,JSON.stringify(evidence));
+    assert.equal(validateTaskEvidence(root,task).status,'complete');
+    transcript.reviews[0].output+='COMPLETION_CHECK: '+JSON.stringify({...evidence.review.claim_results[0],status:'fail'})+'\n';
+    writeFileSync(resolve(root,evidence.review.evidence_path),JSON.stringify(transcript));
+    evidence.review.evidence_sha256=sha256(readFileSync(resolve(root,evidence.review.evidence_path)));check.evidence_sha256=evidence.review.evidence_sha256;writeFileSync(path,JSON.stringify(evidence));
+    assert.match(validateTaskEvidence(root,task).errors.join(' '), /duplicate claim/);
+    evidence.review.claim_results[0].support='Invented support absent from review'; check.support=evidence.review.claim_results[0].support; writeFileSync(path,JSON.stringify(evidence));
+    assert.match(validateTaskEvidence(root,task).errors.join(' '), /differs from captured review/);
+    evidence.review.claim_results=[];writeFileSync(path,JSON.stringify(evidence));
+    assert.equal(validateTaskEvidence(root,task).status,'incomplete');
+  } finally {rmSync(root,{recursive:true,force:true});}
 });

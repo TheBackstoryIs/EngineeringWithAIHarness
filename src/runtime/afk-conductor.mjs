@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { deliveryPaths, atomicJson, isWithin, sha256, now } from '../delivery-documents.mjs';
 import { projectPaths } from '../paths.mjs';
 import { loadProjectConfig, validationStatus } from '../project.mjs';
-import { validateTaskGraph, validateTaskReport } from '../task-graph.mjs';
+import { validateTaskGraph, validateTaskReport, parseCompletionClaimReview } from '../task-graph.mjs';
 import { syncIntentIndex } from './intents.mjs';
 import {
   abandonExecutionLeasesForRun,
@@ -509,7 +509,7 @@ export function prepareAfkContext(projectRoot, task, repository, options = {}) {
   const implementationCommit = String(options.implementationCommit ?? '').trim();
   const taskContent = JSON.stringify(task);
   let rules = review
-    ? `TESTS_FIRST Read tests before implementation. Read cited standards from ${specsRoot}. Review implementation commit ${implementationCommit}. Check the diff, exact task contract, write_set, desired outcome, stop conditions, test evidence, correctness, standards, security and scope. Do not edit files. End with exactly one line: VERDICT: PASS or VERDICT: FAIL.`
+    ? `TESTS_FIRST Read tests before implementation. Read cited standards from ${specsRoot}. Review implementation commit ${implementationCommit}. Check the diff, exact task contract, write_set, desired outcome, stop conditions, test evidence, correctness, standards, security and scope. Do not edit files. For EVERY completion_evidence name, assess whether the claimed result is actually delivered. Cite specific test assertions, source symbols or observed check results that support it; a generic green exit is insufficient. Never infer deployment, release or human acceptance from code/tests. Emit one line per name: COMPLETION_CHECK: followed by JSON with name (exact approved label), status (pass or fail), and support (specific evidence and reasoning). Missing or unsupported delivery must be fail. End with exactly one line: VERDICT: PASS or VERDICT: FAIL.`
     : `You are an EWAI Build worker in an isolated Git worktree. Read standards from ${specsRoot} and tests before implementation. Repository ${repository.name} (${repository.role}). Work only inside write_set. Run only allowed_commands. Stop on every stop_condition. Make the smallest code and test change. Do not create SPECS records, commit, merge, change delivery state or update phase status. AUTHORITY_NONE. Finish with files changed and commands run.`;
   if(options.evidenceCandidates?.length)rules += ' For this isolated Grok worker, read the complete source-standard and recorded-check sections supplied in this context. Host paths and Git history are inaccessible. Use the supplied exact commit diff for review. Do not execute commands: the conductor runs approved checks and owns commits. Read tests from the declared file snapshot before implementation.';
   const ruleMarkers = review
@@ -722,10 +722,10 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
   const delivery = deliveryPaths(projectRoot, run.slug);
   const evidencePath = resolve(delivery.deliveryRoot, task.evidence_path);
   const reportPath = resolve(delivery.deliveryRoot, task.report_path);
-  const reviewRelative = `tasks/${task.id}/evidence/fresh-context-review.md`;
+  const reviewRelative = `tasks/${task.id}/evidence/fresh-context-review.json`;
   const reviewPath = resolve(delivery.deliveryRoot, reviewRelative);
   mkdirSync(dirname(reviewPath), { recursive: true });
-  writeFileSync(reviewPath, `${review.output.trim()}\n`, 'utf8');
+  writeFileSync(reviewPath, JSON.stringify({schema:'ewai.claim-review/v1',reviews:review.reviewResults.map(item=>({reviewer:item.reviewer,output:item.output}))},null,2)+'\n', 'utf8');
   const commands = verifiedCommands.map((commandResult) => {
     const relativePath = `tasks/${task.id}/evidence/${commandResult.stage}.txt`;
     const destination = resolve(delivery.deliveryRoot, relativePath);
@@ -755,9 +755,8 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
         verification: { command: verification.command, exit_code: verification.exitCode, output_path: outputPath, output_sha256: sha256(readFileSync(destination)) } };
     }),
   };
-  const green = commands.find((command) => command.stage === 'green');
   const evidence = {
-    schema: 'ewai.task-evidence/v1',
+    schema: 'ewai.task-evidence/v2',
     task_id: task.id,
     repository: repository.name,
     task_branch: task.branch,
@@ -772,14 +771,16 @@ function writeTaskEvidence(projectRoot, run, result, postMerge) {
       tests_reviewed_first: true,
       status: 'pass',
       reviewer,
+      claim_results: review.claimResults,
       evidence_path: reviewRelative,
       evidence_sha256: sha256(readFileSync(reviewPath)),
     },
     completion_checks: (task.completion_evidence ?? []).map((name) => ({
       name,
       status: 'pass',
-      evidence_path: green.output_path,
-      evidence_sha256: green.output_sha256,
+      support: review.claimResults.find(result => result.name === name).support,
+      evidence_path: reviewRelative,
+      evidence_sha256: sha256(readFileSync(reviewPath)),
     })),
     post_merge_checks: postMerge,
   };
@@ -975,6 +976,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
     if (review.timedOut || review.exitCode !== 0 || !/^VERDICT:\s*PASS\s*$/im.test(review.output)) {
       throw new Error(`Fresh-context review did not pass; see ${relative(projectRoot, review.logPath)}.`);
     }
+    review.claimResults = parseCompletionClaimReview(review.output, task.completion_evidence ?? []);
     authorityChecks.get(run)?.({ stage: 'accept', mode: 'review' });
     if (git(worktree, ['rev-parse', 'HEAD']) !== implementationCommit || gitDirty(worktree)) {
       throw new Error('Fresh-context review changed the inspected implementation.');
@@ -986,6 +988,7 @@ async function implementTask(projectRoot, run, task, provider, dependencies = {}
       token: lease.token,
       durationMs: Math.min(86_400_000, run.timeoutMs + 10 * 60 * 1000),
     });
+    review.reviewResults = reviewResults;
     const branchHead = git(worktree, ['rev-parse', 'HEAD']);
     const reviewerIdentity = reviewers.map(reviewer=>`${reviewer}/${reviewer === provider ? 'fresh-session' : 'independent-cli'}`).join(',');
     taskState(run, task, { status: 'ready-to-integrate', implementationCommit, branchHead, reviewer: reviewerIdentity });

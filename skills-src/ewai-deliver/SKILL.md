@@ -77,6 +77,8 @@ Use guarded operations only:
 
 Never mutate a raw phase or status. A phase completes only with its passing EWAI gate ledger and fresh, hashed project evidence. Record meaningful progress events for the dashboard.
 
+New task contracts must set `claim_validation.required=true`. During the existing fresh-context review, assess each `completion_evidence` claim individually against specific source, test assertions or observed check results. Emit one `COMPLETION_CHECK:` JSON line per exact name with `status` and `support`; do not infer all claims from a generic passing test. Unsupported, missing or failed claims block integration. New evidence uses `ewai.task-evidence/v2` and binds completion claims to captured review evidence. Historical v1 evidence remains readable, but cannot satisfy a task requiring claim validation. This adds no separate model invocation; it is model-assisted evidence assessment, not Manual QA or release authority.
+
 Plan must produce `build-plan.md`, `destination.md`, the Claim Ledger, Plan Contract, and complete `task-graph.json`. The deterministic task-graph validator checks source records, claim and slice coverage, dependencies, cycles, write-set isolation, branch uniqueness, task contracts, waves, evidence paths, and review/merge ownership. Do not author its passing output manually.
 
 ## Persona-led test scenario integration

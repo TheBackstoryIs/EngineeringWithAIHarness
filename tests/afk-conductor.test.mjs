@@ -153,7 +153,7 @@ function seed(root, options = {}) {
 async function fakeProvider(invocation, options = {}) {
   options.onStart?.(999999);
   if (invocation.mode === 'review') {
-    return { exitCode: 0, timedOut: false, executionStopped: true, output: 'Tests reviewed first. The change is scoped and correct.\nVERDICT: PASS\n', logPath: invocation.logPath };
+    return { exitCode: 0, timedOut: false, executionStopped: true, output: 'Tests reviewed first. The change is scoped and correct.\n' + invocation.task.completion_evidence.map(name => 'COMPLETION_CHECK: ' + JSON.stringify({name,status:'pass',support:'test/output.test.mjs asserts message equals ready; src/output.mjs exports message.'})).join('\n') + '\nVERDICT: PASS\n', logPath: invocation.logPath };
   }
   const root = invocation.cwd;
   mkdirSync(resolve(root, 'src'), { recursive: true });
@@ -708,4 +708,18 @@ test('AFK captures complete large command output with quoted log paths before ha
   const output = readFileSync(check.outputPath);
   assert.ok(output.length >= 2097152);
   assert.equal(sha256(output), check.outputSha256);
+});
+
+
+test('AFK blocks a generic review PASS without per-claim validation', async t => {
+  const root = mkdtempSync(resolve(tmpdir(), 'ewai-claim-review-')), oldPath = process.env.PATH;
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
+  const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async (invocation, options) => {
+    if (invocation.mode === 'review') return endedTurn(invocation, 'VERDICT: PASS\n');
+    return fakeProvider(invocation, options);
+  } } });
+  assert.equal(run.status, 'blocked');
+  assert.match(run.messages.map(item => item.message).join(' '), /completion claim/i);
+  assert.throws(() => readFileSync(resolve(root, 'src/output.mjs')), /ENOENT/, 'unsupported completion must not integrate');
 });
