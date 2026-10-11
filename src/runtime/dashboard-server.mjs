@@ -112,6 +112,7 @@ import {
   repositorySourceMapFiles,
   repositorySourceMapProfiles
 } from './repository-index.mjs';
+import { repositoryOverview } from './repository-context.mjs';
 import {
   disableLifecycleSubscription,
   dispatchEligibleLifecycleDeliveries,
@@ -336,8 +337,15 @@ function dashboardWorkItemView(reference) {
       engagementReason: `Attached to ${view.item.title} for the current Source Map and impact context.`
     };
   });
+  let repositoryContext = null;
+  try {
+    repositoryContext = repositoryOverview(projectRoot);
+  } catch {
+    repositoryContext = null;
+  }
   return {
     ...view,
+    repositoryContext,
     impact: readImpactWorkspace(projectRoot, view.item.slug),
     sourceMap: {
       schema: 'ewai.dashboard-source-map/v1',
@@ -565,6 +573,10 @@ const server = createServer(async (request, response) => {
     if (request.method === 'GET' && url.pathname === '/api/intent') {
       const intent = readRuntimeIntent(projectRoot, url.searchParams.get('id') ?? '');
       return intent ? json(response, 200, { intent }) : json(response, 404, { error: 'Intent not found' });
+    }
+    if (request.method === 'GET' && url.pathname === '/api/repository-context') {
+      const file = url.searchParams.get('file') ?? '';
+      return json(response, 200, guarded(() => repositoryOverview(projectRoot, file)));
     }
     if (request.method === 'GET' && url.pathname === '/api/work-items') {
       return json(response, 200, {

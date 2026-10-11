@@ -360,6 +360,7 @@ Inspect `ewai index profiles`, the repository name/role selector, source provena
 
 - [Existing-project onboarding](existing-project-onboarding-guide.md)
 - [Blast Radius and Impact Routing](blast-radius-and-impact-routing-guide.md)
+- [Repository context](repository-context-guide.md)
 - [Designing Organisation Blueprint Packs](designing-organisation-blueprint-packs.md)
 - [Governed Starter-Project Materialisation](governed-starter-project-materialisation-guide.md)
 - [Working with personas](working-with-personas.md)

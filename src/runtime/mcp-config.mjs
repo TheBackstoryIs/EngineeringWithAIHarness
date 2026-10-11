@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import {parse as parseToml} from 'smol-toml';
 import {isDeepStrictEqual} from 'node:util';
 import {randomUUID} from 'node:crypto';
+import { installEditorHooks, sessionCommand } from './context-hooks.mjs';
 
 const codexStart = '# EWAI-MCP:START';
 const codexEnd = '# EWAI-MCP:END';
@@ -62,9 +63,12 @@ function configureClaudeSessionStart(projectRoot) {
         return hooks.length ? { ...entry, hooks } : null;
       })
       .filter(Boolean);
+    const contextEntries = retained.filter((entry) => Array.isArray(entry?.hooks) && entry.hooks.some((hook) => hook?.command === sessionCommand));
+    const earlier = retained.filter((entry) => !contextEntries.includes(entry));
     config.hooks.SessionStart = [
-      ...retained,
-      managed
+      ...earlier,
+      managed,
+      ...contextEntries
     ];
   });
 }
@@ -127,6 +131,7 @@ function configureGrok(root){
 export function configureProjectMcp(projectRoot) {
   const root = resolve(projectRoot);
   const grok=configureGrok(root);
+  const claude = configureClaudeSessionStart(root);
   return {
     schema: 'ewai.mcp-configuration/v1',
     transport: 'stdio',
@@ -137,6 +142,6 @@ export function configureProjectMcp(projectRoot) {
       antigravity: configureAntigravity(root),
       grok
     },
-    hooks: { claude: configureClaudeSessionStart(root) }
+    hooks: { claude, editor: installEditorHooks(root) }
   };
 }

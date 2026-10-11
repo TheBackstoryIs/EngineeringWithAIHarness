@@ -104,6 +104,9 @@ test('merges MCP host configuration without discarding project settings', () => 
     assert.equal(claudeSettings.theme, 'dark');
     assert.equal(claudeSettings.hooks.SessionStart[0].hooks[0].command, 'existing-session-hook');
     assert.equal(claudeSettings.hooks.SessionStart[1].hooks[0].command, 'ewai checkin --project . --json');
+    assert.equal(claudeSettings.hooks.SessionStart[2].hooks[0].command, 'ewai context session --project .');
+    assert.equal(claudeSettings.hooks.PostToolUse.at(-1).hooks[0].command, 'ewai context tool --project .');
+    assert.equal(claudeSettings.hooks.PreToolUse.at(-1).hooks[0].command, 'ewai context distill --project .');
     assert.equal(antigravity.custom, true);
     assert.equal(antigravity.mcpServers.existing.command, 'existing');
     assert.equal(antigravity.mcpServers.ewai.command, 'ewai');
@@ -111,6 +114,11 @@ test('merges MCP host configuration without discarding project settings', () => 
     assert.equal((codex.match(/# EWAI-MCP:START/g) ?? []).length, 1);
 
     initProject(root, { name: 'MCP Merge Test' });
+    const refreshedSettings = JSON.parse(readFileSync(resolve(root, '.claude/settings.json'), 'utf8'));
+    assert.equal(refreshedSettings.hooks.SessionStart[0].hooks[0].command, 'existing-session-hook');
+    assert.equal(refreshedSettings.hooks.SessionStart[1].hooks[0].command, 'ewai checkin --project . --json');
+    assert.equal(refreshedSettings.hooks.SessionStart[2].hooks[0].command, 'ewai context session --project .');
+    assert.equal(refreshedSettings.hooks.SessionStart.filter((entry) => entry.hooks?.some((hook) => hook.command === 'ewai context session --project .')).length, 1);
     assert.equal((readFileSync(resolve(root, '.codex/config.toml'), 'utf8').match(/# EWAI-MCP:START/g) ?? []).length, 1);
   } finally {
     rmSync(root, { recursive: true, force: true });

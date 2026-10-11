@@ -197,6 +197,20 @@ button { color: inherit; }
 .live-empty strong, .fatal-error strong { color: var(--ink); }
 
 .knowledge-view { display: grid; grid-template-columns: 290px minmax(0, 1fr); background: var(--surface); }
+.repository-view { overflow-y: auto; padding: 22px; background: var(--canvas); }
+.repository-heading h2 { margin: 0; font-size: 26px; }
+.repository-heading p { max-width: 62ch; margin: 6px 0 0; color: var(--muted); }
+.repository-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.repository-card, .repository-reading { padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.repository-card span, .repository-reading header span { color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.repository-card strong, .repository-reading header strong { display: block; margin-top: 4px; font-size: 14px; }
+.repository-card p, .repository-reading p, .repository-empty { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.repository-file-form { display: flex; align-items: end; gap: 10px; margin-bottom: 14px; }
+.repository-file-form label { display: grid; gap: 6px; flex: 1; font-size: 12px; font-weight: 700; }
+.repository-file-form input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.repository-reading header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.repository-reading header b { color: var(--green); font-size: 12px; }
+.repository-reading pre { margin: 12px 0 0; padding: 12px; overflow-x: auto; border-radius: 6px; background: var(--canvas); white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
 .knowledge-rail { min-height: 0; overflow-y: auto; padding: 16px 12px; border-right: 1px solid var(--line); background: var(--surface-2); }
 .knowledge-rail > header, .knowledge-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .knowledge-rail h2, .knowledge-heading h2 { margin: 0; font-size: 16px; }
@@ -469,6 +483,9 @@ button { color: inherit; }
 .impact-index strong { font-size: 11px; }
 .impact-index small { color: var(--muted); font-size: 9px; }
 .impact-index button { min-height: 34px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; cursor: pointer; font-size: 9px; font-weight: 800; }
+.impact-context { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.impact-context p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.impact-context p:first-child { color: var(--ink); font-weight: 700; }
 .source-map-coverage { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
 .source-map-coverage > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 13px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .source-map-coverage > header h3, .source-map-personas h4, .source-map-detail-grid h4 { margin: 2px 0 0; font-size: 12px; }
@@ -1219,7 +1236,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .group-button { width: auto; flex: 0 0 auto; white-space: nowrap; }
   .group-button span { overflow: visible; }
   .kanban { grid-auto-columns: minmax(245px, 82vw); min-width: 0; }
-  .live-view { padding: 14px; }
+  .live-view, .repository-view { padding: 14px; }
+  .repository-summary, .repository-file-form { grid-template-columns: 1fr; }
+  .repository-file-form { display: grid; }
   .live-summary { grid-template-columns: repeat(2, 1fr); }
   .live-heading { align-items: flex-start; }
   .poll-state { display: none; }

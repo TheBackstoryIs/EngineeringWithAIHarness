@@ -39,6 +39,7 @@ Choose the section that matches your job. The optional team tools aren't prerequ
 - [Operate governed autonomous intent delivery](autonomous-intent-delivery.md)
 - [Assess what a change could affect](blast-radius-and-impact-routing-guide.md)
 - [Understand repository coverage and analysis limits](repository-source-map-guide.md)
+- [Read repository context while you work](repository-context-guide.md)
 - [Choose and compare investigation depth](reproducible-archaeology-and-discovery-depth.md)
 - [Follow a worked investigation-depth example](examples/reproducible-archaeology-depth-example.md)
 - [Review investigation depth](quality/reproducible-archaeology-depth-review-checklist.md)

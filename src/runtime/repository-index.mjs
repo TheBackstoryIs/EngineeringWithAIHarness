@@ -12,6 +12,8 @@ import {
 } from '../repository-source-map.mjs';
 import { openRuntimeDatabase } from './database.mjs';
 import { syncWorkItems } from './work.mjs';
+import { gitCommit } from './git-snapshot.mjs';
+import { recordAdoption } from './repository-context.mjs';
 
 // Tree-sitter extractTreeSitterFacts execution is delegated through analyseRepositoryFile.
 
@@ -347,6 +349,7 @@ export function refreshRepositoryIndex(projectRoot) {
       }
     }
     Object.assign(summary, updateCapabilityProjections(database, projectRoot, run.id));
+    summary.commit = gitCommit(projectRoot);
     database.prepare(`
       UPDATE repo_index_runs SET status = 'completed', completed_at = CURRENT_TIMESTAMP,
         duration_ms = ?, summary = ?, outcome_totals_json = ? WHERE id = ?
@@ -370,25 +373,25 @@ export function refreshRepositoryIndex(projectRoot) {
   }
 }
 
-export function repositoryIndexFreshness(projectRoot) {
+function repositoryDelta(projectRoot) {
   const repos = repositories(projectRoot);
   const profileResolution = resolveSourceMapProfiles(projectRoot);
+  const head = gitCommit(projectRoot);
   const database = openRuntimeDatabase(projectRoot);
   try {
-    const run = database.prepare("SELECT * FROM repo_index_runs WHERE status = 'completed' ORDER BY id DESC LIMIT 1").get();
-    if (!run) return { schema: 'ewai.repository-freshness/v1', status: 'stale', stale: true, reason: 'no-completed-index-run' };
-    if (run.profile_digest !== profileResolution.digest) {
-      return {
-        schema: 'ewai.repository-freshness/v1',
-        status: 'stale',
-        stale: true,
-        runId: run.id,
-        reason: 'profile-catalogue-changed'
-      };
-    }
+    const run = database.prepare("SELECT * FROM repo_index_runs WHERE status = 'completed' ORDER BY id DESC LIMIT 1").get() ?? null;
+    const indexedCommit = run ? (JSON.parse(run.summary || '{}').commit || '') : '';
+    const trust = {
+      historyAvailable: Boolean(head),
+      head,
+      indexedCommit,
+      indexBehind: Boolean(head && indexedCommit && head !== indexedCommit)
+    };
+    if (!run) return { run: null, profileResolution, repos, missing: [], changed: [], deleted: [], entries: new Map(), catalogueChanged: false, trust };
+    const catalogueChanged = run.profile_digest !== profileResolution.digest;
     const indexed = new Map(database.prepare('SELECT path, fingerprint FROM repo_files WHERE run_id = ?').all(run.id)
       .map((row) => [row.path, row.fingerprint]));
-    const current = new Map();
+    const entries = new Map();
     for (const repository of repos) {
       for (const entry of walk(repository.root, [], repository.excludedRoots)) {
         const { path, stat } = entry;
@@ -398,21 +401,164 @@ export function repositoryIndexFreshness(projectRoot) {
           profiles: profileResolution.profiles,
           repository
         });
-        current.set(stored, fingerprintRepositoryFile(path, stat, selectedProfile).value);
+        entries.set(stored, {
+          repository,
+          path,
+          stat,
+          relativePath,
+          selectedProfile,
+          fingerprint: fingerprintRepositoryFile(path, stat, selectedProfile).value
+        });
       }
     }
-    const missing = [...current.keys()].filter((path) => !indexed.has(path));
-    const changed = [...current].filter(([path, value]) => indexed.has(path) && indexed.get(path) !== value).map(([path]) => path);
-    const deleted = [...indexed.keys()].filter((path) => !current.has(path));
-    const stale = Boolean(missing.length || changed.length || deleted.length);
+    const missing = [...entries.keys()].filter((path) => !indexed.has(path));
+    const changed = [...entries.keys()].filter((path) => indexed.has(path) && indexed.get(path) !== entries.get(path).fingerprint);
+    const deleted = [...indexed.keys()].filter((path) => !entries.has(path));
+    return { run, profileResolution, repos, missing, changed, deleted, entries, catalogueChanged, indexed, trust };
+  } finally {
+    database.close();
+  }
+}
+
+export function repositoryIndexFreshness(projectRoot) {
+  const delta = repositoryDelta(projectRoot);
+  if (!delta.run) {
     return {
       schema: 'ewai.repository-freshness/v1',
-      status: stale ? 'stale' : 'fresh',
-      stale,
-      runId: run.id,
-      summary: { tracked: indexed.size, current: current.size, missing: missing.length, changed: changed.length, deleted: deleted.length },
-      samples: { missing: missing.slice(0, 20), changed: changed.slice(0, 20), deleted: deleted.slice(0, 20) }
+      status: 'stale',
+      stale: true,
+      reason: 'no-completed-index-run',
+      ...delta.trust
     };
+  }
+  if (delta.catalogueChanged) {
+    return {
+      schema: 'ewai.repository-freshness/v1',
+      status: 'stale',
+      stale: true,
+      runId: delta.run.id,
+      reason: 'profile-catalogue-changed',
+      ...delta.trust
+    };
+  }
+  const stale = Boolean(delta.missing.length || delta.changed.length || delta.deleted.length);
+  return {
+    schema: 'ewai.repository-freshness/v1',
+    status: stale ? 'stale' : 'fresh',
+    stale,
+    runId: delta.run.id,
+    summary: {
+      tracked: delta.indexed.size,
+      current: delta.entries.size,
+      missing: delta.missing.length,
+      changed: delta.changed.length,
+      deleted: delta.deleted.length
+    },
+    samples: {
+      missing: delta.missing.slice(0, 20),
+      changed: delta.changed.slice(0, 20),
+      deleted: delta.deleted.slice(0, 20)
+    },
+    ...delta.trust
+  };
+}
+
+function deleteStoredFile(database, runId, storedPath) {
+  database.prepare('DELETE FROM repo_symbols WHERE run_id = ? AND path = ?').run(runId, storedPath);
+  database.prepare('DELETE FROM repo_spans WHERE run_id = ? AND path = ?').run(runId, storedPath);
+  database.prepare('DELETE FROM repo_imports WHERE run_id = ? AND path = ?').run(runId, storedPath);
+  database.prepare('DELETE FROM repo_relationships WHERE run_id = ? AND (source_path = ? OR target_path = ?)').run(runId, storedPath, storedPath);
+  database.prepare('DELETE FROM repo_files WHERE run_id = ? AND path = ?').run(runId, storedPath);
+}
+
+function summaryForRun(database, runId, previous, projectRoot) {
+  const counts = database.prepare(`
+    SELECT COUNT(*) AS files,
+      SUM(CASE WHEN parser_status = 'parsed' THEN 1 ELSE 0 END) AS parsed,
+      SUM(CASE WHEN analysis_outcome = 'analysis_failed' THEN 1 ELSE 0 END) AS failed,
+      SUM(CASE WHEN analysis_outcome = 'analysed' THEN 1 ELSE 0 END) AS analysed,
+      SUM(CASE WHEN analysis_outcome = 'inventory_only' THEN 1 ELSE 0 END) AS inventory_only,
+      SUM(CASE WHEN analysis_outcome = 'skipped_sensitive' THEN 1 ELSE 0 END) AS skipped_sensitive,
+      SUM(CASE WHEN analysis_outcome = 'skipped_oversized' THEN 1 ELSE 0 END) AS skipped_oversized
+    FROM repo_files WHERE run_id = ?
+  `).get(runId);
+  const symbols = Number(database.prepare('SELECT COUNT(*) AS symbols FROM repo_symbols WHERE run_id = ?').get(runId).symbols ?? 0);
+  return {
+    ...previous,
+    files: Number(counts.files ?? 0),
+    parsed: Number(counts.parsed ?? 0),
+    failed: Number(counts.failed ?? 0),
+    symbols,
+    outcomes: {
+      analysed: Number(counts.analysed ?? 0),
+      inventory_only: Number(counts.inventory_only ?? 0),
+      skipped_sensitive: Number(counts.skipped_sensitive ?? 0),
+      skipped_oversized: Number(counts.skipped_oversized ?? 0),
+      analysis_failed: Number(counts.failed ?? 0)
+    },
+    commit: gitCommit(projectRoot)
+  };
+}
+
+export function updateRepositoryIndex(projectRoot) {
+  const started = Date.now();
+  const delta = repositoryDelta(projectRoot);
+  if (!delta.run || delta.catalogueChanged) {
+    const rebuilt = refreshRepositoryIndex(projectRoot);
+    return { ...rebuilt, mode: 'rebuild' };
+  }
+  const database = openRuntimeDatabase(projectRoot);
+  try {
+    database.exec('BEGIN IMMEDIATE;');
+    for (const stored of [...delta.deleted, ...delta.changed, ...delta.missing]) deleteStoredFile(database, delta.run.id, stored);
+    for (const stored of [...delta.changed, ...delta.missing]) {
+      const entry = delta.entries.get(stored);
+      const fileLimit = sourceMapProfileFileLimit(entry.selectedProfile);
+      let buffer = null;
+      let readError = Boolean(entry.stat == null);
+      if (!readError && entry.selectedProfile.id !== 'core-sensitive' && Number(entry.stat?.size ?? 0) <= fileLimit) {
+        try {
+          buffer = readFileSync(entry.path);
+        } catch {
+          readError = true;
+        }
+      }
+      const fingerprint = buffer
+        ? fingerprintRepositoryBuffer(buffer)
+        : fingerprintRepositoryFile(entry.path, entry.stat, entry.selectedProfile);
+      const facts = analyseRepositoryFile(entry.path, {
+        stat: entry.stat,
+        buffer,
+        readError,
+        fingerprint,
+        profile: entry.selectedProfile,
+        repo: entry.repository.name,
+        repoRelative: () => entry.relativePath
+      });
+      insertFacts(database, delta.run.id, entry.repository, entry.path, facts);
+    }
+    const previous = JSON.parse(delta.run.summary || '{}');
+    const summary = summaryForRun(database, delta.run.id, previous, projectRoot);
+    database.prepare(`
+      UPDATE repo_index_runs SET completed_at = CURRENT_TIMESTAMP, duration_ms = ?, summary = ?, outcome_totals_json = ?
+      WHERE id = ?
+    `).run(Date.now() - started, JSON.stringify(summary), JSON.stringify(summary.outcomes), delta.run.id);
+    database.exec('COMMIT;');
+    return {
+      schema: 'ewai.repository-index/v1',
+      runId: delta.run.id,
+      status: 'completed',
+      mode: 'incremental',
+      missing: delta.missing.length,
+      changed: delta.changed.length,
+      deleted: delta.deleted.length,
+      commit: summary.commit,
+      ...summary,
+      durationMs: Date.now() - started
+    };
+  } catch (error) {
+    database.exec('ROLLBACK;');
+    throw error;
   } finally {
     database.close();
   }
@@ -792,7 +938,7 @@ export function repositorySourceMapFiles(projectRoot, options = {}) {
 export function searchRepositoryIndex(projectRoot, query, options = {}) {
   const database = openRuntimeDatabase(projectRoot);
   try {
-    const run = database.prepare("SELECT id FROM repo_index_runs WHERE status = 'completed' ORDER BY id DESC LIMIT 1").get();
+    const run = database.prepare("SELECT id, summary FROM repo_index_runs WHERE status = 'completed' ORDER BY id DESC LIMIT 1").get();
     if (!run) throw new Error('Repository index is missing; refresh it before searching.');
     const needle = `%${String(query).toLowerCase()}%`;
     const limit = Math.max(1, Math.min(200, Number(options.limit ?? 50)));
@@ -807,7 +953,18 @@ export function searchRepositoryIndex(projectRoot, query, options = {}) {
       FROM repo_files
       WHERE run_id = ? AND lower(path) LIKE ? ORDER BY path LIMIT ?
     `).all(run.id, needle, limit);
-    return { schema: 'ewai.repository-search/v1', runId: run.id, query, symbols, files };
+    let indexedCommit = '';
+    try { indexedCommit = JSON.parse(run.summary || '{}').commit || ''; } catch { indexedCommit = ''; }
+    const head = gitCommit(projectRoot);
+    try { recordAdoption(projectRoot, 'indexSearch'); } catch { /* adoption is observational */ }
+    return {
+      schema: 'ewai.repository-search/v1',
+      runId: run.id,
+      query,
+      symbols,
+      files,
+      index: { commit: indexedCommit, head, indexBehind: Boolean(head && indexedCommit && head !== indexedCommit) }
+    };
   } finally {
     database.close();
   }
@@ -816,7 +973,7 @@ export function searchRepositoryIndex(projectRoot, query, options = {}) {
 export function repositoryGraph(projectRoot, target, options = {}) {
   const database = openRuntimeDatabase(projectRoot);
   try {
-    const run = database.prepare("SELECT id FROM repo_index_runs WHERE status = 'completed' ORDER BY id DESC LIMIT 1").get();
+    const run = database.prepare("SELECT id, summary FROM repo_index_runs WHERE status = 'completed' ORDER BY id DESC LIMIT 1").get();
     if (!run) throw new Error('Repository index is missing; refresh it before graph lookup.');
     const needle = `%${String(target).toLowerCase()}%`;
     const limit = Math.max(1, Math.min(200, Number(options.limit ?? 80)));
@@ -831,7 +988,18 @@ export function repositoryGraph(projectRoot, target, options = {}) {
         lower(path) LIKE ? OR lower(source_module) LIKE ? OR lower(imported_name) LIKE ?
       ) ORDER BY path LIMIT ?
     `).all(run.id, needle, needle, needle, limit);
-    return { schema: 'ewai.repository-graph/v1', runId: run.id, target, relationships, imports };
+    let indexedCommit = '';
+    try { indexedCommit = JSON.parse(run.summary || '{}').commit || ''; } catch { indexedCommit = ''; }
+    const head = gitCommit(projectRoot);
+    try { recordAdoption(projectRoot, 'indexGraph'); } catch { /* adoption is observational */ }
+    return {
+      schema: 'ewai.repository-graph/v1',
+      runId: run.id,
+      target,
+      relationships,
+      imports,
+      index: { commit: indexedCommit, head, indexBehind: Boolean(head && indexedCommit && head !== indexedCommit) }
+    };
   } finally {
     database.close();
   }

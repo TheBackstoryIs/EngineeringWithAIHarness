@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
-import { dirname, extname, isAbsolute, posix, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { atomicJson, atomicText, deliveryPaths, isWithin, sha256 } from '../delivery-documents.mjs';
 import {
   repositoryIndexFreshness,
@@ -8,6 +8,7 @@ import {
   repositoryStandards
 } from './repository-index.mjs';
 import { openRuntimeDatabase } from './database.mjs';
+import { resolveNamedTarget, resolveSpecifier } from './import-resolution.mjs';
 import { selectContextualPersonas } from './persona-engagement.mjs';
 
 const ASSESSMENT_SCHEMA = 'ewai.impact-assessment/v1';
@@ -17,7 +18,7 @@ const MAX_TARGETS = 12;
 const MAX_TARGET = 240;
 const MAX_DEPTH = 2;
 const MAX_NODES = 80;
-const moduleExtensions = ['.mjs', '.js', '.ts', '.vue', '.php'];
+const basisNames = ['relative', 'module-map', 'alias', 'dotted-path', 'unique-symbol', 'unresolved', 'external', 'route-label'];
 const routeDecisions = new Set(['required', 'recommended', 'not-indicated']);
 const policyDimensionKeys = Object.freeze(['actors', 'aiUse', 'data', 'destinations', 'hosting', 'integrations']);
 
@@ -103,14 +104,8 @@ function publicPath(stored) {
   return splitStoredPath(stored).relative;
 }
 
-function resolveImportedPath(importer, sourceModule, knownPaths) {
-  if (!sourceModule.startsWith('.')) return '';
-  const { repo, relative: importerRelative } = splitStoredPath(importer);
-  const base = posix.normalize(posix.join(posix.dirname(importerRelative), sourceModule));
-  const candidates = extname(base)
-    ? [base]
-    : [...moduleExtensions.map((extension) => `${base}${extension}`), ...moduleExtensions.map((extension) => `${base}/index${extension}`)];
-  return candidates.map((candidate) => `${repo}:${candidate}`).find((candidate) => knownPaths.has(candidate)) ?? '';
+function emptyBasisCounts() {
+  return Object.fromEntries(basisNames.map((name) => [name, 0]));
 }
 
 function resolveTargets(files, symbols, targets) {
@@ -141,19 +136,72 @@ function resolveTargets(files, symbols, targets) {
   return { resolvedTargets, unresolvedTargets, ambiguousTargets };
 }
 
-function traverseGraph(files, imports, seeds, options = {}) {
+function traverseGraph(files, imports, relationships, symbols, repoRoots, seeds, options = {}) {
   const maxDepth = Math.max(1, Math.min(MAX_DEPTH, Number(options.maxDepth ?? MAX_DEPTH)));
   const maxNodes = Math.max(1, Math.min(MAX_NODES, Number(options.maxNodes ?? MAX_NODES)));
   const knownPaths = new Set(files.map((file) => file.path));
   const outgoing = new Map();
   const incoming = new Map();
+  const fileNotes = new Map();
+
+  function note(path, basis, unresolved = false) {
+    if (!fileNotes.has(path)) fileNotes.set(path, { counts: emptyBasisCounts(), unresolved: false });
+    const row = fileNotes.get(path);
+    if (basis && Object.hasOwn(row.counts, basis)) row.counts[basis] += 1;
+    if (unresolved) row.unresolved = true;
+  }
+
+  function link(from, to, relation, sourceModule, line, basis) {
+    if (!to || to === from || !knownPaths.has(to)) return;
+    note(from, basis, false);
+    if (!outgoing.has(from)) outgoing.set(from, []);
+    if (!incoming.has(to)) incoming.set(to, []);
+    outgoing.get(from).push({ path: to, sourceModule, line, relation });
+    incoming.get(to).push({ path: from, sourceModule, line, relation });
+  }
+
   for (const item of imports) {
-    const target = resolveImportedPath(item.path, item.source_module, knownPaths);
-    if (!target) continue;
-    if (!outgoing.has(item.path)) outgoing.set(item.path, []);
-    if (!incoming.has(target)) incoming.set(target, []);
-    outgoing.get(item.path).push({ path: target, sourceModule: item.source_module, line: item.line });
-    incoming.get(target).push({ path: item.path, sourceModule: item.source_module, line: item.line });
+    const repo = splitStoredPath(item.path).repo;
+    const resolved = resolveSpecifier({
+      importer: item.path,
+      sourceModule: item.source_module,
+      knownPaths,
+      repoRoot: repoRoots?.[repo] ?? '',
+      repoName: repo
+    });
+    if (resolved.basis === 'external') {
+      note(item.path, 'external');
+      continue;
+    }
+    if (!resolved.storedPath) {
+      if (resolved.basis === 'unresolved') note(item.path, 'unresolved', true);
+      continue;
+    }
+    link(item.path, resolved.storedPath, 'imports', item.source_module, item.line, resolved.basis);
+  }
+
+  for (const item of relationships) {
+    if (item.target_kind === 'route') {
+      note(item.source_path, 'route-label');
+      continue;
+    }
+    const resolved = resolveNamedTarget({
+      sourcePath: item.source_path,
+      targetName: item.target_name,
+      targetKind: item.target_kind,
+      knownPaths,
+      symbols,
+      repoRoots
+    });
+    if (resolved.basis === 'route-label' || resolved.basis === 'external') {
+      note(item.source_path, resolved.basis);
+      continue;
+    }
+    if (!resolved.storedPath || resolved.storedPath === item.source_path) {
+      if (!resolved.storedPath && resolved.basis === 'unresolved') note(item.source_path, 'unresolved', true);
+      continue;
+    }
+    link(item.source_path, resolved.storedPath, item.relationship_kind || 'relationship', item.target_name, null, resolved.basis);
   }
 
   const nodes = new Map();
@@ -167,11 +215,20 @@ function traverseGraph(files, imports, seeds, options = {}) {
     const current = queue.shift();
     if (current.distance >= maxDepth) continue;
     const neighbours = [
-      ...(outgoing.get(current.path) ?? []).map((edge) => ({ ...edge, direction: 'downstream-dependency', relation: 'imports' })),
-      ...(incoming.get(current.path) ?? []).map((edge) => ({ ...edge, direction: 'upstream-consumer', relation: 'imports' }))
+      ...(outgoing.get(current.path) ?? []).map((edge) => ({ ...edge, direction: 'downstream-dependency' })),
+      ...(incoming.get(current.path) ?? []).map((edge) => ({ ...edge, direction: 'upstream-consumer' }))
     ];
     for (const neighbour of neighbours) {
-      if (nodes.has(neighbour.path)) continue;
+      const existing = nodes.get(neighbour.path);
+      if (existing) {
+        // A use line and a route handler can resolve to the same file. Keep the relationship.
+        if (existing.direction !== 'seed' && existing.relation === 'imports' && neighbour.relation && neighbour.relation !== 'imports') {
+          existing.relation = neighbour.relation;
+          existing.sourceModule = neighbour.sourceModule;
+          existing.line = neighbour.line ?? null;
+        }
+        continue;
+      }
       if (nodes.size >= maxNodes) {
         truncated = true;
         continue;
@@ -182,17 +239,26 @@ function traverseGraph(files, imports, seeds, options = {}) {
         storedPath: neighbour.path,
         direction: neighbour.direction,
         distance,
-        relation: neighbour.relation,
+        relation: neighbour.relation || 'imports',
         sourceModule: neighbour.sourceModule,
         line: neighbour.line ?? null
       });
       queue.push({ path: neighbour.path, distance });
     }
   }
+  const counts = emptyBasisCounts();
+  const unresolvedProjectReferences = [];
+  for (const stored of nodes.keys()) {
+    const row = fileNotes.get(stored);
+    if (!row) continue;
+    for (const name of basisNames) counts[name] += row.counts[name];
+    if (row.unresolved) unresolvedProjectReferences.push(stored);
+  }
   return {
     maxDepth,
     maxNodes,
     truncated,
+    resolutionBasis: { ...counts, unresolvedProjectReferences },
     nodes: [...nodes.values()].map(({ storedPath, ...node }) => node)
       .sort((left, right) => left.distance - right.distance || left.path.localeCompare(right.path))
   };
@@ -258,15 +324,32 @@ export function previewImpactAssessment(projectRoot, slug, input = {}, options =
   let files;
   let symbols;
   let imports;
+  let relationships;
+  let repoRoots = {};
   try {
     files = database.prepare('SELECT repo, path, language, parser_status FROM repo_files WHERE run_id = ? ORDER BY path').all(index.runId);
     symbols = database.prepare('SELECT symbol_kind, symbol_name, path, line, signature FROM repo_symbols WHERE run_id = ? ORDER BY path, line').all(index.runId);
     imports = database.prepare('SELECT path, source_module, imported_name, local_name, import_kind, line FROM repo_imports WHERE run_id = ? ORDER BY path, line').all(index.runId);
+    relationships = database.prepare('SELECT relationship_kind, source_path, target_kind, target_name, target_path FROM repo_relationships WHERE run_id = ?').all(index.runId);
+    const runRow = database.prepare('SELECT repos_json FROM repo_index_runs WHERE id = ?').get(index.runId);
+    try {
+      repoRoots = JSON.parse(runRow?.repos_json || '{}');
+    } catch {
+      repoRoots = {};
+    }
   } finally {
     database.close();
   }
   const resolution = resolveTargets(files, symbols, validated.targets);
-  const observed = traverseGraph(files, imports, resolution.resolvedTargets.map((target) => target.path), options);
+  const observed = traverseGraph(
+    files,
+    imports,
+    relationships,
+    symbols,
+    repoRoots,
+    resolution.resolvedTargets.map((target) => target.path),
+    options
+  );
   const impactAreas = classifyImpacts(validated.summary, observed);
   const signals = unique(impactAreas.flatMap((area) => area.personaSignals));
   const activePersonas = selectContextualPersonas({
@@ -298,6 +381,10 @@ export function previewImpactAssessment(projectRoot, slug, input = {}, options =
       ? `Coverage is partial. A narrow observed radius is not proof that nothing else changes.${index.sourceMap.warnings.length ? ` ${index.sourceMap.warnings.join(' ')}` : ''}`
       : ''
   };
+  if (observed.resolutionBasis.unresolvedProjectReferences.length) {
+    const sentence = 'Some project references in the traversed files did not resolve to an indexed file. An empty or narrow result is not proof that nothing else is affected.';
+    coverage.warning = coverage.warning ? `${coverage.warning} ${sentence}` : sentence;
+  }
   const previewId = sha256(JSON.stringify({ slug, runId: index.runId, ...validated })).slice(0, 16);
   return {
     schema: PREVIEW_SCHEMA,
@@ -360,7 +447,7 @@ Policy-material Impact digest: \`${record.policyRelevantDigest}\`. This digest c
 | --- | --- | ---: | --- |
 ${nodeRows}
 
-Coverage: ${record.coverage.complete ? 'complete within configured bounds' : record.coverage.warning}
+Coverage: ${record.coverage.complete ? `complete within configured bounds${record.coverage.warning ? `. ${record.coverage.warning}` : ''}` : record.coverage.warning}
 
 ## Inferred consequences
 

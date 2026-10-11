@@ -346,7 +346,21 @@ ewai index truth <slug> --limit 20 --project .
 ewai index similar <slug> --limit 20 --project .
 ewai index standards <target> --project .
 ewai index standards-coverage <slug> --project .
+ewai index update --project .
+ewai index file <path> --project .
+ewai index health <path> --project .
+ewai index change-risk --project .
+ewai index citations <path> --project .
+ewai index adoption --project .
+ewai context session --project .
+ewai context file <path> --project .
+ewai context install --project .
+ewai distill --project . -- <command>
 ```
+
+`index update` re-parses files that are missing, changed, or deleted and keeps the current run. A full `index refresh` remains the rebuild when there is no completed run or the profile catalogue has changed. `index file` is the reading for one file. `index health` orders that file for review and does not create an intent. `index change-risk` stays quiet when the diff is small and has no recorded directive; the rank orders this repository’s recent commits and is not a probability. `index citations` lists records that name the file. A citation does not change the record.
+
+`ewai distill` prints a short reading and keeps the command’s exit code. The full log is under `.ewai-pipeline/runtime/command-logs/`. Hash that log when the command is gate evidence. See [Repository context](../repository-context-guide.md).
 
 `coverage`, `profiles`, and `files` are safe Repository Source Map projections. They expose repository-relative evidence and profile provenance without file content, analysis metadata, fingerprints, or repository roots. Registered analyser filters include `inventory-only`, `text-summary`, `structured-keys`, `tree-sitter`, `power-platform-metadata`, and `salesforce-metadata`. Coverage includes an explicit partial-platform count. See [Repository Source Map](../repository-source-map-guide.md) for profile configuration, topology examples, and safety limits, and [platform export analysis](../platform-export-analysis-guide.md) for extracted Power Platform and Salesforce source.
 

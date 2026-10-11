@@ -68,7 +68,7 @@ The Impact workspace states whether the Repository Source Map is fresh and repor
 
 If the map is stale or unavailable, select **Refresh repository map**. Refresh is an explicit operation because indexing can be expensive. The proposed-change draft is preserved, but any previous preview is cleared because its evidence belonged to the older index run.
 
-A fresh map means the assessment is based on the current indexed project state and effective profile catalogue. It does not mean that every file was deeply analysed or that every runtime dependency or business process is represented. Explicitly partial Power Platform or Salesforce metadata also keeps the assessment partial even when its document parsed successfully. Review the full [Repository Source Map guide](repository-source-map-guide.md) and [platform export analysis guide](platform-export-analysis-guide.md) when coverage is partial.
+A fresh map means the assessment is based on the current indexed project state and effective profile catalogue. It does not mean that every file was deeply analysed or that every runtime dependency or business process is represented. Explicitly partial Power Platform or Salesforce metadata also keeps the assessment partial even when its document parsed successfully. Resolved project references include relative imports, module maps, aliases, and recognised route and service relationships. A bare dependency name is external and does not by itself make coverage incomplete. When a traversed file names a project reference that does not resolve to an indexed file, the assessment says so. An empty or narrow result is not proof that nothing else is affected. Review the full [Repository Source Map guide](repository-source-map-guide.md), [Repository context guide](repository-context-guide.md), and [platform export analysis guide](platform-export-analysis-guide.md) when coverage is partial.
 
 ## Step 2: describe the proposed change
 
@@ -308,6 +308,7 @@ For index or dashboard failures, use [Troubleshooting and recovery](operations/t
 - [Product Owner guide](product-owner-guide.md)
 - [Developer delivery guide](developer-delivery-guide.md)
 - [Repository Source Map](repository-source-map-guide.md)
+- [Repository context](repository-context-guide.md)
 - [Power Platform and Salesforce export analysis](platform-export-analysis-guide.md)
 - [Persona engagement UI](personas/persona-engagement-ui.md)
 - [Manual QA and acceptance](quality/manual-qa-and-acceptance.md)

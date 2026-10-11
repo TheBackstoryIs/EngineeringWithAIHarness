@@ -139,6 +139,9 @@ const state = {
   testScenarioFilters: { status: 'all', route: 'all', tier: 'all' },
   pendingAction: null,
   actionNotice: null,
+  repository: null,
+  repositoryError: '',
+  repositoryFile: '',
   pollTimer: null
 };
 
@@ -1077,6 +1080,24 @@ function renderTestScenarios(view) {
   </div>`;
 }
 
+function repositoryContextStrip(context) {
+  if (!context) return '';
+  const session = context.session ?? {};
+  const risk = context.changeRisk ?? {};
+  const trust = !session.historyAvailable
+    ? 'History is not available for this project.'
+    : session.indexBehind
+      ? `Indexed commit ${session.indexedCommit || 'unrecorded'} is behind HEAD ${session.head || 'unknown'}.`
+      : `Indexed commit ${session.indexedCommit || 'unrecorded'} matches HEAD.`;
+  const rank = risk.silent
+    ? 'This change is quiet against recent commits in this repository.'
+    : `This diff is at the ${risk.percentile ?? 'unrecorded'}th percentile of recent commits in this repository. That rank is not a probability.`;
+  const named = context.file?.citations?.namedBy?.length
+    ? `Named by ${context.file.citations.namedBy.map((item) => item.title).join('; ')}.`
+    : 'A citation names a record. It does not change the record.';
+  return `<section class="impact-context" aria-label="Repository context"><p>${escapeHtml(trust)}</p><p>${escapeHtml(rank)}</p><p>A health packet does not create an intent. Creating an intent stays on the existing approved route after a person accepts it.</p><p>${escapeHtml(named)}</p><p>Personas advise. Accountable people decide.</p></section>`;
+}
+
 function renderImpact(view) {
   const workspace = view.impact ?? { index: { status: 'missing', fresh: false, indexed: 0, parsed: 0, failed: 0 }, assessments: [] };
   const index = workspace.index;
@@ -1127,6 +1148,7 @@ function renderImpact(view) {
     <header class="impact-intro"><div><span class="eyebrow">Proposed change</span><h3 id="impactTitle">Who and what could this affect?</h3><p>Start with concrete repository evidence. The result advises; people decide.</p></div><span>Advisory assessment</span></header>
     <section class="impact-index ${index.fresh ? 'is-fresh' : 'is-stale'}" aria-live="polite"><div><i></i><strong>${index.fresh ? 'Repository map is fresh' : 'Repository map needs attention'}</strong><small>${statusCopy}</small></div><button type="button" data-impact-refresh ${state.impactLoading ? 'disabled' : ''}>Refresh repository map</button></section>
     ${sourceMapSection}
+    ${repositoryContextStrip(view.repositoryContext)}
     <form id="impactAnalyseForm" class="impact-inputs">
       <label><span>What are you proposing to change?</span><textarea name="summary" required maxlength="2000" rows="4" placeholder="Describe behaviour and intent, not implementation instructions.">${escapeHtml(state.impactDraft.summary)}</textarea><small>Describe behaviour and intent, not implementation instructions.</small></label>
       <label><span>Files or symbols</span><textarea name="targets" required rows="4" placeholder="One repository-relative path or symbol per line.">${escapeHtml(state.impactDraft.targets)}</textarea><small>One repository-relative path or symbol per line.</small></label>
@@ -3831,6 +3853,66 @@ async function refreshRuntime() {
   }
 }
 
+function renderRepository() {
+  const summary = element('repositorySummary');
+  const detail = element('repositoryFile');
+  if (!summary || !detail) return;
+  if (state.repositoryError) {
+    summary.innerHTML = `<article class="repository-card"><strong>Repository context needs attention</strong><p>${escapeHtml(state.repositoryError)}</p></article>`;
+    detail.innerHTML = '';
+    return;
+  }
+  const context = state.repository;
+  if (!context) {
+    summary.innerHTML = '<article class="repository-card"><p>Loading the repository reading…</p></article>';
+    return;
+  }
+  const session = context.session ?? {};
+  const risk = context.changeRisk ?? {};
+  const adoption = context.adoption ?? {};
+  const trust = !session.runId
+    ? 'No completed repository index.'
+    : !session.historyAvailable
+      ? `Index run ${session.runId}. History is not available for this project.`
+      : session.indexBehind
+        ? `Index run ${session.runId}. Indexed commit ${session.indexedCommit || 'unrecorded'} is behind HEAD ${session.head || 'unknown'}.`
+        : `Index run ${session.runId}. Indexed commit ${session.indexedCommit || 'unrecorded'} matches HEAD.`;
+  const rank = risk.silent
+    ? 'This change is quiet against recent commits in this repository.'
+    : `This diff is at the ${risk.percentile ?? 'unrecorded'}th percentile of recent commits. That rank is not a probability.`;
+  summary.innerHTML = `
+    <article class="repository-card"><span>Index</span><strong>${escapeHtml(trust)}</strong></article>
+    <article class="repository-card"><span>Change rank</span><strong>${escapeHtml(rank)}</strong><p>${escapeHtml(risk.note || 'This rank orders the change. It is not a probability.')}</p></article>
+    <article class="repository-card"><span>Adoption</span><strong>${escapeHtml(adoption.fileCards ?? 0)} file cards · ${escapeHtml(adoption.sessionCards ?? 0)} session cards</strong><p>${escapeHtml(adoption.suppressedRepeats ?? 0)} repeated cards kept back · ${escapeHtml(adoption.distillRuns ?? 0)} command readings · ${escapeHtml(adoption.indexSearch ?? 0)} searches · ${escapeHtml(adoption.indexGraph ?? 0)} graphs</p></article>
+    <article class="repository-card"><span>Authority</span><strong>A health packet does not create an intent.</strong><p>Creating an intent stays on the existing approved route after a person accepts it. Personas advise. Accountable people decide.</p></article>`;
+  const file = context.file;
+  if (!file) {
+    detail.innerHTML = '<p class="repository-empty">Read one repository-relative file to see its callers, routes, owner, co-changes, review rank, and the records that name it.</p>';
+    return;
+  }
+  const health = file.health ?? {};
+  const citations = file.citations?.namedBy ?? [];
+  detail.innerHTML = `
+    <article class="repository-reading">
+      <header><span>File reading</span><strong>${escapeHtml(health.file || state.repositoryFile)}</strong><b>${escapeHtml(health.band || 'unrecorded')} · ${escapeHtml(health.rank ?? '—')}</b></header>
+      <pre>${escapeHtml(file.card || '')}</pre>
+      <p>${escapeHtml(health.reviewFocus || '')}</p>
+      <p>${escapeHtml(health.note || 'This packet does not create an intent.')}</p>
+      <p>${citations.length ? `Named by ${escapeHtml(citations.map((item) => item.title).join('; '))}.` : 'Named by no project record in this reading.'}</p>
+    </article>`;
+}
+
+async function loadRepository() {
+  const query = state.repositoryFile ? `?file=${encodeURIComponent(state.repositoryFile)}` : '';
+  try {
+    state.repository = await api(`/api/repository-context${query}`);
+    state.repositoryError = '';
+  } catch (error) {
+    state.repositoryError = error.message || 'Repository context could not be loaded.';
+  }
+  renderRepository();
+}
+
 function setView(view) {
   if(!navigation.isEnabled(view)){navigation.explainDisabled(view);view='configuration';}
   navigation.select(view);
@@ -3840,6 +3922,7 @@ function setView(view) {
   element('companionView').hidden = view !== 'companion';
   element('liveView').hidden = view !== 'live';
   element('knowledgeView').hidden = view !== 'knowledge';
+  element('repositoryView').hidden = view !== 'repository';
   element('guidedView').hidden = view !== 'guided';
   element('intentStudioView').hidden = view !== 'intent-studio';
   element('phaseStudioView').hidden = view !== 'phase-studio';
@@ -3857,13 +3940,14 @@ function setView(view) {
     button.classList.toggle('active', active);
     if (button.closest('.view-switcher')) button.setAttribute('aria-current', active ? 'page' : 'false');
   });
-  element('search').disabled = ['configuration', 'live', 'guided', 'intent-studio', 'phase-studio', 'context-inspector', 'starters', 'companion', 'portfolio', 'team-hub', 'rollout', 'hooks', 'policies', 'security', 'error-reporting'].includes(view)
+  element('search').disabled = ['configuration', 'live', 'guided', 'intent-studio', 'phase-studio', 'context-inspector', 'starters', 'companion', 'portfolio', 'team-hub', 'rollout', 'hooks', 'policies', 'security', 'error-reporting', 'repository'].includes(view)
     || (view === 'knowledge' && state.knowledgeMode !== 'knowledge');
   element('search').closest('.global-search').hidden = view === 'companion';
   element('search').placeholder = view === 'knowledge' ? 'Search the Mind Palace…' : 'Search intents, domains, phases…';
   element('searchLabel').textContent = view === 'knowledge'
     ? 'Search the project Mind Palace'
     : 'Search intents, domains, and phases';
+  if (view === 'repository') loadRepository().catch(console.error);
   if (view === 'knowledge') {
     setKnowledgeMode(state.knowledgeMode);
     if (state.knowledgeMode === 'knowledge') loadKnowledge().catch(console.error);
@@ -4890,6 +4974,12 @@ element('premiumSetupForm').addEventListener('submit', async event => {
     premiumSetupBusy = false;
     if (element('submitPremiumSetup').textContent === 'Installed') element('premiumLicenceKey').disabled = false;
   }
+});
+
+element('repositoryFileForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  state.repositoryFile = String(new FormData(event.currentTarget).get('file') ?? '').trim();
+  await loadRepository();
 });
 
 const navigation=createDashboardNavigation({api,onSelect:setView,onManageLicence:()=>element('premiumSetup').click()});

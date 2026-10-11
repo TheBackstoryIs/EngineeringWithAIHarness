@@ -80,6 +80,7 @@ import { initializeRuntime } from './database.mjs';
 import {
   refreshRepositoryIndex,
   repositoryGraph,
+  updateRepositoryIndex,
   repositoryIndexFreshness,
   repositoryIndexStatus,
   repositorySourceMapCoverage,
@@ -91,6 +92,12 @@ import {
   searchRepositoryIndex,
   similarRepositoryCapabilities
 } from './repository-index.mjs';
+import {
+  changeRisk,
+  fileCitations,
+  fileContext,
+  healthPacket
+} from './repository-context.mjs';
 import { listRuntimeIntents, readRuntimeIntent, syncIntentIndex } from './intents.mjs';
 import { listCommandRuns, markStaleCommandRuns } from './runs.mjs';
 import {
@@ -1074,6 +1081,61 @@ server.registerTool(
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   },
   async ({ query, limit }) => result(searchRepositoryIndex(paths.projectRoot, query, { limit }))
+);
+
+server.registerTool(
+  'ewai_index_update',
+  {
+    title: 'Update the EWAI repository index',
+    description: 'Re-parse files that are missing, changed, or deleted since the current index run. A full rebuild runs only when there is no completed run or the profile catalogue has changed.',
+    inputSchema: {},
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+  },
+  async () => result(updateRepositoryIndex(paths.projectRoot))
+);
+
+server.registerTool(
+  'ewai_index_file',
+  {
+    title: 'Read one indexed repository file',
+    description: 'Read resolved callers, recorded routes, ownership, co-changing files, and records that name one repository file. An empty caller list is not proof that nothing calls the file.',
+    inputSchema: { file: z.string().min(1) },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  },
+  async ({ file }) => result(fileContext(paths.projectRoot, file))
+);
+
+server.registerTool(
+  'ewai_index_health',
+  {
+    title: 'Rank one repository file for review',
+    description: 'Order one file for review from its change history, authorship, decision-point density, and nearby tests. This packet does not create an intent.',
+    inputSchema: { file: z.string().min(1) },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  },
+  async ({ file }) => result(healthPacket(paths.projectRoot, file))
+);
+
+server.registerTool(
+  'ewai_index_change_risk',
+  {
+    title: 'Rank the current repository diff',
+    description: 'Order the current diff against this repository’s recent commits. The rank is not a probability. A quiet result means the diff is small and has no recorded directive.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  },
+  async () => result(changeRisk(paths.projectRoot))
+);
+
+server.registerTool(
+  'ewai_index_citations',
+  {
+    title: 'List records that name a repository file',
+    description: 'List project records that name a repository file. A citation names a record. It does not change the record, and it does not mark the record stale.',
+    inputSchema: { file: z.string().min(1) },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  },
+  async ({ file }) => result(fileCitations(paths.projectRoot, file))
 );
 
 server.registerTool(

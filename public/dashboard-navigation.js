@@ -19,7 +19,7 @@ export function createDashboardNavigation({api,onSelect,onManageLicence}){
   const $=id=>document.getElementById(id),app=$('app'),sidebar=$('dashboardSidebar');
   let current=null,dirty=false,busy=false,premium=null,drawerOpen=false,view='board';
   const optionalIds=new Set(['portfolio','team-hub','rollout','starters','policies','security','hooks','context-inspector','phase-studio']);
-  const everyday=new Set(['board','companion','live','knowledge','configuration','guided','intent-studio','error-reporting']);
+  const everyday=new Set(['board','companion','live','knowledge','repository','configuration','guided','intent-studio','error-reporting']);
   const status=message=>{$('dashboardPreferenceStatus').textContent=message;};
   function background(inert){for(const child of app.children)if(child!==sidebar&&child!==$('sidebarBackdrop'))child.inert=inert;}
   function closeDrawer(){const wasOpen=drawerOpen;drawerOpen=false;app.classList.remove('sidebar-drawer-open');$('sidebarBackdrop').hidden=true;background(false);sidebar.removeAttribute('role');sidebar.removeAttribute('aria-modal');$('sidebarOpen').setAttribute('aria-expanded','false');if(wasOpen)$('sidebarOpen').focus();}
