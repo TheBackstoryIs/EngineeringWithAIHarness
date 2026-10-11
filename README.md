@@ -8,11 +8,13 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 ## What's new in this version
 
-Version `0.3.5` adds **bounded Build continuation**. When an approved autonomous Build worker finishes before its required checks pass, EWAI can give it the failed-check feedback and continue in the same isolated worktree. Continuation is opt-in, with configured iteration and time limits, and respects pause, cancellation and blocked-work signals.
+Version `0.3.6` adds **repository context**. Your assistant can read a short, evidence-based summary of the file in front of it: the callers EWAI resolved, recorded routes, who usually changes it, which files change with it and which project records name it. A change rank orders your current diff against the repository's own recent commits, so the riskiest edits are looked at first. The dashboard's Repository view shows the same readings. They are advisory and never approve Build, Manual QA or release.
 
-**Check the delivery claim.** The existing independent Build review now checks each declared completion claim against supporting evidence and attempts to challenge it. Reviews distinguish observed behaviour from configuration, command results and review results. Missing, failed or incomplete claim evidence prevents integration, without adding another review call.
+**Keep the index current without rebuilding it.** `ewai index update` re-parses only the files that were added, changed or deleted, and a Git post-commit hook runs it in the background. A hook failure never undoes your commit. Resolution now follows relative imports, Composer PSR-4 prefixes, TypeScript and JavaScript path maps, package imports, Go module prefixes and common aliases, and it recognises common route conventions.
 
-**Recover with a clearer checkpoint.** Saved runs record verified completed work, branches and worktrees, the next action and unresolved questions. Status checks revalidate the evidence before listing work as complete. These changes support continued execution within approved Build boundaries; Manual QA, acceptance and release decisions remain human checkpoints.
+**Shorter test and Git output.** `ewai distill -- <command>` keeps a short reading of recognised test and Git commands with the exit code intact, and stores the full log so you can hash it as gate evidence. Only a single plain command is shortened. Chained, piped or redirected commands are left alone, and your assistant's normal approval rules still apply.
+
+**Hooks EWAI adds to a project.** When EWAI writes its assistant configuration for a project, it also adds Claude Code hooks for session, file and command readings, plus the Git post-commit hook. `ewai context install --project .` applies them again, and setting `EWAI_DISTILL=0` turns command shortening off. The repository context guide in the documentation describes each reading and its limits.
 
 ## Quick start
 
