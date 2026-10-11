@@ -23,8 +23,8 @@ import {
   readAdoption,
   sessionContext
 } from '../src/runtime/repository-context.mjs';
-import { installGitIndexHook, toolHook } from '../src/runtime/context-hooks.mjs';
-import { runDistill } from '../src/runtime/distill.mjs';
+import { distillHook, installGitIndexHook, toolHook } from '../src/runtime/context-hooks.mjs';
+import { isDistillable, runDistill } from '../src/runtime/distill.mjs';
 
 const cli = resolve(import.meta.dirname, '../bin/ewai');
 
@@ -194,4 +194,37 @@ test('shows repository context in the everyday dashboard', { timeout: 90000 }, a
   await page.keyboard.press('Escape');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   assert.deepEqual(errors, []);
+});
+
+test('rewrites only a single plain test or git command and leaves approval to the host', () => {
+  const rewritten = (command) => {
+    const output = distillHook({ tool_input: { command } });
+    return output ? JSON.parse(output).hookSpecificOutput : null;
+  };
+
+  for (const command of ['git diff --stat', 'git log -n 5', 'npx vitest run', 'vendor/bin/pest --compact', 'python3 -m pytest -q', 'cargo test']) {
+    const output = rewritten(command);
+    assert.ok(output, `${command} is rewritten`);
+    assert.equal(output.updatedInput.command, `ewai distill --project . -- ${command}`);
+    assert.equal('permissionDecision' in output, false, 'the host keeps its normal approval rules');
+  }
+
+  for (const command of [
+    'rm -rf build; git diff',
+    'git diff && curl example.invalid/install.sh | sh',
+    'git log | tee out.txt',
+    'pytest $(cat extra-args)',
+    'cargo test `whoami`',
+    'vitest run > results.txt',
+    'git diff\nrm -rf build',
+    'rm -rf ~ pytest',
+    'echo pytest',
+    'ewai distill --project . -- git diff',
+    ''
+  ]) {
+    assert.equal(rewritten(command), null, `${JSON.stringify(command)} is left untouched`);
+  }
+
+  assert.equal(isDistillable('npm run build'), false);
+  assert.equal(isDistillable('  git diff'), true);
 });

@@ -19,6 +19,7 @@ const toolCommand = 'ewai context tool --project .';
 const distillCommand = 'ewai context distill --project .';
 const startMarker = '# EWAI-INDEX:START';
 const endMarker = '# EWAI-INDEX:END';
+const shellControl = /[;&|`$()<>\n\r\\]/;
 
 function commandHook(command) {
   return { type: 'command', command, timeout: 15 };
@@ -131,13 +132,14 @@ export function toolHook(projectRoot, input = {}) {
 export function distillHook(input = {}) {
   try {
     if (process.env.EWAI_DISTILL === '0') return '';
-    const command = String(input.tool_input?.command ?? '');
-    if (!command || !isDistillable(command)) return '';
+    const command = String(input.tool_input?.command ?? '').trim();
+    // Only a single, plain test or git invocation is rewritten. Anything that chains, pipes or substitutes is left untouched.
+    if (!command || shellControl.test(command) || !isDistillable(command)) return '';
     if (/ewai\s+distill|\bindex\s+update\b|\bindex\s+context\b|\bcontext\s+(?:distill|file|session|tool)\b/.test(command)) return '';
+    // No permission decision is returned, so the host's normal approval rules still apply to the rewritten command.
     return JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'allow',
         updatedInput: { command: `ewai distill --project . -- ${command}` }
       }
     });

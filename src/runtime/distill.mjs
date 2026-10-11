@@ -5,7 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { projectPaths } from '../paths.mjs';
 import { recordAdoption } from './repository-context.mjs';
 
-const recognised = /(?:^|[^\w])(?:git\s+(?:diff|log)|pest|phpunit|artisan\s+test|vitest|playwright|jest|pytest|go\s+test|cargo\s+test|rspec|dotnet\s+test)(?:\s|$)/i;
+const launcher = '(?:(?:\\.{0,2}/)?(?:vendor/bin|node_modules/\\.bin)/|(?:npx|bunx|yarn|pnpm(?:\\s+exec)?|npm\\s+exec\\s+--|python3?\\s+-m|php)\\s+)?';
+const recognised = new RegExp(`^\\s*${launcher}(?:git\\s+(?:diff|log)|pest|phpunit|artisan\\s+test|vitest|playwright|jest|pytest|go\\s+test|cargo\\s+test|rspec|dotnet\\s+test)(?:\\s|$)`, 'i');
 
 export function commandFamily(commandArgs) {
   const command = commandArgs.join(' ');
