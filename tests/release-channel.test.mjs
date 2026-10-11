@@ -39,7 +39,7 @@ test('the public release has consistent metadata, announcement and installation 
   assert.match(installationSection, /^### Install and start$/m);
   assert.match(installationSection, /npm install --save-dev @thebackstoryis\/engineering-with-ai\nnpx ewai/);
   const releaseNote = readFileSync(resolve('Docs/releases', metadata.version + '.md'), 'utf8');
-  assert.equal(releaseNote.trimEnd(), releaseSection.trimEnd(), 'README uses the same release announcement');
+  assert.equal(releaseNote.replace(/^# /, '## ').trimEnd(), releaseSection.trimEnd(), 'README uses the same release announcement');
 });
 
 test('tag-triggered publication selects beta explicitly and never defaults a beta to latest', () => {
