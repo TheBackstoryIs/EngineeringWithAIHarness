@@ -21,6 +21,7 @@
           <button type="button" data-view="companion" title="Companion"><span class="sidebar-icon" aria-hidden="true">◇</span><span class="sidebar-label">Companion</span></button>
           <button type="button" data-view="live" title="Live work"><span class="live-dot sidebar-icon" aria-hidden="true"></span><span class="sidebar-label">Live work</span><span id="liveCount" class="nav-count">0</span></button>
           <button type="button" data-view="knowledge" title="Mind Palace"><span class="sidebar-icon" aria-hidden="true">▤</span><span class="sidebar-label">Mind Palace</span></button>
+          <button type="button" data-view="repository" title="Repository"><span class="sidebar-icon" aria-hidden="true">⌕</span><span class="sidebar-label">Repository</span></button>
           <p id="optionalViewHeading" class="sidebar-group-label" hidden>Additional views</p>
           <div id="optionalViewLinks"></div>
         </nav>
@@ -350,6 +351,24 @@
         <section id="liveSummary" class="live-summary"></section>
         <section id="activeSessions" class="active-grid"></section>
         <section class="autonomy-live" aria-labelledby="autonomyLiveTitle"><header><h3 id="autonomyLiveTitle" tabindex="-1">Delegated runs</h3><p>Actual run outcomes and stopping points. A cancellation request is not a confirmed stop.</p></header><p id="autonomyLiveStatus" role="status" aria-live="polite"></p><div id="autonomyLiveRuns" aria-live="polite">Checking delegated runs…</div></section>
+      </section>
+
+      <section id="repositoryView" class="dashboard-view repository-view" hidden>
+        <header class="repository-heading">
+          <div>
+            <span class="eyebrow">Repository context</span>
+            <h2>What the index can tell you</h2>
+            <p>The index advises. Personas advise. Accountable people decide.</p>
+          </div>
+        </header>
+        <div id="repositorySummary" class="repository-summary" aria-live="polite"></div>
+        <form id="repositoryFileForm" class="repository-file-form">
+          <label>Repository-relative file
+            <input name="file" type="text" required placeholder="src/example.ts" autocomplete="off">
+          </label>
+          <button type="submit" class="primary-action">Read this file</button>
+        </form>
+        <div id="repositoryFile" class="repository-file"></div>
       </section>
 
       <section id="knowledgeView" class="dashboard-view knowledge-view" hidden>

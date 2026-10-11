@@ -3,6 +3,7 @@ import { basename, extname } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { parseDocument } from 'yaml';
 import { extractTreeSitterFacts } from './runtime/tree-sitter-index.mjs';
+import { routeRelationships } from './runtime/route-conventions.mjs';
 import { listProjectPacks } from './packs.mjs';
 import { safePlatformFailureCode } from './platform-metadata-analysis.mjs';
 import { analysePowerPlatformMetadata, powerPlatformLayout } from './power-platform-source-map.mjs';
@@ -442,6 +443,21 @@ function emptyFacts(file) {
   return { file, symbols: [], relationships: [], imports: [], spans: [] };
 }
 
+function repositoryRelative(options) {
+  if (typeof options.repoRelative === 'function') return String(options.repoRelative() ?? '').replaceAll('\\', '/');
+  if (typeof options.repoRelative === 'string') return options.repoRelative.replaceAll('\\', '/');
+  return '';
+}
+
+function withRoutes(facts, options, content) {
+  if (!facts || facts.file?.analysisOutcome !== 'analysed' || facts.file?.parserStatus === 'failed') return facts;
+  const relativePath = repositoryRelative(options);
+  if (!relativePath) return facts;
+  const routes = routeRelationships(relativePath, content);
+  if (!routes.length) return facts;
+  return { ...facts, relationships: [...(facts.relationships ?? []), ...routes] };
+}
+
 function baseFile(profileValue, sizeBytes, fingerprint, outcome, overrides = {}) {
   return {
     language: '',
@@ -552,7 +568,7 @@ export function analyseRepositoryFile(path, options = {}) {
         metadata: { failure_code: 'unregistered-tree-sitter-grammar' }
       }));
     }
-    return {
+    return withRoutes({
       ...facts,
       file: {
         ...facts.file,
@@ -567,7 +583,7 @@ export function analyseRepositoryFile(path, options = {}) {
         fingerprintKind: fingerprint.kind,
         fingerprint: fingerprint.value
       }
-    };
+    }, options, content);
   }
   if (selectedProfile.analyser === 'structured-keys') {
     try {
@@ -587,13 +603,13 @@ export function analyseRepositoryFile(path, options = {}) {
   }
   if (selectedProfile.analyser === 'text-summary') {
     const lines = content ? content.split(/\r?\n/) : [];
-    return emptyFacts(baseFile(selectedProfile, sizeBytes, fingerprint, 'analysed', {
+    return withRoutes(emptyFacts(baseFile(selectedProfile, sizeBytes, fingerprint, 'analysed', {
       lineCount: lines.length,
       metadata: {
         non_empty_line_count: lines.filter((line) => line.trim()).length,
         maximum_line_length: lines.reduce((maximum, line) => Math.max(maximum, line.length), 0)
       }
-    }));
+    })), options, content);
   }
   return emptyFacts(baseFile(selectedProfile, sizeBytes, fingerprint, 'inventory_only'));
 }

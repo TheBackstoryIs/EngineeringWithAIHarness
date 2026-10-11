@@ -126,6 +126,7 @@ import {
 import {
   refreshRepositoryIndex,
   repositoryGraph,
+  updateRepositoryIndex,
   repositoryIndexFreshness,
   repositoryIndexStatus,
   repositorySourceMapCoverage,
@@ -137,6 +138,18 @@ import {
   searchRepositoryIndex,
   similarRepositoryCapabilities
 } from './runtime/repository-index.mjs';
+import { installEditorHooks, distillHook, sessionHook, toolHook } from './runtime/context-hooks.mjs';
+import { runDistill } from './runtime/distill.mjs';
+import {
+  changeRisk,
+  fileCitations,
+  fileContext,
+  formatChangeRisk,
+  formatFileCard,
+  healthPacket,
+  readAdoption,
+  sessionContext
+} from './runtime/repository-context.mjs';
 import { listCommandRuns, markStaleCommandRuns } from './runtime/runs.mjs';
 import {
   palaceHousekeeping,
@@ -250,6 +263,20 @@ import { buildTeamHubResourcePackage } from './team-hub-resources.mjs';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const installRoot = resolve(moduleDir, '..');
+
+function positional(args, index = 2) {
+  const value = args[index] ?? '';
+  return String(value).startsWith('--') ? '' : value;
+}
+
+function hookInput() {
+  if (process.stdin.isTTY) return {};
+  try {
+    return JSON.parse(readFileSync(0, 'utf8') || '{}');
+  } catch {
+    return {};
+  }
+}
 
 function option(args, name, fallback = '') {
   const index = args.indexOf(name);
@@ -662,6 +689,18 @@ Commands:
   ewai index similar SLUG [--limit N] [--project PATH]
   ewai index standards TARGET [--project PATH]
   ewai index standards-coverage SLUG [--project PATH]
+  ewai index update [--project PATH]
+  ewai index file PATH [--project PATH]
+  ewai index health PATH [--project PATH]
+  ewai index change-risk [--project PATH]
+  ewai index citations PATH [--project PATH]
+  ewai index adoption [--project PATH]
+  ewai context session [--project PATH]
+  ewai context file PATH [--project PATH]
+  ewai context tool [--project PATH]
+  ewai context distill [--project PATH]
+  ewai context install [--project PATH]
+  ewai distill --project PATH -- COMMAND...
   ewai pack list
   ewai persona index [--project PATH] [--query TEXT]
   ewai persona list [--project PATH] [--query TEXT]
@@ -2427,6 +2466,93 @@ export async function run(args) {
 
     if (command === 'index' && subcommand === 'standards-coverage') {
       print(repositoryStandardsCoverage(selectedProject(args), args[2] ?? ''), json);
+      return;
+    }
+
+    if (command === 'index' && subcommand === 'update') {
+      print(updateRepositoryIndex(selectedProject(args)), json);
+      return;
+    }
+
+    if (command === 'index' && subcommand === 'file') {
+      const reading = fileContext(selectedProject(args), positional(args));
+      print(json ? reading : formatFileCard(reading), json);
+      return;
+    }
+
+    if (command === 'index' && subcommand === 'health') {
+      print(healthPacket(selectedProject(args), positional(args)), json);
+      return;
+    }
+
+    if (command === 'index' && subcommand === 'change-risk') {
+      const risk = changeRisk(selectedProject(args));
+      if (json) print(risk, true);
+      else {
+        const text = formatChangeRisk(risk);
+        if (text) print(text);
+      }
+      return;
+    }
+
+    if (command === 'index' && subcommand === 'citations') {
+      print(fileCitations(selectedProject(args), positional(args)), json);
+      return;
+    }
+
+    if (command === 'index' && subcommand === 'adoption') {
+      print(readAdoption(selectedProject(args)), json);
+      return;
+    }
+
+    if (command === 'context' && subcommand === 'session') {
+      const project = selectedProject(args);
+      if (json) print(sessionContext(project), true);
+      else {
+        const card = sessionHook(project);
+        if (card) print(card);
+      }
+      return;
+    }
+
+    if (command === 'context' && subcommand === 'file') {
+      const reading = fileContext(selectedProject(args), positional(args));
+      print(json ? reading : formatFileCard(reading), json);
+      return;
+    }
+
+    if (command === 'context' && subcommand === 'tool') {
+      const card = toolHook(selectedProject(args), hookInput());
+      if (card) process.stdout.write(card.endsWith('\n') ? card : `${card}\n`);
+      return;
+    }
+
+    if (command === 'context' && subcommand === 'distill') {
+      const output = distillHook(hookInput());
+      if (output) process.stdout.write(output.endsWith('\n') ? output : `${output}\n`);
+      return;
+    }
+
+    if (command === 'context' && subcommand === 'install') {
+      print(installEditorHooks(selectedProject(args)), json);
+      return;
+    }
+
+    if (command === 'distill') {
+      try {
+        const separator = args.indexOf('--');
+        const commandArgs = separator === -1 ? [] : args.slice(separator + 1);
+        const result = await runDistill(selectedProject(args), commandArgs);
+        process.stdout.write(result.transcript.endsWith('\n') ? result.transcript : `${result.transcript}\n`);
+        process.exitCode = result.exitCode;
+      } catch (error) {
+        if (error.statusCode) {
+          console.error(error.message);
+          process.exitCode = error.statusCode;
+          return;
+        }
+        throw error;
+      }
       return;
     }
 

@@ -25,6 +25,8 @@ Optional coding-provider settings select the primary agent and distinct secondar
 
 Before substantial repository navigation or truth claims, call `ewai_index_status`; refresh with `ewai_index_refresh` when the index is missing or stale. Use `ewai_index_search` and `ewai_index_graph` for navigation and blast-radius evidence, then verify material claims against source files.
 
+When a file card is already in the conversation, start from that reading. A citation names a record; it does not change the record. A retrospective decides whether a record changes. Prefer `ewai distill` for recognised test and git commands, and hash `full_log` when the command is gate evidence. A health packet is evidence for an intent. Create an intent only through the existing route after a person accepts it. Do not edit SPECS from the index.
+
 Before phase work, require agreement among:
 
 - intent Markdown frontmatter;

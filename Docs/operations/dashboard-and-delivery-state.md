@@ -30,7 +30,7 @@ Use the returned URL rather than assuming a fixed port.
 
 ## Choose the views you need
 
-The left sidebar keeps optional tools out of the way until you choose them. Open **Configuration**, select the views you need and save the changes. Portfolio, Team Hub, Governed Rollout, Starters, Policy Gates, Security Validation, Hooks, AI context diagnostics and Contributions all start hidden.
+The left sidebar keeps optional tools out of the way until you choose them. Repository stays with the everyday tools, beside Board, Companion, Live work, and Mind Palace. It shows the same index freshness, file reading, routes, callers, co-change, ownership, review rank, named-by citations, and change rank that the command line reports. Open **Configuration**, select the views you need and save the changes. Portfolio, Team Hub, Governed Rollout, Starters, Policy Gates, Security Validation, Hooks, AI context diagnostics and Contributions all start hidden.
 
 Showing a view doesn't connect a service, run a security tool or approve a change. Hiding it doesn't disable a required check. See [Choose what's in your dashboard](dashboard-configuration.md) for the controls and command-line equivalents.
 
