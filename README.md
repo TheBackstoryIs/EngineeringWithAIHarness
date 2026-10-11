@@ -8,11 +8,11 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 ## What's new in this version
 
-Version `0.3.4` adds optional **Jev and OpenAI Decisions** support to rank choices, compare AI recommendations, prioritise context and suggest personas or additional checks. Both start switched off. Configure them privately through the CLI or dashboard, compare advice in shadow mode or apply supported recommendations in active mode, and track usage, estimated cost and call limits.
+Version `0.3.5-beta.1` adds **bounded Build continuation**. When an approved autonomous Build worker finishes before its required checks pass, EWAI can give it the failed-check feedback and continue in the same isolated worktree. Continuation is opt-in, with configured iteration and time limits, and respects pause, cancellation and blocked-work signals.
 
-**Concise answers and Grok Build.** EWAI puts the result or recommendation first, with clearer choices and less repetition. Grok Build is available as a coding companion, with dashboard and CLI controls for choosing your primary assistant and independent reviewers.
+**Check the delivery claim.** The existing independent Build review now checks each declared completion claim against supporting evidence and attempts to challenge it. Reviews distinguish observed behaviour from configuration, command results and review results. Missing, failed or incomplete claim evidence prevents integration, without adding another review call.
 
-**Pick up the next ready piece of work.** Approve a list of work items and EWAI can select the next ready item using your recorded priorities. Set time and attempt limits, follow progress, and pause or recover a run. Build approval, required reviews, Manual QA and release decisions stay with you.
+**Recover with a clearer checkpoint.** Saved runs record verified completed work, branches and worktrees, the next action and unresolved questions. Status checks revalidate the evidence before listing work as complete. These changes support continued execution within approved Build boundaries; Manual QA, acceptance and release decisions remain human checkpoints.
 
 ## Quick start
 
