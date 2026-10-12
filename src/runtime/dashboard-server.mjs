@@ -37,6 +37,7 @@ import {
   recoverKnowledgeMaterialisation,
 } from '../knowledge-proposals.mjs';
 import { listRuntimeIntents, readRuntimeIntent, runtimeIntentSummary } from './intents.mjs';
+import { buildInstituteScene } from './institute-scene.mjs';
 import { initializeRuntime } from './database.mjs';
 import { listKnowledge, readKnowledgeDocument } from './knowledge.mjs';
 import { palaceTidiness, searchPalace } from './palace.mjs';
@@ -587,6 +588,10 @@ const server = createServer(async (request, response) => {
           sprint: url.searchParams.get('sprint') ?? ''
         })
       });
+    }
+    if (request.method === 'GET' && url.pathname === '/api/institute-scene') {
+      const names = new Map(personaLibrary().map((persona) => [persona.id, persona.name]));
+      return json(response, 200, buildInstituteScene(projectRoot, { personaName: (ref) => names.get(ref) ?? ref }));
     }
     if (request.method === 'GET' && url.pathname === '/api/groups') {
       return json(response, 200, { groups: listGroups(projectRoot) });

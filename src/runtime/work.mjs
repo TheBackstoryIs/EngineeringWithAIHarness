@@ -103,6 +103,13 @@ function rowToEvent(row) {
   };
 }
 
+// The runtime database stores UTC timestamps as 'YYYY-MM-DD HH:MM:SS' with no zone, which JavaScript would read as local time.
+export function toIsoTimestamp(value) {
+  const text = String(value ?? '').trim();
+  const parsed = Date.parse(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text) ? `${text.replace(' ', 'T')}Z` : text);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : '';
+}
+
 function rowToSession(row) {
   return {
     id: row.id,
@@ -116,6 +123,8 @@ function rowToSession(row) {
     status: row.status,
     summary: row.summary,
     awaitingHuman: Boolean(row.awaiting_human),
+    // When a person was last asked something; empty unless the session is waiting for one.
+    waitingSince: row.awaiting_human ? toIsoTimestamp(row.last_question_at ?? row.updated_at) : '',
     question: row.question,
     startedAt: row.started_at,
     updatedAt: row.updated_at,
@@ -510,7 +519,8 @@ export function listActiveSessions(projectRoot, options = {}) {
         (SELECT e.event_type FROM activity_events e WHERE e.work_item_id = s.work_item_id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS latest_event_type,
         (SELECT e.summary FROM activity_events e WHERE e.work_item_id = s.work_item_id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS latest_event_summary,
         (SELECT e.created_at FROM activity_events e WHERE e.work_item_id = s.work_item_id ORDER BY e.created_at DESC, e.id DESC LIMIT 1) AS latest_event_at,
-        (SELECT COUNT(*) FROM activity_events e WHERE e.work_item_id = s.work_item_id) AS event_count
+        (SELECT COUNT(*) FROM activity_events e WHERE e.work_item_id = s.work_item_id) AS event_count,
+        (SELECT MAX(e.created_at) FROM activity_events e WHERE e.work_item_id = s.work_item_id AND e.event_type = 'question') AS last_question_at
       FROM active_sessions s JOIN work_items w ON w.id = s.work_item_id
       WHERE (? = 1 OR s.status <> 'completed')
       ORDER BY s.updated_at DESC
@@ -524,6 +534,31 @@ function eventStatus(eventType, fallback = 'running') {
   if (['completed', 'finish'].includes(eventType)) return 'completed';
   if (eventType === 'stale') return 'stale';
   return fallback;
+}
+
+// Personas speaking in an update are recorded as event metadata so live views can show who is contributing.
+function eventMetadata(input) {
+  const metadata = { ...(input.metadata ?? {}) };
+  if (input.personas !== undefined) {
+    if (!Array.isArray(input.personas) || input.personas.length > 8 || input.personas.some((ref) => typeof ref !== 'string' || !ref.trim())) {
+      throw new Error('personas must be a list of up to eight persona references.');
+    }
+    metadata.personas = [...new Set(input.personas.map((ref) => ref.trim()))];
+  }
+  return metadata;
+}
+
+export function listRecentPersonaSpeech(projectRoot, { sinceMs = 5 * 60_000, now = Date.now() } = {}) {
+  const since = new Date(now - sinceMs).toISOString().slice(0, 19).replace('T', ' ');
+  return withDatabase(projectRoot, null, (database) => database.prepare(`
+    SELECT work_item_id, summary, created_at, metadata_json FROM activity_events
+    WHERE created_at >= ? AND metadata_json LIKE '%"personas"%' ORDER BY created_at DESC, id DESC
+  `).all(since).map((row) => ({
+    workItemId: row.work_item_id,
+    summary: row.summary,
+    createdAt: row.created_at,
+    personas: JSON.parse(row.metadata_json || '{}').personas ?? [],
+  })));
 }
 
 function recordActivity(projectRoot, reference, input, mode) {
@@ -594,7 +629,7 @@ function recordActivity(projectRoot, reference, input, mode) {
         input.summary ?? (mode === 'start' ? 'Started active work.' : mode === 'finish' ? 'Finished active work.' : ''),
         input.details ?? '',
         requiresHuman ? 1 : 0,
-        JSON.stringify(input.metadata ?? {})
+        JSON.stringify(eventMetadata(input))
       );
       database.prepare('UPDATE work_items SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(item.id);
       database.exec('COMMIT;');

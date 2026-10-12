@@ -9,6 +9,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/institute.css">
   </head>
   <body>
     <main id="app" class="app-shell">
@@ -25,6 +26,27 @@
           <p id="optionalViewHeading" class="sidebar-group-label" hidden>Additional views</p>
           <div id="optionalViewLinks"></div>
         </nav>
+        <button id="instituteOpen" class="sidebar-institute" type="button" title="Open the Institute: a live animated view of your delivery" aria-label="Open the Institute, a live animated view of your delivery">
+          <svg viewBox="0 0 64 44" aria-hidden="true" focusable="false">
+            <rect x="1" y="1" width="62" height="42" rx="2" fill="#0f2226" stroke="#8a6528"/>
+            <rect x="4" y="5" width="56" height="3" fill="#14363a"/>
+            <rect x="4" y="8" width="56" height="1" fill="#c99b4c"/>
+            <rect x="4" y="9" width="56" height="13" fill="#d9cba5"/>
+            <rect x="4" y="25" width="56" height="15" fill="#d9cba5"/>
+            <rect x="4" y="22" width="56" height="3" fill="#14363a"/>
+            <rect x="4" y="21" width="56" height="1" fill="#c99b4c"/>
+            <rect x="21" y="9" width="1" height="13" fill="#8a6528"/><rect x="38" y="9" width="1" height="13" fill="#8a6528"/>
+            <rect x="29" y="25" width="1" height="15" fill="#8a6528"/><rect x="46" y="25" width="1" height="15" fill="#8a6528"/>
+            <rect x="8" y="12" width="7" height="5" fill="#86abc4"/><rect x="42" y="12" width="7" height="5" fill="#86abc4"/>
+            <rect x="9" y="29" width="8" height="6" fill="#3a7a78"/><rect x="33" y="29" width="8" height="6" fill="#3a7a78"/>
+            <g fill="#4fb3a9"><circle cx="28" cy="15" r="1.7"/><rect x="26.4" y="17" width="3.2" height="4"/></g>
+            <g fill="#e8a33d"><circle cx="48" cy="33" r="1.7"/><rect x="46.4" y="35" width="3.2" height="4"/></g>
+            <g fill="#d97c6a"><circle cx="53" cy="33.5" r="1.4"/><rect x="51.7" y="35" width="2.6" height="4"/></g>
+            <g fill="#9bbf5a"><circle cx="21" cy="33" r="1.7"/><rect x="19.4" y="35" width="3.2" height="4"/></g>
+            <rect x="8" y="39" width="48" height="1" fill="#c99b4c"/>
+          </svg>
+          <span class="sidebar-label"><strong>The Institute</strong><small>Watch delivery live</small></span>
+        </button>
         <div class="sidebar-premium"><a id="premiumLearn" href="https://www.conversationalcoding.dev/personas/" target="_blank" rel="noopener noreferrer" hidden>Premium personas ↗<span class="sr-only"> (opens in a new tab)</span></a><button id="premiumSetup" type="button" class="quiet-button" hidden>Set up premium personas</button></div>
         <div class="sidebar-bottom"><button id="configurationNav" type="button" data-view="configuration" title="Configuration" disabled><span class="sidebar-icon" aria-hidden="true">⚙</span><span class="sidebar-label">Configuration</span></button><button id="sidebarCollapse" type="button" title="Collapse sidebar" aria-label="Collapse sidebar" aria-controls="dashboardSidebar" aria-expanded="true"><span class="sidebar-icon" aria-hidden="true">«</span><span class="sidebar-label">Collapse sidebar</span></button></div>
       </aside>
@@ -412,6 +434,7 @@
                 <div id="meetingEvidenceCandidates"></div>
               </section>
             </main>
+
             <aside class="meeting-evidence-context">
               <section><span class="eyebrow">Source context</span><div id="meetingEvidenceContext"></div></section>
               <section><span class="eyebrow">Active now</span><h3>Engaged personas</h3><div id="meetingEvidencePersonas"></div></section>
@@ -858,6 +881,56 @@
         </div>
       </section>
     </main>
+    <section id="instituteView" class="institute-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="instituteTitle">
+      <header class="inst-head">
+        <div class="inst-title"><button type="button" id="instBack" class="inst-back" title="Back to the dashboard (Esc)">&larr; Dashboard</button><h2 id="instituteTitle">The Institute<small>Live view of delivery</small></h2></div>
+        <div class="inst-controls">
+          <span id="instStatus" class="inst-status" role="status">Loading…</span>
+          <button type="button" id="instRefresh">Refresh</button>
+          <button type="button" id="instPause" aria-pressed="false">Pause motion</button>
+          <button type="button" id="instOverview" title="Zoom back out (Esc)">Overview</button>
+          <button type="button" id="instPanelToggle" aria-pressed="true">Panel</button>
+        </div>
+      </header>
+      <div class="inst-main">
+        <div class="inst-stack">
+          <div id="instStage" class="inst-stage">
+            <canvas id="instCanvas" aria-label="Animated cutaway of the institute. Each room is a delivery phase and each crate is an intent. The panel beside it lists the same information as text."></canvas>
+            <div id="instOverlay" class="inst-ov"></div>
+            <aside id="instRoomPanel" class="inst-room-panel" aria-live="polite"></aside>
+            <div id="instTip" class="inst-tip"></div>
+          </div>
+          <div id="instStrip" class="inst-strip"></div>
+          <div class="inst-hint">Click a room to zoom in · click an agent, persona, runner or crate to inspect · click bare wall, a plaque or press Esc to zoom out</div>
+        </div>
+      </div>
+      <aside class="inst-side" aria-label="Institute details">
+        <p id="instSummary" class="inst-sr" aria-live="polite"></p>
+        <div class="card"><h3>Inspector</h3><div id="instInspector"></div></div>
+        <div class="card">
+          <h3>In this project</h3>
+          <div class="inst-kpis">
+            <div><b id="instKFlight">0</b><span>In flight</span></div>
+            <div><b id="instKAgents">0</b><span>Agents working</span></div>
+            <div><b id="instKWaiting">0</b><span>Waiting for you</span></div>
+            <div><b id="instKDone">0</b><span>Delivered</span></div>
+          </div>
+        </div>
+        <div class="card"><h3>Intents <span id="instIntentCount"></span></h3><div id="instIntents"></div></div>
+        <div id="instUnmapped"></div>
+        <div class="card"><h3>Agents and personas <span>filter by tool</span></h3><div id="instChips" class="inst-chips"></div><div id="instAgents"></div><div id="instLegend" class="inst-legend"></div></div>
+        <div class="card"><h3>Seen in this view</h3><div id="instLog" class="inst-log"></div></div>
+        <details class="card help"><summary>How to read this</summary><ul>
+          <li>Each room is a delivery phase. Work flows along the top row, takes the lift down, then runs right to left along the bottom.</li>
+          <li>A brass crate with a coloured label is an intent. Its colour follows it everywhere, including the strip under the scene.</li>
+          <li>The figure at a desk is the newest agent session registered for that intent. Its tag shows the tool exactly as recorded. A dashed tag means no session is registered.</li>
+          <li>Every persona lens attached to an intent walks about the room with that intent's agent. A speech bubble means the latest update from the agent named that persona as contributing, and lasts for two minutes.</li>
+          <li>A runner appears only when this view sees an intent change phase. Rooms that are full show amber with the number of intents not drawn.</li>
+          <li>The Awaiting approval room holds intents whose session has asked a person a question. Their little people wave for attention, and a thermometer fills over 30 minutes of waiting. Answer from the board; this view never approves anything.</li>
+          <li>The window sky follows your local time. The bar over a desk is the intent's overall progress.</li>
+        </ul></details>
+      </aside>
+    </section>
 
     <dialog id="intentDialog" class="intent-dialog" aria-labelledby="drawerTitle">
       <div class="intent-drawer">
