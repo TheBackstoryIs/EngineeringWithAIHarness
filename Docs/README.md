@@ -8,7 +8,7 @@ For feature delivery, **`ewai-deliver` coordinates the full fourteen-stage workf
 
 If you want EWAI to act on an approved, exact pool of registered intents, read [governed autonomous intent delivery](autonomous-intent-delivery.md). It starts off, needs a named and bounded grant, and leaves human Build approval and Manual QA separate.
 
-Read [what's new in version 0.3.7 beta 1](releases/0.3.7-beta.1.md), the [0.3.6 release notes](releases/0.3.6.md), the [0.3.5 release notes](releases/0.3.5.md), the [0.3.5 beta release notes](releases/0.3.5-beta.1.md), the [stable 0.3.4 release notes](releases/0.3.4.md), or the [earlier Jev and OpenAI Decisions beta notes](releases/0.3.4-beta.6.md).
+Read [what's new in version 0.3.7](releases/0.3.7.md), the [0.3.6 release notes](releases/0.3.6.md), the [0.3.5 release notes](releases/0.3.5.md), the [0.3.5 beta release notes](releases/0.3.5-beta.1.md), the [stable 0.3.4 release notes](releases/0.3.4.md), or the [earlier Jev and OpenAI Decisions beta notes](releases/0.3.4-beta.6.md).
 
 ## New to EWAI?
 
