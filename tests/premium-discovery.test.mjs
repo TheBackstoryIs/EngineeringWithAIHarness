@@ -39,9 +39,10 @@ test('PTS-001 conditional premium actions keep continuation and configuration id
 test('PTS-002 setup is private and only offered for absent credentials', () => {
   const opening = companionOpening({ licenceNotConfigured: true, premium: { licenceKey: 'do-not-echo', action: { prompt: 'paste your key here', command: 'unsafe command' } } });
   assert.equal(opening.personaSetup.question, question);
-  assert.deepEqual(opening.personaSetup.choices.map(choice => choice.key), ['configure', 'read', 'core']);
+  assert.deepEqual(opening.personaSetup.choices.map(choice => choice.key), ['configure', 'starter', 'read', 'core']);
   assert.equal(opening.personaSetup.choices[0].command, 'ewai persona premium configure --project .');
-  assert.equal(opening.personaSetup.choices[1].url, url);
+  assert.equal(opening.personaSetup.choices.find(choice => choice.key === 'starter').url, 'https://www.conversationalcoding.dev/downloads/starter-persona-pack/');
+  assert.equal(opening.personaSetup.choices.find(choice => choice.key === 'read').url, url);
   assert.equal(/do-not-echo|unsafe command|paste your key here/.test(JSON.stringify(opening)), false);
   assert.match(opening.contract.join(' '), /personaSetup/);
   for (const reason of ['expired', 'invalid', 'service-unavailable', 'licence-not-configured']) {

@@ -636,7 +636,7 @@ test('starts, reuses, serves and stops the project intent dashboard', async () =
     assert.equal(health.projectName, 'Dashboard Test');
     const projectStatus = await fetch(`${started.url}/api/project`).then((response) => response.json());
     assert.equal(projectStatus.premium.showUpgrade, true);
-    assert.equal(projectStatus.premium.upgradeUrl, 'https://www.conversationalcoding.dev/personas/');
+    assert.equal(projectStatus.premium.upgradeUrl, 'https://www.conversationalcoding.dev/downloads/starter-persona-pack/');
     assert.equal(projectStatus.premium.provider, 'wordpress-edd');
     assert.equal(projectStatus.premium.verified, false);
     assert.equal(JSON.stringify(projectStatus.premium).includes(resolve(root, 'home')), false);
