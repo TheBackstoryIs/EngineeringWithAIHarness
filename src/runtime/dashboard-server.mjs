@@ -37,6 +37,7 @@ import {
   recoverKnowledgeMaterialisation,
 } from '../knowledge-proposals.mjs';
 import { listRuntimeIntents, readRuntimeIntent, runtimeIntentSummary } from './intents.mjs';
+import { buildInstituteScene } from './institute-scene.mjs';
 import { initializeRuntime } from './database.mjs';
 import { listKnowledge, readKnowledgeDocument } from './knowledge.mjs';
 import { palaceTidiness, searchPalace } from './palace.mjs';
@@ -287,7 +288,8 @@ function premiumSummary() {
       revision: /^[a-f0-9]{40,64}$/.test(String(premium?.revision ?? '')) ? premium.revision : null,
       version: /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(String(premium?.version ?? '')) ? premium.version : null,
       latestVersion: /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(String(premium?.latestVersion ?? '')) ? premium.latestVersion : null,
-      planType: ['individual', 'team'].includes(premium?.planType) ? premium.planType : null,
+      planType: ['individual', 'team', 'free'].includes(premium?.planType) ? premium.planType : null,
+      starter: premium?.starter === true,
       showUpgrade: (premium?.access === 'unavailable' || premium?.accessReason === 'licence-not-configured') && !premium?.installed && Boolean(upgradeUrl),
       upgradeUrl
     };
@@ -587,6 +589,10 @@ const server = createServer(async (request, response) => {
           sprint: url.searchParams.get('sprint') ?? ''
         })
       });
+    }
+    if (request.method === 'GET' && url.pathname === '/api/institute-scene') {
+      const names = new Map(personaLibrary().map((persona) => [persona.id, persona.name]));
+      return json(response, 200, buildInstituteScene(projectRoot, { personaName: (ref) => names.get(ref) ?? ref }));
     }
     if (request.method === 'GET' && url.pathname === '/api/groups') {
       return json(response, 200, { groups: listGroups(projectRoot) });

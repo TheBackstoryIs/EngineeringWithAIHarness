@@ -54,6 +54,20 @@ Turning on a view only makes it visible. It doesn't run a scan, connect a servic
 
 Similarly, hiding **Security Validation** or **Policy Gates** doesn't waive requirements already configured for the project.
 
+## The Institute
+
+The **Institute** button in the sidebar isn't an optional view; it's always there. It opens a full-screen, animated cutaway of your delivery. Choose **Dashboard** or press Esc to return to the dashboard.
+
+Each room is a delivery phase and each crate is an intent. The figure at a desk is the newest agent session registered for that intent, labelled with the tool exactly as it registered. Every persona attached to the intent walks about the room with it. Select a room to zoom in, or an agent, persona or intent to inspect it. Esc steps back out one level at a time: room, then selection, then the Institute itself.
+
+The Institute is read-only and shows only what the project has recorded:
+- The recorded delivery state decides which room an intent is in. A session's own phase is used only when the delivery state has no room for it. Anything with no room is listed as not placed.
+- Work whose session has asked a person a question sits in the **Awaiting approval** room. Its little person waves for attention, and a thermometer fills over 30 minutes of waiting. Answer from the board; the Institute never approves anything.
+- A persona gets a speech bubble for two minutes after an update names it. Agents do this by passing `personas` (persona references) on `ewai_active_event`. Without that, personas still walk about but don't speak.
+- If live data can't be reached, the Institute says so and keeps the last update. It never invents activity.
+
+The board and the Live work view also show how long a question has been waiting for a person.
+
 ## If you're looking for an older name
 
 **Phase Studio** is now labelled **Contributions**.

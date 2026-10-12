@@ -11,7 +11,7 @@ const messages = {
   invalid_licence_key: 'That licence key could not be verified. Check the key in My Account and try again.',
   invalid_licence: 'That licence key could not be verified. Check the key in My Account and try again.',
   installation_limit_reached: 'This licence is already active on three machines. Deactivate a machine in My Account, then try again.',
-  subscription_expired: 'This subscription has expired. Installed individual personas remain usable, but updates have ended.',
+  subscription_expired: 'This subscription has expired. Installed personas remain usable, but updates have ended.',
   subscription_inactive: 'This subscription is not currently available. Check My Account.',
   invalid_activation: 'This machine activation could not be verified. Configure the licence again.',
 };
@@ -22,14 +22,15 @@ export function personaServer(value = DEFAULT_PERSONA_SERVER) {
   // Explicit alternative origins are for independently approved self-hosted deployments.
   return url.origin;
 }
+export const PERSONA_RELEASE_IDS = Object.freeze(['ewai.personas.professional', 'ewai.personas.starter']);
 export function parsePersonaRelease(release) {
-  if (!release || release.schema !== 'ewai.persona-pack/v1' || release.id !== 'ewai.personas.professional'
+  if (!release || release.schema !== 'ewai.persona-pack/v1' || !PERSONA_RELEASE_IDS.includes(release.id)
     || !semanticVersion.test(release.version) || !/^[a-f0-9]{64}$/.test(release.artefact?.sha256)
     || !Number.isSafeInteger(release.artefact.size) || release.artefact.size < 22 || release.artefact.size > MAX_PERSONA_ZIP_BYTES) throw new Error('The persona release contract could not be verified');
-  return { version: release.version, sha256: release.artefact.sha256, size: release.artefact.size };
+  return { id: release.id, version: release.version, sha256: release.artefact.sha256, size: release.artefact.size };
 }
 export function parsePersonaSubscription(data) {
-  if (!data || !safeId(data.id) || !['individual', 'team'].includes(data.plan_type)
+  if (!data || !safeId(data.id) || !['individual', 'team', 'free'].includes(data.plan_type)
     || !['active', 'grace', 'cancelled', 'expired', 'pending', 'revoked', 'refunded'].includes(data.status)
     || typeof data.ends_at !== 'string' || !Number.isFinite(Date.parse(data.ends_at))) throw new Error('The persona subscription contract could not be verified');
   return { id: data.id, planType: data.plan_type, status: data.status, endsAt: new Date(data.ends_at).toISOString() };
@@ -127,7 +128,7 @@ export async function acquireWebsitePersonaArchive(credentials, status, options 
     || url.pathname !== '/' || [...url.searchParams.keys()].some(k => k !== 'cce-download')
     || !url.searchParams.get('cce-download') || url.searchParams.getAll('cce-download').length !== 1
     || !Number.isFinite(Date.parse(grant.expires_at)) || Date.parse(grant.expires_at) <= Date.now()
-    || release.sha256 !== status.release.sha256 || release.version !== status.release.version || release.size !== status.release.size) throw new Error('The persona download grant could not be verified; check for updates and retry');
+    || release.id !== status.release.id || release.sha256 !== status.release.sha256 || release.version !== status.release.version || release.size !== status.release.size) throw new Error('The persona download grant could not be verified; check for updates and retry');
   const { response, bytes } = await request(url.href, { headers: { Accept: 'application/zip' } }, MAX_PERSONA_ZIP_BYTES, options);
   if (!response.ok) throw new Error('The short-lived persona download could not be completed; request a fresh download');
   return bytes;

@@ -20,6 +20,7 @@ const knowledgeProposalDisclaimer = 'Security validation is evidence, not certif
 
 import {createDashboardNavigation} from './dashboard-navigation.js';
 import {configureAutonomyDashboard, loadAutonomyState, renderAutonomyIntentDetail} from './autonomy.js';
+import {createInstituteView} from './institute.js';
 
 const state = {
   project: null,
@@ -288,6 +289,11 @@ function needsHuman(session) {
   return Boolean(session.awaitingHuman || session.status === 'awaiting-human');
 }
 
+function waitingFor(session) {
+  if (!needsHuman(session) || !session.waitingSince) return '';
+  return timeAgo(session.waitingSince).replace(/ ago$/, '');
+}
+
 function summaryMetric(label, value, tone = '') {
   return `<div class="summary-metric ${tone}"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`;
 }
@@ -499,7 +505,7 @@ function renderCard(item) {
       <footer>
         <span>${item.completionPercent}%</span>
         <span>${item.artefacts.length} material${item.artefacts.length === 1 ? '' : 's'}</span>
-        ${session ? `<span class="working-now"><i></i>${escapeHtml(session.tool || 'agent')}</span>` : ''}
+        ${session ? `<span class="working-now${waitingFor(session) ? ' waiting' : ''}"><i></i>${escapeHtml(session.tool || 'agent')}${waitingFor(session) ? ` · waiting ${escapeHtml(waitingFor(session))}` : ''}</span>` : ''}
       </footer>
     </article>`;
 }
@@ -597,7 +603,7 @@ function renderLive() {
       <h3>${escapeHtml(session.title)}</h3>
       <div class="active-meta"><span>${escapeHtml(session.tool || 'agent')}</span><span>${escapeHtml(session.phaseKey || 'phase unrecorded')}</span><span>${escapeHtml(timeAgo(session.latestEventAt))}</span></div>
       <p>${escapeHtml(session.latestEventSummary || session.summary || 'No material update recorded yet.')}</p>
-      ${session.question ? `<div class="human-question">${escapeHtml(session.question)}</div>` : ''}
+      ${session.question ? `<div class="human-question">${waitingFor(session) ? `<small>Waiting for you for ${escapeHtml(waitingFor(session))}</small>` : ''}${escapeHtml(session.question)}</div>` : ''}
       <footer><span>${escapeHtml(eventLabel(session.latestEventType))}</span><span>${session.eventCount} events</span></footer>
     </button>
   `).join('') : `
@@ -4982,6 +4988,12 @@ element('repositoryFileForm').addEventListener('submit', async (event) => {
   await loadRepository();
 });
 
+const institute=createInstituteView({
+  api,
+  openIntent:reference=>{institute.close();setView('board');openItem(reference).catch(console.error);},
+  onClose:()=>element('instituteOpen').focus()
+});
+element('instituteOpen').addEventListener('click',()=>institute.open());
 const navigation=createDashboardNavigation({api,onSelect:setView,onManageLicence:()=>element('premiumSetup').click()});
 configureAutonomyDashboard({api,getItems:()=>state.items,openIntent:openItem,showView:setView});
 Promise.all([navigation.refresh(),loadBoard()]).then(() => {

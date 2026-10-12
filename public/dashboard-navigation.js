@@ -49,9 +49,12 @@ export function createDashboardNavigation({api,onSelect,onManageLicence}){
   }
   function renderPremium(){
     const active=premium?.active===true;
-    $('premiumLearn').hidden=active;$('premiumSetup').hidden=active;
-    $('premiumLearn').closest('.sidebar-premium').hidden=active;
-    $('configurationLicenceStatus').textContent=active?'Premium personas are active':premium?.access==='available'?'Premium access is verified; the pack isn’t ready yet':premium?.access==='unavailable'?'Premium access is unavailable':'Current premium access hasn’t been verified';
+    const starter=active&&premium?.starter===true;
+    const upgradeUrl=starter&&premium.upgradeUrl?premium.upgradeUrl:null;
+    $('premiumLearn').hidden=active&&!upgradeUrl;$('premiumSetup').hidden=active;
+    $('premiumLearn').closest('.sidebar-premium').hidden=active&&!upgradeUrl;
+    if(upgradeUrl){$('premiumLearn').href=upgradeUrl;$('premiumLearn').firstChild.textContent='Upgrade to the full library ↗';}
+    $('configurationLicenceStatus').textContent=starter?'Starter pack (free) is active':active?'Premium personas are active':premium?.access==='available'?'Premium access is verified; the pack isn’t ready yet':premium?.access==='unavailable'?'Premium access is unavailable':'Current premium access hasn’t been verified';
     $('configurationLicenceDetail').textContent=active?`The installed pack is verified${premium.version?' · '+premium.version:''}.`:premium?.installed?'Your installed personas are still available locally. Manage your licence to check access or retry setup.':'You can continue with core personas, or manage your licence to install the premium pack.';
     for(const element of document.querySelectorAll('[data-premium-setup]'))element.hidden=active;
   }

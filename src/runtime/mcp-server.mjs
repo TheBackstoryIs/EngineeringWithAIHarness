@@ -1840,7 +1840,8 @@ server.registerTool(
     inputSchema: {
       ...activityInput,
       eventType: z.enum(['progress', 'handoff', 'external-review', 'decision', 'response', 'blocked', 'question', 'question-resolved', 'stale']).optional(),
-      requiresHuman: z.boolean().optional()
+      requiresHuman: z.boolean().optional(),
+      personas: z.array(z.string().min(1).max(200)).max(8).optional().describe('References of the attached persona lenses whose perspective this update voices. Leave out when no persona contributed.')
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   },

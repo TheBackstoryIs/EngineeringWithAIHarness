@@ -1,4 +1,4 @@
-import { DEFAULT_PREMIUM_UPGRADE_URL } from './persona-entitlements.mjs';
+import { DEFAULT_PREMIUM_UPGRADE_URL, STARTER_PACK_URL } from './persona-entitlements.mjs';
 
 export function premiumPersonaLearningAction() {
   return {
@@ -40,10 +40,12 @@ export function companionOpening(options = {}) {
       question: 'Do you have a premium persona licence, or shall we use the core personas?',
       choices: [
         { key: 'configure', label: 'Set up a licence privately', command: 'ewai persona premium configure --project .' },
+        { key: 'starter', label: 'Claim the free starter pack', url: STARTER_PACK_URL },
         { key: 'read', label: 'Read about personas first', url: DEFAULT_PREMIUM_UPGRADE_URL },
         { key: 'core', label: 'Keep using the core personas' }
       ]
     } : null,
+    starterUpgrade: options.starterUpgradeUrl ? { label: 'Starter pack active. Upgrade to the full persona library', url: options.starterUpgradeUrl } : null,
     spotlight: options.spotlight ?? null,
     activePersonas: options.activePersonas ?? [],
     notices: options.notices ?? null,
@@ -52,6 +54,7 @@ export function companionOpening(options = {}) {
       'Report the check-in status before the menu in four routine lines; retain blockers, warnings and unknown checks with short reasons. Detailed diagnostics are on request.',
       'Do not repeat the menu while carrying out a selected action. Give at most one short progress sentence per meaningful checkpoint; no shell/file/JSON narration or running commentary about reasoning.',
       'Render every action in order as `[id] label`.',
+      'When starterUpgrade is present, add it as one quiet line after the menu; it is not a menu action and never downloads anything.',
       'Action [7] is optional learning only; reading cannot activate, purchase or download personas.',
       'Do not replace the menu with narrative, recommendations, or a generic question.',
       'When spotlight is present, render its bounded advisory context and active persona names and tiers after the numbered actions.',
