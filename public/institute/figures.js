@@ -3,11 +3,11 @@ import { K, R, poly, sh } from './draw.js';
 const SKIN = ['#f6d7bd', '#f0c8a0', '#e1b48f', '#d09b72', '#c58f6a', '#a56f4c', '#8a5a3c', '#6b4429', '#4f3220'];
 const HAIR = ['#2b1d14', '#5a3a22', '#1d1d1d', '#8a6a3a', '#b89a60', '#6b6b6b', '#9a4a2a', '#d8d4cc', '#3a2a4a'];
 const PANTS = ['#3a3f44', '#5a4a3a', '#2d3a50', '#4a4a3a', '#6a3a3a', '#3a5048', '#55506a'];
-// Weighted by repetition. Every choice is seeded by the figure's key, so a figure looks the same on every load.
+// Weighted by repetition. Each choice is seeded independently by the figure's key, so any hairstyle, top, bottom and
+// facial hair can combine, and a figure looks the same on every load.
 const HAIR_STYLES = ['short', 'short', 'crop', 'long', 'long', 'ponytail', 'bun', 'bob', 'curly', 'bald'];
 const TOPS = ['jacket', 'jacket', 'shirt', 'shirt', 'hoodie'];
 const BOTTOMS = ['trousers', 'trousers', 'trousers', 'skirt', 'shorts', 'dress'];
-const BEARDED = new Set(['short', 'crop', 'curly', 'bald']);
 const FIGURE_SCALE = 1.15;
 
 export function hashString(text) {
@@ -22,12 +22,12 @@ const roll = (key, salt) => (hashString(`${key}:${salt}`) % 1000) / 1000;
 export function makePalette(key, coat, options = {}) {
   const hairStyle = pickBy(HAIR_STYLES, key, 'style');
   const bottom = pickBy(BOTTOMS, key, 'bottom');
-  const top = bottom === 'dress' ? 'shirt' : options.top || pickBy(TOPS, key, 'top');
+  const top = options.top || pickBy(TOPS, key, 'top');
   const facialRoll = roll(key, 'facial');
   return {
     hairStyle, top, bottom,
     sleeve: top === 'shirt' ? .5 : 1,
-    facial: BEARDED.has(hairStyle) && facialRoll < .3 ? (facialRoll < .15 ? 'beard' : 'moustache') : null,
+    facial: facialRoll < .22 ? (facialRoll < .11 ? 'beard' : 'moustache') : null,
     glasses: roll(key, 'glasses') < .22,
     coat,
     coatD: sh(coat, -.22),

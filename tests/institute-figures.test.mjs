@@ -23,5 +23,12 @@ test('looks vary across figures in skin tone, hair, clothing and accessories', (
 test('the identity colour and any explicit options are kept', () => {
   const p = makePalette('runner:1', '#3c4a55', { pants: '#26323a', trim: '#c99b4c', top: 'jacket' });
   assert.equal(p.coat, '#3c4a55'); assert.equal(p.pants, '#26323a'); assert.equal(p.top, 'jacket');
-  for (const key of keys) if (makePalette(key, '#fff').bottom === 'dress') assert.equal(makePalette(key, '#fff').top, 'shirt');
+});
+
+test('tops, bottoms, hairstyles and facial hair combine freely', () => {
+  const palettes = keys.concat(Array.from({ length: 1600 }, (_, i) => `extra-${i}`)).map((key) => makePalette(key, '#335577'));
+  const combos = new Set(palettes.map((p) => `${p.top}+${p.bottom}`));
+  assert.equal(combos.size, 12, 'every top with every bottom');
+  const bearded = new Set(palettes.filter((p) => p.facial).map((p) => p.hairStyle));
+  assert.ok(bearded.has('long') && bearded.has('bun') && bearded.has('short'), 'facial hair with any hairstyle');
 });
