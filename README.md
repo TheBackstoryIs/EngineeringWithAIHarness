@@ -8,13 +8,13 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 ## What's new in this version
 
-Version `0.3.6` adds **repository context**. Your assistant can read a short, evidence-based summary of the file in front of it: the callers EWAI resolved, recorded routes, who usually changes it, which files change with it and which project records name it. A change rank orders your current diff against the repository's own recent commits, so the riskiest edits are looked at first. The dashboard's Repository view shows the same readings. They are advisory and never approve Build, Manual QA or release.
+Version `0.3.7-beta.1` celebrates **more than 2,000 developers** working with Engineering With AI. Thank you. To mark it, we've added something we think you'll enjoy: **the Institute**.
 
-**Keep the index current without rebuilding it.** `ewai index update` re-parses only the files that were added, changed or deleted, and a Git post-commit hook runs it in the background. A hook failure never undoes your commit. Resolution now follows relative imports, Composer PSR-4 prefixes, TypeScript and JavaScript path maps, package imports, Go module prefixes and common aliases, and it recognises common route conventions.
+**Watch your delivery come to life.** The Institute is a living cutaway of your work. Open it from the dashboard sidebar and every intent appears in the room for its stage, with the assistant working on it and the personas you've attached walking about alongside. You can see at a glance where work is moving, where it's waiting and who's involved, without opening a single card. Zoom into any room for a closer look, then press Esc or choose **← DASHBOARD** to return to the normal view.
 
-**Shorter test and Git output.** `ewai distill -- <command>` keeps a short reading of recognised test and Git commands with the exit code intact, and stores the full log so you can hash it as gate evidence. Only a single plain command is shortened. Chained, piped or redirected commands are left alone, and your assistant's normal approval rules still apply.
+**Know who's waiting for you.** When work needs a decision from you, its people wave for your attention and a thermometer fills the longer they wait. The same "waiting since" time now shows on your board too.
 
-**Hooks EWAI adds to a project.** When EWAI writes its assistant configuration for a project, it also adds Claude Code hooks for session, file and command readings, plus the Git post-commit hook. `ewai context install --project .` applies them again, and setting `EWAI_DISTILL=0` turns command shortening off. The repository context guide in the documentation describes each reading and its limits.
+**Try personas for free.** The new free starter pack gives you ten specialist personas, from an architect to a CISO, to try inside EWAI. [Claim your free starter pack](https://www.conversationalcoding.dev/downloads/starter-persona-pack/?utm_source=readme&utm_medium=referral&utm_campaign=ewai), enter your key and they install in one step. When you're ready for the full library, upgrading replaces the starter pack cleanly.
 
 ## Quick start
 
@@ -107,6 +107,7 @@ terms.
 | Investigate dependencies before a change | [Source Map](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/repository-source-map-guide.md) and [Blast Radius](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/blast-radius-and-impact-routing-guide.md) |
 | Turn a meeting into reviewed project evidence | [Meeting evidence](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/meeting-evidence-user-guide.md) |
 | Check an implemented feature with a person | [Manual QA](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/quality/manual-qa-and-acceptance.md) |
+| Watch delivery as it happens | [The Institute](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/operations/dashboard-configuration.md#the-institute) |
 | Adapt the dashboard to your work | [Dashboard configuration](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/operations/dashboard-configuration.md) |
 | Use shared organisational guidance | [Blueprints](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/designing-organisation-blueprint-packs.md) and [rollout](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/organisation-rollout-guide.md) |
 
