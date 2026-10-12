@@ -288,7 +288,8 @@ function premiumSummary() {
       revision: /^[a-f0-9]{40,64}$/.test(String(premium?.revision ?? '')) ? premium.revision : null,
       version: /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(String(premium?.version ?? '')) ? premium.version : null,
       latestVersion: /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(String(premium?.latestVersion ?? '')) ? premium.latestVersion : null,
-      planType: ['individual', 'team'].includes(premium?.planType) ? premium.planType : null,
+      planType: ['individual', 'team', 'free'].includes(premium?.planType) ? premium.planType : null,
+      starter: premium?.starter === true,
       showUpgrade: (premium?.access === 'unavailable' || premium?.accessReason === 'licence-not-configured') && !premium?.installed && Boolean(upgradeUrl),
       upgradeUrl
     };

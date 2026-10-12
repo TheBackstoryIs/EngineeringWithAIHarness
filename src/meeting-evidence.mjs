@@ -21,6 +21,7 @@ import {
 } from './personas.mjs';
 import { selectContextualPersonas } from './runtime/persona-engagement.mjs';
 import { publishLifecycleEventSafely } from './runtime/lifecycle-hooks.mjs';
+import { premiumPackRoot } from './persona-entitlements.mjs';
 
 export const MEETING_EVIDENCE_DISCLAIMER = 'Security validation is evidence, not certification or proof that this system is secure. Tools can miss vulnerabilities and produce false positives. A qualified human must review the scope, findings, limitations and residual risk before release.';
 
@@ -232,7 +233,7 @@ function inferTier(persona) {
 function installedPersonaCatalogue(projectRoot) {
   const roots = [
     resolve(import.meta.dirname, '../packs/personas/core/personas'),
-    resolve(homedir(), '.ewai/packs/ewai.personas.professional/premium-personas'),
+    resolve(premiumPackRoot(homedir()), 'premium-personas'),
     personalPersonaRoot(),
     projectPersonaRoot(projectRoot)
   ];

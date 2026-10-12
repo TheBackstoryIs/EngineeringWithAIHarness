@@ -172,6 +172,7 @@ export async function checkinProject(projectRoot, options = {}) {
       hasWork,
       licenceNotConfigured: premium.accessReason === 'licence-not-configured',
       premiumActive: premiumPersonasActive(premium),
+      starterUpgradeUrl: premium.starter === true && premium.upgradeUrl ? premium.upgradeUrl : null,
       spotlight: companionGuidance.spotlight,
       activePersonas: companionGuidance.activePersonas,
       notices: companionGuidance.notices,
@@ -228,6 +229,7 @@ export async function checkinProject(projectRoot, options = {}) {
       latestVersion: result.premium.latestVersion ?? null,
       message: result.premium.message ?? null,
       planType: result.premium.planType ?? null,
+      starter: result.premium.starter === true,
       subscriptionStatus: result.premium.subscriptionStatus ?? null,
     }
   }, null, 2)}\n`, 'utf8');

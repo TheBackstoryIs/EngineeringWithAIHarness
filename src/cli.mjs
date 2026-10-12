@@ -396,6 +396,7 @@ export function formatCheckin(result, options = {}) {
       : framework.status === 'not-checked' ? 'update check not run'
         : `update check unavailable${framework.reason ? `: ${framework.reason}` : ''}`;
   const personaText = premium.accessReason === 'licence-not-configured' ? 'Core personas available · Premium licence not configured'
+    : premium.installed && premium.verified && premium.starter ? `Starter pack (free) installed${premium.version ? ` · ${premium.version}` : ''}${premium.upgradeUrl ? ` · Upgrade: ${premium.upgradeUrl}` : ''}`
     : premium.installed && premium.verified ? `Premium personas installed${premium.version ? ` · ${premium.version}` : ''}${premium.message ? ` · ${premium.message}` : ''}`
       : premium.access === 'available' ? 'Core personas available · Premium access verified; pack not ready'
         : `Core personas available · Premium access ${premium.access === 'unavailable' ? 'unavailable' : 'unverified'}${premium.message ? `: ${premium.message}` : ''}`;

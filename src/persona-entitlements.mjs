@@ -20,6 +20,10 @@ import { extractPersonaZip } from './persona-zip.mjs';
 
 export const DEFAULT_PREMIUM_UPGRADE_URL = 'https://www.conversationalcoding.dev/personas/';
 export const PREMIUM_PACK_ID = 'ewai.personas.professional';
+export const STARTER_PACK_ID = 'ewai.personas.starter';
+export const PERSONA_PACK_IDS = Object.freeze([PREMIUM_PACK_ID, STARTER_PACK_ID]);
+export const STARTER_PACK_URL = 'https://www.conversationalcoding.dev/downloads/starter-persona-pack/';
+export const PROFESSIONAL_PACK_URL = 'https://www.conversationalcoding.dev/downloads/premium-persona-pack/';
 export const PERSONA_ENTITLEMENT_SCHEMA = 'ewai.persona-entitlement/v1';
 export const PERSONA_PACK_RECEIPT_SCHEMA = 'ewai.persona-pack-receipt/v1';
 
@@ -65,8 +69,14 @@ export function resolvePersonaEntitlement(config = {}, options = {}) {
   };
 }
 
-export function premiumPackRoot(home = homedir()) {
-  return resolve(home, '.ewai/packs', PREMIUM_PACK_ID);
+// One managed slot: whichever licensed pack is installed. Installing the other replaces it.
+export function installedPackId(home = homedir()) {
+  return PERSONA_PACK_IDS.find((id) => existsSync(resolve(home, '.ewai/packs', id))
+    || existsSync(resolve(home, '.ewai/packs/.receipts', `${id}.json`))) ?? PREMIUM_PACK_ID;
+}
+
+export function premiumPackRoot(home = homedir(), packId = installedPackId(home)) {
+  return resolve(home, '.ewai/packs', packId);
 }
 
 export function premiumPersonaRoot(home = homedir()) {
@@ -80,8 +90,8 @@ export function premiumPersonaRoot(home = homedir()) {
   return resolve(premiumPackRoot(home), 'premium-personas');
 }
 
-export function premiumPackReceiptPath(home = homedir()) {
-  return resolve(home, '.ewai/packs/.receipts', `${PREMIUM_PACK_ID}.json`);
+export function premiumPackReceiptPath(home = homedir(), packId = installedPackId(home)) {
+  return resolve(home, '.ewai/packs/.receipts', `${packId}.json`);
 }
 
 function parseManifest(root, expectedPackId) {
@@ -197,14 +207,14 @@ export function validatePersonaPack(root, options = {}) {
   };
 }
 
-function readReceipt(home) {
-  const path = premiumPackReceiptPath(home);
+function readReceipt(home, packId = installedPackId(home)) {
+  const path = premiumPackReceiptPath(home, packId);
   guardPersonaPath(home, path);
   if (!existsSync(path)) return null;
   try {
     const receipt = JSON.parse(readFileSync(path, 'utf8'));
     if (receipt.schema !== PERSONA_PACK_RECEIPT_SCHEMA
-      || receipt.packId !== PREMIUM_PACK_ID
+      || receipt.packId !== packId
       || receipt.providerId !== 'wordpress-edd'
       || !revisionPattern.test(clean(receipt.revision))
       || !/^sha256:[a-f0-9]{64}$/.test(clean(receipt.contentDigest))) return null;
@@ -215,7 +225,7 @@ function readReceipt(home) {
 }
 
 function atomicReceipt(home, receipt) {
-  const path = premiumPackReceiptPath(home);
+  const path = premiumPackReceiptPath(home, receipt.packId);
   guardPersonaPath(home, path);
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -261,18 +271,19 @@ export function readPremiumPackManifest(home = homedir()) {
 
 async function websiteLocal(home) {
   if (!existsSync(home)) return { installed: false, verified: false, receipt: null, validation: null, dirty: false };
-  const root = guardPersonaPath(home, premiumPackRoot(home));
+  const packId = installedPackId(home);
+  const root = guardPersonaPath(home, premiumPackRoot(home, packId));
   if (!existsSync(root)) return { installed: false, verified: false, receipt: null, validation: null, dirty: false };
-  const receipt = readReceipt(home);
+  const receipt = readReceipt(home, packId);
   let validation = null;
   if (receipt?.providerId === 'wordpress-edd' && lstatSync(root).isDirectory() ) {
-    try { validation = validatePersonaPack(root, { providerId: 'wordpress-edd', revision: receipt.revision }); } catch {}
+    try { validation = validatePersonaPack(root, { providerId: 'wordpress-edd', revision: receipt.revision, packId }); } catch {}
   }
   const verified = Boolean(validation && validation.contentDigest === receipt.contentDigest
     && validation.manifestVersion === receipt.manifestVersion && validation.compatibility === receipt.compatibility
     && receipt.provenance?.server && receipt.provenance?.seatId && receipt.provenance?.subscriptionId
-    && ['team', 'individual'].includes(receipt.provenance.planType));
-  return { installed: true, receipt, validation, verified, dirty: !verified, accessBlocked: receiptDeniesAccess(receipt, home) };
+    && ['team', 'individual', 'free'].includes(receipt.provenance.planType));
+  return { installed: true, packId, receipt, validation, verified, dirty: !verified, accessBlocked: receiptDeniesAccess(receipt, home) };
 }
 
 function receiptDeniesAccess(receipt, home) {
@@ -290,7 +301,13 @@ function receiptMatches(receipt, remote) {
   const p = receipt?.provenance;
   return receipt?.providerId === 'wordpress-edd' && p?.server === remote?.server
     && p?.seatId === remote?.seatId && p?.subscriptionId === remote?.subscription.id
-    && p?.planType === remote?.subscription.planType;
+    && p?.planType === remote?.subscription.planType
+    && (!remote?.release || receipt.packId === remote.release.id);
+}
+
+function isStarterUpgrade(receipt, remote) {
+  return receipt?.providerId === 'wordpress-edd' && receipt.packId === STARTER_PACK_ID
+    && remote?.release?.id === PREMIUM_PACK_ID && receipt.provenance?.server === remote.server;
 }
 
 function websiteSafeStatus(configuration, local, remote, reason = null) {
@@ -300,10 +317,11 @@ function websiteSafeStatus(configuration, local, remote, reason = null) {
   const accessBlocked = local.accessBlocked || local.receipt?.accessBlocked === 'expired-team';
   const status = accessBlocked && access !== 'available' ? 'expired-team-cleanup-blocked'
     : accessBlocked ? 'installed-unverified'
-    : expired && matches && remote.subscription.planType === 'individual'
+    : expired && matches && ['individual', 'free'].includes(remote.subscription.planType)
     ? 'expired-individual-retained'
     : !local.installed ? 'not-installed' : !local.verified ? 'installed-unverified'
       : access !== 'available' ? 'installed-not-remotely-verified'
+        : !matches && isStarterUpgrade(local.receipt, remote) ? 'upgrade-available'
         : matches && local.receipt.revision === remote.release.sha256 && local.receipt.manifestVersion === remote.release.version ? 'current' : 'update-available';
   let action = null;
   if (reason === 'licence-not-configured') action = { kind: 'offer-configure', prompt: 'Have a persona licence? Configure it using the private terminal prompt.', command: 'ewai persona premium configure --project .' };
@@ -311,6 +329,7 @@ function websiteSafeStatus(configuration, local, remote, reason = null) {
     const command = 'ewai persona premium sync --project . --yes';
     if (local.dirty) action = { kind: 'blocked-local-changes', prompt: 'The managed premium pack has changed locally. Resolve those changes before replacing it.', command: null };
     else if (!local.installed) action = { kind: 'offer-install', prompt: 'Install your licensed premium personas?', command };
+    else if (isStarterUpgrade(local.receipt, remote)) action = { kind: 'offer-upgrade', prompt: 'Upgrade your starter personas to the full professional library? The starter pack will be replaced.', command };
     else if (!matches) action = { kind: 'offer-replace', prompt: 'This pack belongs to another provider or licence. Explicitly replace it with this subscription?', command: command + ' --replace' };
     else if (!local.verified || accessBlocked) action = { kind: 'offer-repair', prompt: 'Replace the unverified or previously expired pack with a verified download?', command };
     else if (status === 'update-available') action = { kind: 'offer-update', prompt: 'A new persona release is available. Download the update?', command };
@@ -319,13 +338,15 @@ function websiteSafeStatus(configuration, local, remote, reason = null) {
     ? access === 'available' ? 'Your subscription is available again. Install a verified pack to resume using its premium personas.'
       : 'This team pack has a confirmed expiry. Its modified files were preserved for investigation, but it is excluded from premium persona selection.'
     : status === 'expired-individual-retained'
-    ? 'Your annual access has expired. Keep using your installed individual personas; you are no longer receiving updates.'
+    ? remote.subscription.planType === 'free'
+      ? 'Your starter pack year has ended. Keep using the installed starter personas; you are no longer receiving updates. Claim it again for free or upgrade to the full library.'
+      : 'Your annual access has expired. Keep using your installed individual personas; you are no longer receiving updates.'
     : expired ? 'This team subscription has expired. Access to its premium personas has ended.'
       : reason === 'licence-not-configured' ? 'Configure your licence to use website-purchased personas. Core EWAI remains available.'
         : reason ? 'Persona access could not be verified. Check your connection or configure the licence again. Installed content has not been removed.'
           : null;
   return {
-    schema: PERSONA_ENTITLEMENT_SCHEMA, packId: PREMIUM_PACK_ID, provider: 'wordpress-edd',
+    schema: PERSONA_ENTITLEMENT_SCHEMA, packId: local.packId ?? remote?.release?.id ?? PREMIUM_PACK_ID, provider: 'wordpress-edd',
     access, accessReason: reason || (access === 'unavailable' ? 'subscription-' + remote.subscription.status : null),
     status, installed: Boolean(local.installed), verified: Boolean(local.verified && !accessBlocked), dirty: Boolean(local.dirty),
     compatibility: local.validation?.compatibility ?? null, manifestVersion: local.validation?.manifestVersion ?? null,
@@ -333,8 +354,11 @@ function websiteSafeStatus(configuration, local, remote, reason = null) {
     revision: local.verified ? local.receipt.revision : null, latestRevision: remote?.release?.sha256 ?? null,
     contentDigest: local.verified ? local.validation.contentDigest : null,
     planType: remote?.subscription.planType ?? null, subscriptionStatus: remote?.subscription.status ?? null,
-    updatesAvailable: access === 'available' && status === 'update-available',
-    upgradeUrl: (access === 'unavailable' || reason === 'licence-not-configured') && !local.installed ? configuration.upgradeUrl : null,
+    updatesAvailable: access === 'available' && ['update-available', 'upgrade-available'].includes(status),
+    upgradeUrl: (access === 'unavailable' || reason === 'licence-not-configured') && !local.installed
+      ? (reason === 'licence-not-configured' ? STARTER_PACK_URL : configuration.upgradeUrl)
+      : local.receipt?.packId === STARTER_PACK_ID && remote?.subscription.planType === 'free' ? PROFESSIONAL_PACK_URL : null,
+    starter: local.packId === STARTER_PACK_ID && Boolean(local.installed),
     message, action,
   };
 }
@@ -393,45 +417,52 @@ async function syncWebsitePack(configuration, options) {
   const remote = await websitePersonaStatus(credentials, options);
   if (remote.access !== 'available') throw new Error(remote.subscription.status === 'expired' ? 'This subscription has expired; persona updates have ended' : 'This subscription is not currently available');
   return withPersonaMutationLock(home, async () => {
-    const local = await websiteLocal(home), root = premiumPackRoot(home);
+    const local = await websiteLocal(home), targetId = remote.release.id, root = premiumPackRoot(home, targetId);
+    const upgrading = isStarterUpgrade(local.receipt, remote);
     if (local.dirty) throw new Error('Premium cache has local changes; it was not overwritten');
-    if (local.installed && !receiptMatches(local.receipt, remote) && options.replaceConfirmed !== true) throw new Error('This pack belongs to another provider or licence. Confirm replacement separately with --replace');
+    if (local.installed && !upgrading && !receiptMatches(local.receipt, remote) && options.replaceConfirmed !== true) throw new Error('This pack belongs to another provider or licence. Confirm replacement separately with --replace');
     if (local.verified && !local.accessBlocked && !local.receipt.accessBlocked && receiptMatches(local.receipt, remote) && local.receipt.revision === remote.release.sha256
       && local.receipt.manifestVersion === remote.release.version && options.forceRepair !== true) {
       return { schema: 'ewai.premium-sync/v1', status: 'current', provider: 'wordpress-edd', version: local.receipt.manifestVersion };
     }
     const stagingRoot = guardPersonaPath(home, resolve(dirname(root), '.staging'));
     mkdirSync(stagingRoot, { recursive: true, mode: 0o700 });
-    const session = mkdtempSync(resolve(stagingRoot, PREMIUM_PACK_ID + '-'));
+    const session = mkdtempSync(resolve(stagingRoot, targetId + '-'));
     const candidate = resolve(session, 'candidate'); mkdirSync(candidate, { mode: 0o700 });
-    const backup = guardPersonaPath(home, resolve(dirname(root), '.' + PREMIUM_PACK_ID + '.backup-' + randomUUID()));
-    const receiptPath = guardPersonaPath(home, premiumPackReceiptPath(home));
-    const priorReceipt = existsSync(receiptPath) ? readFileSync(receiptPath) : null;
-    let backedUp = false, promoted = false;
+    // Back up every managed slot so a failed swap restores whichever pack was installed.
+    const slots = PERSONA_PACK_IDS.map((id) => {
+      const slotRoot = guardPersonaPath(home, premiumPackRoot(home, id));
+      const slotReceipt = guardPersonaPath(home, premiumPackReceiptPath(home, id));
+      return { id, root: slotRoot, receipt: slotReceipt, prior: existsSync(slotReceipt) ? readFileSync(slotReceipt) : null,
+        backup: guardPersonaPath(home, resolve(dirname(slotRoot), '.' + id + '.backup-' + randomUUID())), backedUp: false };
+    });
+    let promoted = false;
     try {
       const archive = await acquireWebsitePersonaArchive(credentials, remote, options);
       if (archive.length !== remote.release.size) throw new Error('Persona archive size does not match the release');
       if (createHash('sha256').update(archive).digest('hex') !== remote.release.sha256) throw new Error('Persona archive digest does not match the release');
       extractPersonaZip(archive, candidate);
       // Trust remains in the core verifier, independent of transport/grant success.
-      const verified = validatePersonaPack(candidate, { providerId: 'wordpress-edd', revision: remote.release.sha256 });
+      const verified = validatePersonaPack(candidate, { providerId: 'wordpress-edd', revision: remote.release.sha256, packId: targetId });
       if (verified.manifestVersion !== remote.release.version || verified.personaPath !== 'premium-personas' || verified.compatibility !== 'current') throw new Error('Persona archive manifest differs from the release');
-      guardPersonaPath(home, root); guardPersonaPath(home, receiptPath);
-      if (existsSync(root)) { renameSync(root, backup); backedUp = true; }
+      for (const slot of slots) if (existsSync(slot.root)) { renameSync(slot.root, slot.backup); slot.backedUp = true; }
       renameSync(candidate, root); promoted = true;
       if (options.failAfterStage === 'candidate-promoted') throw new Error('Injected premium persona promotion failure');
       atomicReceipt(home, { ...receiptFor(verified, options.now), installationId: randomUUID(), provenance: {
         server: remote.server, seatId: remote.seatId, subscriptionId: remote.subscription.id, planType: remote.subscription.planType,
       } });
+      for (const slot of slots) if (slot.id !== targetId) rmSync(slot.receipt, { force: true });
       if (options.failAfterStage === 'receipt-written') throw new Error('Injected premium persona receipt failure');
-      if (backedUp) { rmSync(backup, { recursive: true }); backedUp = false; }
-      return { schema: 'ewai.premium-sync/v1', status: local.installed ? 'updated' : 'installed', provider: 'wordpress-edd',
+      for (const slot of slots) if (slot.backedUp) { rmSync(slot.backup, { recursive: true }); slot.backedUp = false; }
+      return { schema: 'ewai.premium-sync/v1', status: upgrading ? 'upgraded' : local.installed ? 'updated' : 'installed', provider: 'wordpress-edd', packId: targetId,
         revision: verified.revision, version: verified.manifestVersion, contentDigest: verified.contentDigest };
     } catch (e) {
       if (promoted) rmSync(guardPersonaPath(home, root), { recursive: true });
-      if (backedUp) renameSync(guardPersonaPath(home, backup), root);
-      if (priorReceipt) { guardPersonaPath(home, receiptPath); writeFileSync(receiptPath, priorReceipt, { mode: 0o600 }); }
-      else rmSync(guardPersonaPath(home, receiptPath), { force: true });
+      for (const slot of slots) {
+        if (slot.backedUp) renameSync(guardPersonaPath(home, slot.backup), slot.root);
+        if (slot.prior) writeFileSync(slot.receipt, slot.prior, { mode: 0o600 });
+        else rmSync(slot.receipt, { force: true });
+      }
       throw e;
     } finally { rmSync(guardPersonaPath(home, session), { recursive: true }); }
   });

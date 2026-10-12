@@ -16,6 +16,7 @@ import { loadProjectConfig } from '../project.mjs';
 import { listPersonas, personalPersonaRoot, projectPersonaRoot } from '../personas.mjs';
 import { openRuntimeDatabase } from './database.mjs';
 import { assessSecurityReadiness } from './security-validation.mjs';
+import { premiumPackRoot } from '../persona-entitlements.mjs';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const installRoot = resolve(moduleDir, '../..');
@@ -236,7 +237,7 @@ function inferredTier(reference, path = '') {
 function personaCatalogue(projectRoot) {
   const roots = [
     resolve(installRoot, 'packs/personas/core/personas'),
-    resolve(homedir(), '.ewai/packs/ewai.personas.professional/premium-personas'),
+    resolve(premiumPackRoot(homedir()), 'premium-personas'),
     personalPersonaRoot(),
     projectPersonaRoot(projectRoot),
   ];
