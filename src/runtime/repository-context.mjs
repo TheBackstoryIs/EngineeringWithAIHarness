@@ -331,7 +331,10 @@ export function formatFileCard(reading) {
     ? `Hotspot: high churn and dense decision points (${reading.decisionPoints}). This density is a hint, not cyclomatic complexity.`
     : `Decision points: ${reading.decisionPoints}. This density is a hint, not cyclomatic complexity.`;
   const behaviour = reading.behaviour?.claims?.length
-    ? `Linked outcomes: ${reading.behaviour.claims.map(item => `${item.intent.slug}/${item.claimId} (${item.delivery.status})`).join('; ')}. Inspect recorded evidence before changing behaviour.${reading.behaviour.coverage.complete ? '' : ' Behaviour mapping is partial.'}`
+    ? `Linked outcomes: ${reading.behaviour.claims.map(item => {
+      const intent = reading.behaviour.intents.find(row => row.id === item.intentRef);
+      return `${intent.slug}/${item.claimId} (${intent.delivery.status})`;
+    }).join('; ')}. Inspect recorded evidence before changing behaviour.${reading.behaviour.coverage.matched.complete ? '' : ' Matched evidence is partial.'}${reading.behaviour.coverage.catalogue.complete ? '' : ' Catalogue coverage is partial.'}`
     : 'No authored behaviour link in this bounded reading; this is not proof of no impact.';
   return [
     `Repository context · ${reading.file}`,

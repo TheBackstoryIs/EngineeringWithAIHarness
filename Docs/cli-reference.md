@@ -6,7 +6,7 @@ This quick reference covers local error reports and the optional self-operated T
 
 ## Local lifecycle
 
-For code maintenance, `ewai index behaviour <repository-relative-path> --project . --json` retrieves linked acceptance criteria, implementation claims, tests and recorded completion evidence across intents. Optional `--repository NAME`, `--symbol NAME` and `--limit N` narrow the lookup. See [Repository context](repository-context-guide.md#code-linked-behaviour-context) for evidence limits and MCP access.
+For code maintenance, `ewai index behaviour <repository-relative-path> --project . --json` retrieves linked acceptance criteria, implementation claims, tests and recorded completion evidence across intents. Optional `--repository NAME`, `--symbol NAME` and `--limit N` narrow the lookup. The default is a compact shared-table summary; `--detail` expands historical observations and command metadata when needed. See [Repository context](repository-context-guide.md#code-linked-behaviour-context) for evidence limits and MCP access.
 
 ```bash
 ewai error-report status [--status draft|finalised|archived] --project . --json

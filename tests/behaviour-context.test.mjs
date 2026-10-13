@@ -51,16 +51,16 @@ test('joins exact code to claims, criteria, planned tests and recorded evidence 
     delivery(root, 'revoke', { symbol: 'revokeAccess', completed: false });
     const original = readFileSync(resolve(root, `${first}/gates/plan/claim-ledger.json`));
     const result = fileBehaviourContext(root, 'src/access.mjs');
-    assert.equal(result.schema, 'ewai.behaviour-context/v1');
+    assert.equal(result.schema, 'ewai.behaviour-context/v2');
     assert.equal(result.status, 'has-context');
     assert.equal(result.claims.length, 2);
     const request = result.claims.find(item => item.claimId === 'request-C1');
-    assert.deepEqual(request.acceptanceCriteria, ['request-AC1: Users can request']);
-    assert.equal(request.delivery.status, 'paused-awaiting-manual-qa');
-    assert.equal(request.tests[0].file, 'tests/request.test.mjs');
-    assert.equal(request.tasks[0].evidence.status, 'recorded');
-    assert.equal(request.tasks[0].completionChecks[0].evidence.freshness, 'current');
-    assert.equal(result.claims.find(item => item.claimId === 'revoke-C1').tasks[0].evidence.status, 'missing');
+    assert.deepEqual(result.criteria.filter(row => request.criterionRefs.includes(row.id)).map(row => row.criterion), ['request-AC1: Users can request']);
+    assert.equal(result.intents.find(row => row.id === request.intentRef).delivery.status, 'paused-awaiting-manual-qa');
+    assert.equal(result.tests.find(row => row.id === request.testRefs[0]).file, 'tests/request.test.mjs');
+    assert.equal(result.tasks.find(row => row.id === request.taskRefs[0]).evidence.status, 'recorded');
+    assert.equal(result.evidence.find(row => row.id === result.tasks.find(row => row.id === request.taskRefs[0]).completionChecks[0].evidenceRef).freshness, 'current');
+    assert.equal(result.tasks.find(row => row.id === result.claims.find(item => item.claimId === 'revoke-C1').taskRefs[0]).evidence.status, 'missing');
     assert.equal(result.claims.every(item => item.semanticSupport === 'not-assessed'), true);
     assert.equal(JSON.stringify(result).includes(root), false);
     assert.deepEqual(readFileSync(resolve(root, `${first}/gates/plan/claim-ledger.json`)), original);
@@ -78,10 +78,10 @@ test('changed review hashes change the digest and never appear current; invalid 
     write(root, `${base}/tasks/T-001/review.txt`, 'Changed review');
     const after = fileBehaviourContext(root, 'src/access.mjs');
     assert.notEqual(after.digest, before.digest);
-    assert.equal(after.claims[0].tasks[0].completionChecks[0].evidence.freshness, 'changed');
+    assert.equal(after.evidence.find(row => row.id === after.tasks[0].completionChecks[0].evidenceRef).freshness, 'changed');
     write(root, `${base}/tasks/T-001/evidence.json`, '{secret: do-not-echo-this');
     const invalid = fileBehaviourContext(root, 'src/access.mjs');
-    assert.equal(invalid.claims[0].tasks[0].evidence.status, 'invalid');
+    assert.equal(invalid.tasks[0].evidence.status, 'invalid');
     assert.equal(JSON.stringify(invalid).includes('do-not-echo-this'), false);
     assert.equal(invalid.coverage.complete, false);
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -105,9 +105,9 @@ test('historical source_file and files_touched locators preserve intent fallback
     write(root, statePath, state);
     const intentPath = resolve(root, state.intent.path);
     writeFileSync(intentPath, readFileSync(intentPath, 'utf8').replace('## Acceptance criteria\n', '## Acceptance criteria\n\n- AC1: Users can request access.\n'));
-    let result = fileBehaviourContext(root, 'src/access.mjs', { symbol: 'requestAccess' });
+    let result = fileBehaviourContext(root, 'src/access.mjs', { symbol: 'requestAccess', detail: true });
     assert.equal(result.claims[0].acceptanceScope, 'intent-fallback');
-    assert.deepEqual(result.claims[0].intentAcceptanceCriteria, ['AC1: Users can request access.']);
+    assert.deepEqual(result.criteria.filter(row => row.scope === 'intent-fallback').map(row => row.criterion), ['AC1: Users can request access.']);
     assert.equal(result.claims[0].matches.some(item => item.scope === 'symbol'), true);
     claim.current_code_evidence = [];
     claim.files_touched = [];
@@ -187,7 +187,7 @@ test('malformed evidence shapes, truncated nested records and contradictory repo
     write(root, evidencePath, { ...original, commands: 'MALFORMED', completion_checks: 'MALFORMED' });
     write(root, `${base}/gates/plan/plan-contract.json`, { test_obligations: 'MALFORMED' });
     let result = fileBehaviourContext(root, 'src/access.mjs');
-    assert.equal(result.claims[0].tasks[0].evidence.status, 'invalid');
+    assert.equal(result.tasks[0].evidence.status, 'invalid');
     assert.equal(result.coverage.complete, false);
     assert.equal(result.coverage.diagnostics.some(item => item.code === 'invalid-array'), true);
     write(root, evidencePath, { ...original, completion_checks: Array(1001).fill(original.completion_checks[0]) });
@@ -225,6 +225,11 @@ test('CLI, MCP, indexed file cards and Impact reuse the same behaviour projectio
     assert.equal(tool.annotations.readOnlyHint, true);
     const mcp = await client.callTool({ name: 'ewai_index_behaviour', arguments: { file: 'src/access.mjs' } });
     assert.deepEqual(mcp.structuredContent, reading);
+    const detailCli = spawnSync(process.execPath, [cli, 'index', 'behaviour', 'src/access.mjs', '--detail', '--project', root, '--json'], { encoding: 'utf8' });
+    assert.equal(detailCli.status, 0, detailCli.stderr);
+    const detailMcp = await client.callTool({ name: 'ewai_index_behaviour', arguments: { file: 'src/access.mjs', detail: true } });
+    assert.deepEqual(detailMcp.structuredContent, JSON.parse(detailCli.stdout));
+    assert.equal(detailMcp.structuredContent.mode, 'detail');
     const card = fileContext(root, 'src/access.mjs');
     assert.equal(card.behaviour.claims[0].claimId, 'request-C1');
     assert.match(formatFileCard(card), /request-C1/);
@@ -232,9 +237,9 @@ test('CLI, MCP, indexed file cards and Impact reuse the same behaviour projectio
     assert.equal(impact.behaviourContext.claims[0].claimId, 'request-C1');
     assert.equal(impact.guidance.approvalsChanged, false);
     const decisions = Object.fromEntries(impact.reviewRoutes.map(item => [item.id, item.recommendation]));
-    const confirmed = confirmImpactAssessment(root, 'request', { summary: impact.summary, targets: impact.targets, indexRunId: impact.index.runId, acknowledged: true, assessor: 'Test reviewer', decisions });
-    assert.equal(confirmed.assessment.behaviourContext.digest, impact.behaviourContext.digest);
+    const confirmed = confirmImpactAssessment(root, 'request', { summary: impact.summary, targets: impact.targets, indexRunId: impact.index.runId, previewId: impact.previewId, acknowledged: true, assessor: 'Test reviewer', decisions });
+    assert.equal(confirmed.assessment.behaviourSnapshot.digest, impact.behaviourContext.digest);
     write(root, 'SPECS/6.Build/request/tasks/T-001/review.txt', 'Changed review');
-    assert.throws(() => confirmImpactAssessment(root, 'request', { summary: impact.summary, targets: impact.targets, indexRunId: impact.index.runId, behaviourDigest: impact.behaviourContext.digest, acknowledged: true, assessor: 'Test reviewer', decisions }), /behaviour evidence changed/i);
+    assert.throws(() => confirmImpactAssessment(root, 'request', { summary: impact.summary, targets: impact.targets, indexRunId: impact.index.runId, previewId: impact.previewId, behaviourDigest: impact.behaviourContext.digest, acknowledged: true, assessor: 'Test reviewer', decisions }), /changed.*preview|preview.*changed/i);
   } finally { await client?.close().catch(() => {}); rmSync(root, { recursive: true, force: true }); }
 });

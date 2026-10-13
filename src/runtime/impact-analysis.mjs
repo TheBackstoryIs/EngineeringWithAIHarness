@@ -10,7 +10,7 @@ import {
 import { openRuntimeDatabase } from './database.mjs';
 import { resolveNamedTarget, resolveSpecifier } from './import-resolution.mjs';
 import { selectContextualPersonas } from './persona-engagement.mjs';
-import { readBehaviourContext } from './behaviour-context.mjs';
+import { readBehaviourContext, captureBehaviourSnapshot } from './behaviour-context.mjs';
 
 const ASSESSMENT_SCHEMA = 'ewai.impact-assessment/v1';
 const PREVIEW_SCHEMA = 'ewai.impact-preview/v1';
@@ -419,8 +419,12 @@ function singleLine(value) {
 }
 
 function renderAssessment(record) {
-  const behaviourRows = record.behaviourContext?.claims?.length
-    ? record.behaviourContext.claims.map(claim => `| ${singleLine(claim.intent.slug)} | ${singleLine(claim.claimId)} | ${singleLine(claim.statement)} | ${singleLine(claim.delivery.status)} |`).join('\n')
+  const snapshot = record.behaviourSnapshot;
+  const behaviourRows = snapshot?.claims?.length
+    ? snapshot.claims.map(claim => {
+      const intent = snapshot.intents.find(row => row.id === claim.intentRef);
+      return `| ${singleLine(intent.slug)} | ${singleLine(claim.claimId)} | ${singleLine(claim.statement)} | ${singleLine(intent.delivery.status)} |`;
+    }).join('\n')
     : '| — | — | No authored behaviour link in the bounded lookup; this does not establish no impact. | — |';
   const nodeRows = record.observed.nodes.length
     ? record.observed.nodes.map((node) => `| \`${singleLine(node.path)}\` | ${node.direction} | ${node.distance} | ${node.relation} |`).join('\n')
@@ -474,7 +478,7 @@ ${personaRows}
 | --- | --- | --- | --- |
 ${behaviourRows}
 
-These are authored links and recorded evidence, not newly verified behaviour or human acceptance. Mapping coverage: ${record.behaviourContext?.coverage.complete ? 'complete within lookup bounds' : 'partial or unavailable'}.
+These are authored links and recorded evidence, not newly verified behaviour or human acceptance. Matched evidence: ${snapshot?.coverage.matched.complete ? 'available within lookup bounds' : 'partial or unavailable'}. Catalogue coverage: ${snapshot?.coverage.catalogue.complete ? 'available within scan bounds' : 'partial or unavailable'}.
 
 ## Human review decisions
 
@@ -494,6 +498,8 @@ export function confirmImpactAssessment(projectRoot, slug, input = {}, options =
   if (!assessor || assessor.length > 160) throw failure('Impact assessment requires a named assessor', 400);
   const preview = previewImpactAssessment(projectRoot, slug, input, options);
   if (Number(input.indexRunId) !== preview.index.runId) throw failure('The repository map changed since preview; analyse impact again');
+  if (typeof input.previewId !== 'string' || !/^[a-f0-9]{16}$/.test(input.previewId)) throw failure('A reviewed preview receipt is required; analyse impact again', 400);
+  if (input.previewId !== preview.previewId) throw failure('The evidence changed since preview; analyse impact again');
   if (input.behaviourDigest && input.behaviourDigest !== preview.behaviourContext?.digest) throw failure('Linked behaviour evidence changed since preview; analyse impact again');
   if (!input.decisions || typeof input.decisions !== 'object' || Array.isArray(input.decisions)) throw failure('Impact route decisions are required', 400);
   const rationales = input.rationales && typeof input.rationales === 'object' && !Array.isArray(input.rationales) ? input.rationales : {};
@@ -535,7 +541,7 @@ export function confirmImpactAssessment(projectRoot, slug, input = {}, options =
     unresolvedTargets: preview.unresolvedTargets,
     ambiguousTargets: preview.ambiguousTargets,
     observed: preview.observed,
-    behaviourContext: preview.behaviourContext,
+    behaviourSnapshot: captureBehaviourSnapshot(preview.behaviourContext),
     impactAreas: preview.impactAreas,
     standards: preview.standards,
     activePersonas: preview.activePersonas,
@@ -559,7 +565,7 @@ export function confirmImpactAssessment(projectRoot, slug, input = {}, options =
       targets: existing.targets,
       policyRelevantDigest: existing.policyRelevantDigest,
       indexRunId: existing.index?.runId,
-      behaviourDigest: existing.behaviourContext?.digest ?? null,
+      behaviourDigest: existing.behaviourSnapshot?.digest ?? existing.behaviourContext?.digest ?? null,
       decisions: existing.decisions,
       rationales: existing.rationales,
       assessor: existing.assessor

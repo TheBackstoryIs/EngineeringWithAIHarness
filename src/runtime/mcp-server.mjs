@@ -1148,6 +1148,7 @@ server.registerTool(
       file: z.string().min(1).max(500),
       repository: z.string().min(1).max(120).optional(),
       symbol: z.string().min(1).max(240).optional(),
+      detail: z.boolean().optional(),
       limit: z.number().int().min(1).max(100).optional()
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
