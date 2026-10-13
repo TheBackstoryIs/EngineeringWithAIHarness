@@ -140,6 +140,7 @@ import {
 } from './runtime/repository-index.mjs';
 import { installEditorHooks, distillHook, sessionHook, toolHook } from './runtime/context-hooks.mjs';
 import { runDistill } from './runtime/distill.mjs';
+import { fileBehaviourContext } from './runtime/behaviour-context.mjs';
 import {
   changeRisk,
   fileCitations,
@@ -695,6 +696,7 @@ Commands:
   ewai index health PATH [--project PATH]
   ewai index change-risk [--project PATH]
   ewai index citations PATH [--project PATH]
+  ewai index behaviour PATH [--repository NAME] [--symbol NAME] [--limit N] [--project PATH]
   ewai index adoption [--project PATH]
   ewai context session [--project PATH]
   ewai context file PATH [--project PATH]
@@ -2498,6 +2500,15 @@ export async function run(args) {
 
     if (command === 'index' && subcommand === 'citations') {
       print(fileCitations(selectedProject(args), positional(args)), json);
+      return;
+    }
+
+    if (command === 'index' && subcommand === 'behaviour') {
+      print(fileBehaviourContext(selectedProject(args), positional(args), {
+        repository: option(args, '--repository') || undefined,
+        symbol: option(args, '--symbol') || undefined,
+        limit: Number(option(args, '--limit', '20'))
+      }), json);
       return;
     }
 

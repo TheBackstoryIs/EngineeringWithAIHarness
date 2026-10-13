@@ -14,6 +14,7 @@ A file reading is for that file only:
 - recorded routes on that file;
 - ownership and files that usually change with it, when git history is available;
 - records that name the file;
+- a bounded summary of authored outcomes linked to the file;
 - a decision-point hint.
 
 An empty caller list is not proof that nothing calls the file. If the file on disk differs from the indexed fingerprint, the reading stops there.
@@ -44,10 +45,24 @@ ewai index file <path> --project .
 ewai index health <path> --project .
 ewai index change-risk --project .
 ewai index citations <path> --project .
+ewai index behaviour <path> --project . --json
+ewai index behaviour application:src/access.mjs --symbol requestAccess --limit 20 --project . --json
 ewai index adoption --project .
 ewai context install --project .
 ewai distill --project . -- <command>
 ```
+
+## Code-linked behaviour context
+
+Use `index behaviour` before changing code to inspect the outcomes linked to an exact repository-relative file. For multiple repositories, qualify the path as `repository:path`, or pass `--repository NAME`; an ambiguous unqualified path is reported rather than guessed. `--symbol NAME` selects explicitly authored symbol links while retaining labelled file-level fallbacks. It does not infer a call graph from claims that share a file.
+
+The same read-only projection is available through MCP as `ewai_index_behaviour`, with `file`, optional `repository`, optional `symbol` and optional `limit`. Existing `index citations` continues to name records without changing their status.
+
+The lookup reads existing Claim Ledgers, Plan Contracts, task graphs and task evidence across delivery directories. It returns acceptance criteria attached to each claim, or separately labelled current intent criteria when a historical ledger has no direct criterion links. It preserves recorded delivery status, planned test obligations, named completion checks, observations, recorded commands and review references. Historical `source_file`, `files_touched` and root-level Plan Contracts remain readable. Actual changed-file evidence can link code that was absent from its plan.
+
+Evidence freshness compares referenced output bytes with their recorded hashes: `current`, `changed`, `not-recorded` or `unavailable`. This validates the reference fingerprint, not the review's reasoning or whether an old implementation still satisfies its outcome. A recorded passing command is historical evidence; a planned test is not an execution receipt. Semantic support remains `not-assessed`, and Manual QA and release status are not inferred.
+
+The result includes a digest of matched links and their source fingerprints, plus explicit coverage diagnostics. Unrelated unmapped directories do not change that digest. Reads are bounded to 80 targets, 1,000 delivery entries, 5,000 file reads, 900,000 bytes per file, 16 MiB total bytes, and 1,000 entries per record array. Returned claims have a 512,000-byte budget; oversized projections are omitted with partial coverage. `--limit` defaults to 20 and accepts 1–100 claims. Symlinked files or repository ancestors, unsafe paths, malformed or missing records, contradictory repository locators, unavailable evidence and truncation make coverage partial. No matches is not proof of no impact. Source bodies and command output bodies are not returned, and canonical records are never rewritten by this query.
 
 `index update` re-parses missing, changed, and deleted files into the current run. It rebuilds the run only when there is no completed index or the profile catalogue has changed. A commit hook can run this in the background. A hook failure does not undo the commit.
 

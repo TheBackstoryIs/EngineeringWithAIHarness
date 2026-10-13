@@ -3,6 +3,7 @@ import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { projectPaths } from '../paths.mjs';
 import { fingerprintRepositoryFile } from '../repository-source-map.mjs';
 import { openRuntimeDatabase } from './database.mjs';
+import { fileBehaviourContext } from './behaviour-context.mjs';
 import { resolveNamedTarget, resolveSpecifier, splitStoredPath } from './import-resolution.mjs';
 import {
   churnCounts,
@@ -275,6 +276,7 @@ export function fileContext(projectRoot, input) {
       routes,
       coChanges: history.available ? coChangingFiles(roots[repo] || projectRoot, relativePath) : [],
       owner,
+      behaviour: stale ? null : fileBehaviourContext(projectRoot, stored, { limit: 5 }),
       namedBy: [...namedByRecords(projectRoot, relativePath), ...standardNames(database, relativePath)],
       decisionPoints: points,
       hotspot: churn >= 4 && points >= 12,
@@ -328,6 +330,9 @@ export function formatFileCard(reading) {
   const density = reading.hotspot
     ? `Hotspot: high churn and dense decision points (${reading.decisionPoints}). This density is a hint, not cyclomatic complexity.`
     : `Decision points: ${reading.decisionPoints}. This density is a hint, not cyclomatic complexity.`;
+  const behaviour = reading.behaviour?.claims?.length
+    ? `Linked outcomes: ${reading.behaviour.claims.map(item => `${item.intent.slug}/${item.claimId} (${item.delivery.status})`).join('; ')}. Inspect recorded evidence before changing behaviour.${reading.behaviour.coverage.complete ? '' : ' Behaviour mapping is partial.'}`
+    : 'No authored behaviour link in this bounded reading; this is not proof of no impact.';
   return [
     `Repository context · ${reading.file}`,
     trustLine(reading),
@@ -335,6 +340,7 @@ export function formatFileCard(reading) {
     routes,
     history,
     names,
+    behaviour,
     density
   ].join('\n');
 }

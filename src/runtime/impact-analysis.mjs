@@ -10,6 +10,7 @@ import {
 import { openRuntimeDatabase } from './database.mjs';
 import { resolveNamedTarget, resolveSpecifier } from './import-resolution.mjs';
 import { selectContextualPersonas } from './persona-engagement.mjs';
+import { readBehaviourContext } from './behaviour-context.mjs';
 
 const ASSESSMENT_SCHEMA = 'ewai.impact-assessment/v1';
 const PREVIEW_SCHEMA = 'ewai.impact-preview/v1';
@@ -259,7 +260,7 @@ function traverseGraph(files, imports, relationships, symbols, repoRoots, seeds,
     maxNodes,
     truncated,
     resolutionBasis: { ...counts, unresolvedProjectReferences },
-    nodes: [...nodes.values()].map(({ storedPath, ...node }) => node)
+    nodes: [...nodes.values()].map(({ storedPath, ...node }) => ({ repository: splitStoredPath(storedPath).repo, ...node }))
       .sort((left, right) => left.distance - right.distance || left.path.localeCompare(right.path))
   };
 }
@@ -385,7 +386,9 @@ export function previewImpactAssessment(projectRoot, slug, input = {}, options =
     const sentence = 'Some project references in the traversed files did not resolve to an indexed file. An empty or narrow result is not proof that nothing else is affected.';
     coverage.warning = coverage.warning ? `${coverage.warning} ${sentence}` : sentence;
   }
-  const previewId = sha256(JSON.stringify({ slug, runId: index.runId, ...validated })).slice(0, 16);
+  const behaviourContext = observed.nodes.length
+    ? readBehaviourContext(projectRoot, observed.nodes.map(node => ({ repository: node.repository, path: node.path })), { limit: 40 }) : null;
+  const previewId = sha256(JSON.stringify({ slug, runId: index.runId, ...validated, behaviourDigest: behaviourContext?.digest })).slice(0, 16);
   return {
     schema: PREVIEW_SCHEMA,
     previewId,
@@ -398,6 +401,7 @@ export function previewImpactAssessment(projectRoot, slug, input = {}, options =
     coverage,
     ...resolution,
     observed,
+    behaviourContext,
     impactAreas,
     standards: applicableStandards(projectRoot, slug, resolution.resolvedTargets, observed),
     activePersonas,
@@ -415,6 +419,9 @@ function singleLine(value) {
 }
 
 function renderAssessment(record) {
+  const behaviourRows = record.behaviourContext?.claims?.length
+    ? record.behaviourContext.claims.map(claim => `| ${singleLine(claim.intent.slug)} | ${singleLine(claim.claimId)} | ${singleLine(claim.statement)} | ${singleLine(claim.delivery.status)} |`).join('\n')
+    : '| — | — | No authored behaviour link in the bounded lookup; this does not establish no impact. | — |';
   const nodeRows = record.observed.nodes.length
     ? record.observed.nodes.map((node) => `| \`${singleLine(node.path)}\` | ${node.direction} | ${node.distance} | ${node.relation} |`).join('\n')
     : '| — | — | — | No repository node resolved |';
@@ -461,6 +468,14 @@ ${impactRows}
 | --- | --- | --- | --- |
 ${personaRows}
 
+## Authored outcomes to recheck
+
+| Intent | Claim | Outcome | Recorded delivery status |
+| --- | --- | --- | --- |
+${behaviourRows}
+
+These are authored links and recorded evidence, not newly verified behaviour or human acceptance. Mapping coverage: ${record.behaviourContext?.coverage.complete ? 'complete within lookup bounds' : 'partial or unavailable'}.
+
 ## Human review decisions
 
 | Route | Recommendation | Decision | Rationale |
@@ -479,6 +494,7 @@ export function confirmImpactAssessment(projectRoot, slug, input = {}, options =
   if (!assessor || assessor.length > 160) throw failure('Impact assessment requires a named assessor', 400);
   const preview = previewImpactAssessment(projectRoot, slug, input, options);
   if (Number(input.indexRunId) !== preview.index.runId) throw failure('The repository map changed since preview; analyse impact again');
+  if (input.behaviourDigest && input.behaviourDigest !== preview.behaviourContext?.digest) throw failure('Linked behaviour evidence changed since preview; analyse impact again');
   if (!input.decisions || typeof input.decisions !== 'object' || Array.isArray(input.decisions)) throw failure('Impact route decisions are required', 400);
   const rationales = input.rationales && typeof input.rationales === 'object' && !Array.isArray(input.rationales) ? input.rationales : {};
   const decisions = {};
@@ -497,6 +513,7 @@ export function confirmImpactAssessment(projectRoot, slug, input = {}, options =
     targets: preview.targets,
     policyRelevantDigest: preview.policyRelevantDigest,
     indexRunId: preview.index.runId,
+    behaviourDigest: preview.behaviourContext?.digest ?? null,
     decisions,
     rationales: safeRationales,
     assessor
@@ -518,6 +535,7 @@ export function confirmImpactAssessment(projectRoot, slug, input = {}, options =
     unresolvedTargets: preview.unresolvedTargets,
     ambiguousTargets: preview.ambiguousTargets,
     observed: preview.observed,
+    behaviourContext: preview.behaviourContext,
     impactAreas: preview.impactAreas,
     standards: preview.standards,
     activePersonas: preview.activePersonas,
@@ -541,6 +559,7 @@ export function confirmImpactAssessment(projectRoot, slug, input = {}, options =
       targets: existing.targets,
       policyRelevantDigest: existing.policyRelevantDigest,
       indexRunId: existing.index?.runId,
+      behaviourDigest: existing.behaviourContext?.digest ?? null,
       decisions: existing.decisions,
       rationales: existing.rationales,
       assessor: existing.assessor
