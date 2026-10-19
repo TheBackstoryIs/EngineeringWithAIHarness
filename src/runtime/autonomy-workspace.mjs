@@ -1,7 +1,7 @@
-import { constants, existsSync, lstatSync, openSync, closeSync, fstatSync, readFileSync, writeFileSync, fsyncSync, mkdirSync, readdirSync, unlinkSync, realpathSync, mkdtempSync, rmSync } from 'node:fs';
+import { constants, existsSync, lstatSync, openSync, closeSync, fstatSync, readFileSync, writeFileSync, fsyncSync, mkdirSync, readdirSync, unlinkSync, realpathSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, relative, dirname, isAbsolute } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import YAML from 'yaml';
 import { execFileSync } from 'node:child_process';
@@ -101,8 +101,16 @@ export function writeAutonomyRecord(root, path, value) {
     if (readAutonomyFile(root, path) !== text) autonomyError('autonomy-record-conflict');
     return;
   }
-  const fd = openSync(path, 'wx', 0o600);
-  try { writeFileSync(fd, text); fsyncSync(fd); } finally { closeSync(fd); }
+  // Readers in other processes must see either no record or the complete record.
+  // Staged bytes stay outside every listed record folder, on the same filesystem.
+  const paths = autonomyPaths(root), staging = resolve(paths.controlRoot, 'staging');
+  safeAutonomyPath(paths.projectRoot, staging); mkdirSync(staging, { recursive: true, mode: 0o700 });
+  const staged = resolve(staging, `${randomUUID()}.json`);
+  try {
+    const fd = openSync(staged, 'wx', 0o600);
+    try { writeFileSync(fd, text); fsyncSync(fd); } finally { closeSync(fd); }
+    renameSync(staged, path);
+  } finally { rmSync(staged, { force: true }); }
   const directory = openSync(dirname(path), constants.O_RDONLY);
   try { fsyncSync(directory); } finally { closeSync(directory); }
 }
@@ -114,6 +122,29 @@ export function withAutonomyLock(paths, operation) {
     return operation();
   } finally { if (fd !== undefined) { closeSync(fd); unlinkSync(path); } }
 }
+const RUNTIME_SNAPSHOT_ATTEMPTS = 10;
+function copyRuntimeDatabase(paths, path, temporary) {
+  const stat = file => { try { return lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } };
+  const unchanged = (before, after) => after && before.ino === after.ino && before.size === after.size && before.mtimeMs === after.mtimeMs;
+  for (const name of ['snapshot.sqlite', 'snapshot.sqlite-wal']) rmSync(resolve(temporary, name), { force: true });
+  const sources = [path, `${path}-wal`].filter(file => existsSync(file));
+  if (sources[0] !== path) return false;
+  const signatures = [];
+  for (const file of sources) {
+    safeAutonomyPath(paths.projectRoot, file);
+    const before = stat(file);
+    if (!before) return false;
+    if (before.size > 128 * 1024 * 1024) autonomyError('autonomy-evidence-limit', 413);
+    let bytes;
+    try { bytes = readFileSync(file); } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+    const after = stat(file);
+    if (!unchanged(before, after)) return false;
+    writeFileSync(resolve(temporary, file === path ? 'snapshot.sqlite' : 'snapshot.sqlite-wal'), bytes, { flag: 'wx', mode: 0o600 });
+    signatures.push([file, after]);
+  }
+  if (existsSync(`${path}-wal`) !== sources.includes(`${path}-wal`)) return false;
+  return signatures.every(([file, before]) => unchanged(before, stat(file)));
+}
 function operationalSnapshot(paths) {
   const path = resolve(paths.runtimeRoot, 'data/pipeline.sqlite'); safeAutonomyPath(paths.projectRoot, path);
   if (!existsSync(path)) return { priorities: new Map(), owners: [], leases: [] };
@@ -122,21 +153,14 @@ function operationalSnapshot(paths) {
   const temporary = mkdtempSync(resolve(tmpdir(), 'ewai-autonomy-snapshot-'));
   let db;
   try {
-    const sources = [path, `${path}-wal`].filter(file => existsSync(file));
-    const signatures = sources.map(file => {
-      safeAutonomyPath(paths.projectRoot, file);
-      const before = lstatSync(file);
-      if (before.size > 128 * 1024 * 1024) autonomyError('autonomy-evidence-limit', 413);
-      const bytes = readFileSync(file), after = lstatSync(file);
-      if (before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs) autonomyError('autonomy-evidence-changed');
-      writeFileSync(resolve(temporary, file === path ? 'snapshot.sqlite' : 'snapshot.sqlite-wal'), bytes, { flag: 'wx', mode: 0o600 });
-      return [file, after];
-    });
-    if (existsSync(`${path}-wal`) !== sources.includes(`${path}-wal`)) autonomyError('autonomy-evidence-changed');
-    for (const [file, before] of signatures) {
-      const after = lstatSync(file);
-      if (before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs) autonomyError('autonomy-evidence-changed');
+    // Other EWAI connections legitimately write and checkpoint the projection.
+    // Only a copy taken while both files stayed unchanged is queried.
+    let copied = false;
+    for (let attempt = 1; attempt <= RUNTIME_SNAPSHOT_ATTEMPTS && !copied; attempt++) {
+      if (attempt > 1) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+      copied = copyRuntimeDatabase(paths, path, temporary);
     }
+    if (!copied) autonomyError('autonomy-evidence-changed');
     db = new DatabaseSync(resolve(temporary, 'snapshot.sqlite'), { readOnly: true });
     const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
     const priorities = tables.has('work_items') ? new Map(db.prepare('SELECT intent_id, priority FROM work_items').all().map(row => [row.intent_id, row.priority])) : new Map();
