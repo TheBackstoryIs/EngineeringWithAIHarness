@@ -125,7 +125,7 @@ test('rechecks freshness and records idempotent immutable assessment evidence', 
     const decisions = Object.fromEntries(preview.reviewRoutes.map((route) => [route.id, route.recommendation]));
     const confirmed = confirmImpactAssessment(root, 'customer-access', {
       ...input,
-      indexRunId: preview.index.runId,
+      indexRunId: preview.index.runId, previewId: preview.previewId,
       decisions,
       rationales: {},
       assessor: 'Product Owner',
@@ -139,7 +139,7 @@ test('rechecks freshness and records idempotent immutable assessment evidence', 
 
     const repeated = confirmImpactAssessment(root, 'customer-access', {
       ...input,
-      indexRunId: preview.index.runId,
+      indexRunId: preview.index.runId, previewId: preview.previewId,
       decisions,
       rationales: {},
       assessor: 'Product Owner',
@@ -152,7 +152,7 @@ test('rechecks freshness and records idempotent immutable assessment evidence', 
     writeFileSync(jsonPath, `${JSON.stringify({ ...tampered, summary: 'Tampered summary' }, null, 2)}\n`);
     assert.throws(() => confirmImpactAssessment(root, 'customer-access', {
       ...input,
-      indexRunId: preview.index.runId,
+      indexRunId: preview.index.runId, previewId: preview.previewId,
       decisions,
       rationales: {},
       assessor: 'Product Owner',
@@ -165,7 +165,7 @@ test('rechecks freshness and records idempotent immutable assessment evidence', 
     writeFileSync(resolve(root, 'src/access-form.mjs'), 'export function submitAccessForm() { return false; }\n');
     assert.throws(() => confirmImpactAssessment(root, 'customer-access', {
       ...input,
-      indexRunId: preview.index.runId,
+      indexRunId: preview.index.runId, previewId: preview.previewId,
       decisions,
       rationales: {},
       assessor: 'Product Owner',
@@ -184,7 +184,7 @@ test('requires rationale whenever a human changes a recommended route', () => {
     const decisions = Object.fromEntries(preview.reviewRoutes.map((route) => [route.id, route.recommendation]));
     decisions.maintainer = decisions.maintainer === 'required' ? 'recommended' : 'required';
     assert.throws(() => confirmImpactAssessment(root, 'customer-access', {
-      ...input, indexRunId: preview.index.runId, decisions, rationales: {}, assessor: 'Reviewer', acknowledged: true
+      ...input, indexRunId: preview.index.runId, previewId: preview.previewId, decisions, rationales: {}, assessor: 'Reviewer', acknowledged: true
     }, { personas: personas() }), /rationale/i);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -212,7 +212,7 @@ test('tracks explicit policy-material impact without treating unrelated source c
     const decisions = Object.fromEntries(first.reviewRoutes.map((route) => [route.id, route.recommendation]));
     const confirmed = confirmImpactAssessment(root, 'customer-access', {
       summary: first.summary, targets: first.targets, policyDimensions: material,
-      indexRunId: first.index.runId, decisions, rationales: {}, assessor: 'Product Owner', acknowledged: true,
+      indexRunId: first.index.runId, previewId: first.previewId, decisions, rationales: {}, assessor: 'Product Owner', acknowledged: true,
     }, { personas: personas(), now: '2026-08-28T19:00:00.000Z' });
     assert.equal(confirmed.assessment.policyRelevantDigest, first.policyRelevantDigest);
     assert.equal(readImpactWorkspace(root, 'customer-access').assessments[0].policyRelevantDigest, first.policyRelevantDigest);

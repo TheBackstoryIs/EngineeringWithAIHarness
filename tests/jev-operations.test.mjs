@@ -78,7 +78,7 @@ test('real impact advice is visible in inferred cards and leaves canonical previ
  const f=fixture(t,'active');mkdirSync(resolve(f.root,'src'));writeFileSync(resolve(f.root,'src/helper.mjs'),'export const helper=1;');refreshRepositoryIndex(f.root);
  const input={summary:'Refactor the internal helper implementation without changing behaviour or public interfaces.',targets:['src/helper.mjs']},options={...f,personas:[],fetchImpl:transport};const baseline=previewImpactAssessment(f.root,'synthetic',input,options),result=await previewImpactWithJev(f.root,'synthetic',input,options);
  assert.deepEqual(result.reviewRoutes,baseline.reviewRoutes);assert.ok(result.impactAreas.some(area=>area.label.includes('Jev suggests')));
- const receipt=confirmImpactAssessment(f.root,'synthetic',{...input,indexRunId:result.index.runId,acknowledged:true,assessor:'Synthetic reviewer',decisions:Object.fromEntries(result.reviewRoutes.map(r=>[r.id,r.recommendation]))},options);assert.ok(receipt.assessmentId);
+ const receipt=confirmImpactAssessment(f.root,'synthetic',{...input,indexRunId:result.index.runId,previewId:result.previewId,acknowledged:true,assessor:'Synthetic reviewer',decisions:Object.fromEntries(result.reviewRoutes.map(r=>[r.id,r.recommendation]))},options);assert.ok(receipt.assessmentId);
 });
 
 test('active optional ordering retains every baseline reviewer when a competing segment replaces its signal',async t=>{

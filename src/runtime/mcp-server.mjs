@@ -77,6 +77,7 @@ import {
   recordPrototypePlanWorkspaceReview,
 } from './prototype-iterations.mjs';
 import { initializeRuntime } from './database.mjs';
+import { fileBehaviourContext } from './behaviour-context.mjs';
 import {
   refreshRepositoryIndex,
   repositoryGraph,
@@ -1136,6 +1137,23 @@ server.registerTool(
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   },
   async ({ file }) => result(fileCitations(paths.projectRoot, file))
+);
+
+server.registerTool(
+  'ewai_index_behaviour',
+  {
+    title: 'Read outcomes and evidence linked to repository code',
+    description: 'Join an exact repository file and optional authored symbol to historical implementation claims, acceptance criteria, planned tests and recorded completion evidence. Reports repository ambiguity, evidence hash freshness and bounded coverage. Links and current hashes do not establish semantic correctness, human acceptance or release.',
+    inputSchema: {
+      file: z.string().min(1).max(500),
+      repository: z.string().min(1).max(120).optional(),
+      symbol: z.string().min(1).max(240).optional(),
+      detail: z.boolean().optional(),
+      limit: z.number().int().min(1).max(100).optional()
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
+  },
+  async ({ file, ...options }) => result(fileBehaviourContext(paths.projectRoot, file, options))
 );
 
 server.registerTool(

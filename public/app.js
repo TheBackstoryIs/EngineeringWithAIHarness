@@ -1214,6 +1214,7 @@ async function confirmImpact(form) {
         summary: state.impactAnalysis.summary,
         targets: state.impactAnalysis.targets,
         indexRunId: state.impactAnalysis.index.runId,
+        previewId: state.impactAnalysis.previewId,
         decisions,
         rationales,
         assessor,

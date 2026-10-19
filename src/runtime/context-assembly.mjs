@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { isAbsolute, relative, resolve } from 'node:path';
 import { projectPaths } from '../paths.mjs';
 import { selectContextualPersonas } from './persona-engagement.mjs';
+import { readBehaviourContext, renderBehaviourRechecks } from './behaviour-context.mjs';
 
 export const CONTEXT_ESTIMATE_METHOD = 'utf8-bytes-div-3-v1';
 
@@ -348,6 +349,62 @@ function contextAuthorityCandidate() {
   };
 }
 
+function historicalObligationsCandidate(projectRoot, input) {
+  if (!['plan', 'build-task', 'fresh-context-review'].includes(input.profile)) return null;
+  const project = projectPaths(projectRoot), buildRoot = resolve(project.buildRoot, input.slug);
+  const graphPath = resolve(buildRoot, 'task-graph.json');
+  const unavailable = reason => ({
+    id: 'historical-obligations', label: 'Historical recheck coverage limits', evidenceClass: 'relevant', priority: 75,
+    sourcePath: relative(resolve(projectRoot), graphPath).replaceAll('\\', '/'),
+    content: `HISTORICAL_OBLIGATIONS_ADVISORY — historical lookup unavailable: ${reason}. No absence-of-impact conclusion is supported. Mandatory current scope and authority remain unchanged.`,
+    selectionReason: 'Optional historical evidence is unavailable; retain mandatory context and explicit uncertainty.',
+  });
+  if (!existsSync(graphPath)) return null;
+  try {
+    const graph = JSON.parse(readFileSync(graphPath, 'utf8'));
+    const targets = [], seen = new Set();
+    let unexpanded = 0;
+    const add = (path, repository) => {
+      if (typeof path !== 'string' || !path || /[*?\[\]{}\\\u0000-\u001f]/.test(path)
+        || isAbsolute(path) || path.split('/').some(part => part === '..' || part === '.')) { unexpanded++; return; }
+      if (path.includes(':')) repository = undefined;
+      const locatorPath = path.includes(':') ? path.slice(path.indexOf(':') + 1) : path;
+      if (locatorPath.split('/').some(part => !part || part === '.' || part === '..')) { unexpanded++; return; }
+      const key = `${repository ?? ''}:${path}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (targets.length < 80) targets.push({ path, ...(repository ? { repository } : {}) });
+      else unexpanded++;
+    };
+    if (input.profile === 'plan') {
+      const ledgerPath = resolve(buildRoot, 'gates/plan/claim-ledger.json');
+      if (!existsSync(ledgerPath)) return null;
+      const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
+      for (const claim of ledger.implementation_claims ?? []) {
+        const owners = (graph.tasks ?? []).filter(task => task.claims?.includes(claim.id));
+        const repos = [...new Set(owners.map(task => task.repo).filter(Boolean))];
+        const boundaries = [...(claim.planned_files ?? []), ...(claim.files_touched ?? [])];
+        if (!boundaries.length) owners.forEach(task => (task.write_set ?? []).forEach(path => add(path, task.repo)));
+        for (const path of boundaries) {
+          const value = typeof path === 'string' ? path : path?.source_path ?? path?.path;
+          if (repos.length) repos.forEach(repo => add(value, repo)); else add(value);
+        }
+      }
+    } else {
+      const task = (graph.tasks ?? []).find(item => item.id === input.taskId);
+      if (!task) return null;
+      for (const path of task.write_set ?? []) add(path, task.repo);
+    }
+    if (!targets.length) return unexpanded ? unavailable('non-exact scope boundaries were not expanded') : null;
+    const context = readBehaviourContext(projectRoot, targets, { limit: 8, excludeIntent: input.slug });
+    if (!context.claims.length) return unexpanded || !context.coverage.complete ? unavailable('no matched claims within partial lookup coverage') : null;
+    return { id: 'historical-obligations', label: 'Historical obligations to consider for recheck', evidenceClass: 'relevant', priority: 75,
+      sourcePath: relative(resolve(projectRoot), graphPath).replaceAll('\\', '/'), sourceDigest: context.digest,
+      content: renderBehaviourRechecks(context) + (unexpanded ? `\nScope limits: ${unexpanded} non-exact or excess boundaries were not expanded. The mandatory current contract retains them.` : ''),
+      selectionReason: 'Code-scope-linked historical evidence suggests rechecks; it does not change current acceptance or authority.' };
+  } catch { return unavailable('scope evidence could not be interpreted safely'); }
+}
+
 function profileCandidates(projectRoot, input) {
   const project = projectPaths(projectRoot);
   const slug = clean(input.slug);
@@ -452,6 +509,8 @@ export function prepareProjectContext(projectRoot, input = {}) {
   if (focus.length > 2_000) throw new Error('Context focus must be 2,000 characters or fewer.');
   const previousPack = input.previousDigest ? readStoredContextManifest(root, input.previousDigest) : null;
   const candidates = profileCandidates(root, input);
+  const historical = historicalObligationsCandidate(root, input);
+  if (historical) candidates.push(historical);
   const sourceRevision = digest(canonical(candidates.map(({ id, content }) => ({ id, content }))));
   const pack = prepareContextPack({
     profile: input.profile,

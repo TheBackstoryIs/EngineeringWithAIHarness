@@ -132,6 +132,10 @@ The graph is evidence about indexed source relationships. It is not a claim that
 
 ### Inferred: possible consequences and active perspectives
 
+The preview also includes `behaviourContext`: the existing implementation claims, acceptance criteria, planned tests and recorded completion evidence linked to the observed repository paths. These links retain their recorded delivery status and evidence freshness. They identify outcomes to recheck; they do not establish new semantic support or imply that every dependency has been found. Behaviour-mapping coverage is reported separately from graph coverage. See [Code-linked behaviour context](repository-context-guide.md#code-linked-behaviour-context).
+
+Confirmation requires the exact `previewId` returned by the reviewed preview. The server recomputes it from the current proposal, repository evidence and historical behaviour digest; missing or changed receipts require a new preview. An optional `behaviourDigest` remains an additional check, and cannot replace the receipt. This rejects changed historical evidence even when the repository index run is unchanged. The saved assessment contains a compact immutable `behaviourSnapshot` with selected claims, shared criteria and test references, task result summaries and source fingerprints; detailed task observations remain in their canonical evidence. Older saved assessments remain readable.
+
 EWAI classifies possible impact areas from the proposed-change summary and bounded repository evidence. These consequences are labelled **inferred**. Review them as hypotheses to confirm, correct, or reject.
 
 Attached standards may also appear. Their presence means the standard may be applicable to the affected evidence; it does not establish compliance.

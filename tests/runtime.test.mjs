@@ -1598,6 +1598,7 @@ test('serves guarded impact preview, confirmation, refresh, and safe viewer stat
         summary: preview.summary,
         targets: preview.targets,
         indexRunId: preview.index.runId,
+        previewId: preview.previewId,
         decisions,
         rationales: {},
         assessor: 'Product Owner',
