@@ -8,13 +8,15 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 ## What's new in this version
 
-Version `0.3.7` celebrates **more than 2,000 developers** working with Engineering With AI. Thank you. To mark it, we've added something we think you'll enjoy: **the Institute**.
+Version `0.3.8` helps you change code without losing sight of why it was written. Every file in a long-running project carries promises: what it was meant to do, what someone agreed it would handle and which tests were meant to prove it. Those promises usually sit in old plans that nobody rereads. EWAI now brings them back at the moment they matter.
 
-**Watch your delivery come to life.** The Institute is a living cutaway of your work. Open it from the dashboard sidebar and every intent appears in the room for its stage, with the assistant working on it and the personas you've attached walking about alongside. You can see at a glance where work is moving, where it's waiting and who's involved, without opening a single card. Zoom into any room for a closer look, then press Esc or choose **← DASHBOARD** to return to the normal view.
+**Ask a file what it's responsible for.** Before you change a file, run `ewai index behaviour <path>` or simply ask your assistant. You'll see the outcomes earlier work linked to it, the acceptance criteria behind them, and the tests and evidence recorded when they were delivered, with the most relevant first.
 
-**Know who's waiting for you.** When work needs a decision from you, its people wave for your attention and a thermometer fills the longer they wait. The same "waiting since" time now shows on your board too.
+**Know when old evidence has gone stale.** EWAI checks each piece of recorded evidence against what's on disk now and tells you if it's changed. It's honest about what it can't see, too. Finding nothing doesn't mean nothing is affected, and EWAI won't claim old work is still correct. That judgement stays with you.
 
-**Try personas for free.** The new free starter pack gives you ten specialist personas, from an architect to a CISO, to try inside EWAI. [Claim your free starter pack](https://www.conversationalcoding.dev/downloads/starter-persona-pack/?utm_source=readme&utm_medium=referral&utm_campaign=ewai), enter your key and they install in one step. When you're ready for the full library, upgrading replaces the starter pack cleanly.
+**Your assistant remembers too.** When you plan, build or review, EWAI adds a short reminder of earlier outcomes linked to the files you're about to touch, so your assistant can recheck them without being asked. It's kept brief, so the work in front of you still comes first.
+
+**Confirm what you actually reviewed.** Impact assessments now show the earlier outcomes worth rechecking. If anything changes between your review and your confirmation, EWAI asks you to take another look rather than recording a decision on evidence you never saw. If you confirm assessments through the API, include the `previewId` from the preview.
 
 ## Quick start
 
