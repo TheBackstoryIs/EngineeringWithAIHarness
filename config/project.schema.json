@@ -5,6 +5,29 @@
   "required": ["schema", "project", "specs", "repositories", "approvals", "validation"],
   "properties": {
     "schema": { "const": "ewai.project/v1" },
+    "remote_operations": {
+      "type": "object", "additionalProperties": false, "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allow_code_writes": { "type": "boolean", "default": false },
+        "checks": {
+          "type": "object", "maxProperties": 40,
+          "propertyNames": { "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 100 },
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false,
+            "required": ["repository", "executable", "args", "phases", "timeout_ms", "max_output_bytes"],
+            "properties": {
+              "repository": { "type": "string", "minLength": 1 },
+              "executable": { "type": "string", "pattern": "^/", "maxLength": 4096 },
+              "args": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 4096 } },
+              "phases": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z-]+$" } },
+              "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 600000 },
+              "max_output_bytes": { "type": "integer", "minimum": 16, "maximum": 1048576 }
+            }
+          }
+        }
+      }
+    },
     "coding_providers": {
       "type": "object", "additionalProperties": false,
       "properties": {

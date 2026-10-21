@@ -6,7 +6,8 @@ import { intentMutationPaths, safeIntentMutationPath, resolveIntentMutationRefer
 const idPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
 const actions = new Set(['begin-harness', 'prepare-phase', 'afk-build', 'record-gate', 'record-validation', 'start-phase', 'complete-phase',
-  'resume-shelf', 'ratify-plan', 'ratify-evidence', 'approve-build', 'approve-manual-qa', 'update-projection', 'update-phase-projection', 'start-session']);
+  'resume-shelf', 'ratify-plan', 'ratify-evidence', 'approve-build', 'approve-manual-qa', 'update-projection', 'update-phase-projection', 'start-session',
+  'project-change', 'project-check-start']);
 const digest = value => 'sha256:' + createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 
 function fail(code, statusCode = 409) {

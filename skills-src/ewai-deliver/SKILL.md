@@ -19,6 +19,37 @@ Preserve all fourteen stages, the UI Design and FitCheck adjuncts, shelf/resume 
 
 ## Start and resume
 
+### Remote project access
+
+When the host reaches a project only through MCP, call `ewai_project_capabilities`
+and `ewai_project_preflight` before offering to continue phase work.
+For code implementation pass `requireCodeWrites:true`; checks-only readiness does
+not imply permission to edit code. Project-owned
+`remote_operations` configuration must explicitly enable access and declare named
+checks for the phase. Explain missing capabilities immediately. A working tracker
+connection is not proof of writable source, writable evidence or executable checks.
+
+Use `ewai_project_read_file` for bounded repository reads. Use
+`ewai_project_apply_change` with a stable UUID operation ID and the returned
+expected SHA-256; use null only to create a missing file. Evidence paths are relative
+to the delivery directory and limited to current-phase authored artefacts. Code
+edits require the recorded Build approval, declared task repository/branch/write
+set and current execution lease. Protected control records have their own guarded
+operations and cannot be written through this interface.
+
+Use `ewai_project_check_start` for a configured check name, then poll
+`ewai_project_check_status`. The project machine selects the executable, arguments
+and repository. It keeps executing after an MCP client disconnects. Reconnect and
+retry identical input with the same operation ID; never generate a fresh ID merely
+because the response was lost. A result passes only while its source, standards,
+plan and configuration evidence remain current. Canonical phase completion checks
+every configured check for that phase; do not treat authored reports as execution
+evidence. `ewai_project_check_cancel` requests cancellation; wait for terminal
+status. `ewai_project_recover` never redispatches an interrupted command and refuses
+to release unknown or still-running execution. Local workers are trusted processes,
+not an OS sandbox. Commit, push, PR, merge, Manual QA and release authority remain
+separate. See `Docs/remote-project-operations.md` for setup and recovery.
+
 For new delivery, call `ewai_delivery_begin` (or `ewai delivery begin`) for an existing project-owned intent and identify the current host as `tool`/`--tool` (`claude`, `codex`, `grok`, or `antigravity`). Antigravity is invoked through the `agy` CLI. That value defines the orchestrator exclusion boundary. For continuing work, call `ewai_delivery_continue` first. Never reconstruct the next phase from chat memory.
 
 Optional coding-provider settings select the primary agent and distinct secondary/tertiary reviewers. Native model choice is the default; suggestions are advisory. Stop before invocation when permitted-model enforcement is unsupported. Automatic selection must intersect saved pools, configured capabilities and approved grants; settings never grant Build or Manual QA authority. Grok coding, review and proposal modes require their own verified native identity/conformance and private environment authentication. Keep an incomplete or unconfirmed mode visible and recommend a concrete recovery action.
