@@ -18,7 +18,7 @@ import {prepareGrokBuildProvider} from '../src/runtime/provider-adapters.mjs';
 test('AFK supplies Grok source standards, implementation diff and recorded checks before review dispatch',{skip:process.platform!=='darwin'},async t=>{
   const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-grok-evidence-')),oldPath=process.env.PATH,oldTestContext=process.env.NODE_TEST_CONTEXT;
   delete process.env.NODE_TEST_CONTEXT;
-  t.after(()=>{process.env.PATH=oldPath;if(oldTestContext===undefined)delete process.env.NODE_TEST_CONTEXT;else process.env.NODE_TEST_CONTEXT=oldTestContext;rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{process.env.PATH=oldPath;if(oldTestContext===undefined)delete process.env.NODE_TEST_CONTEXT;else process.env.NODE_TEST_CONTEXT=oldTestContext;rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:200});});
   const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
   const capability=prepareGrokBuildProvider('review');if(capability.status==='unavailable'){t.skip(capability.code);return;}
   configureExternalValidation(root,'grok','available',true);
@@ -50,7 +50,7 @@ function extraProvider(root, provider) {
 
 test('saved primary and two distinct review roles reach the real AFK dispatch boundary',async t=>{
   const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-roles-')),oldPath=process.env.PATH;
-  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:200});});
   const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
   extraProvider(root,'claude');extraProvider(root,'antigravity');
   providerPolicy(root,{pool:['codex','claude','antigravity'],primary:'codex',secondary:'claude',tertiary:'antigravity'});
@@ -64,7 +64,7 @@ test('saved primary and two distinct review roles reach the real AFK dispatch bo
 
 test('AFK saved primary conflicts and unsupported model restrictions block preflight',t=>{
   const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-policy-')),oldPath=process.env.PATH;
-  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:200});});
   const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;extraProvider(root,'claude');
   providerPolicy(root,{pool:['codex','claude'],primary:'claude',secondary:'off',tertiary:'off'});
   const conflict=preflightAfkRun(root,'safe-change',{provider:'codex'});
@@ -75,7 +75,7 @@ test('AFK saved primary conflicts and unsupported model restrictions block prefl
 
 test('AFK automatic selection excludes Grok identities without a coding contract',t=>{
   const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-capability-')),oldPath=process.env.PATH;
-  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:200});});
   const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
   extraProvider(root,'grok');extraProvider(root,'claude');
   providerPolicy(root,{pool:['grok','codex','claude'],primary:'auto',secondary:'claude',tertiary:'off'});
@@ -85,7 +85,7 @@ test('AFK automatic selection excludes Grok identities without a coding contract
 
 test('AFK identity drift stops before a provider result can be integrated',async t=>{
   const root=mkdtempSync(resolve(tmpdir(),'ewai-afk-identity-')),oldPath=process.env.PATH;
-  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:200});});
   const bin=prepareProject(root);process.env.PATH=`${bin}${delimiter}${oldPath}`;
   providerPolicy(root,{pool:['codex'],primary:'codex',secondary:'off',tertiary:'off'});
   const run=await startAfkRun(root,'safe-change',{foreground:true,dependencies:{invokeProvider:async(invocation,options)=>{
@@ -261,7 +261,7 @@ test('executes an approved AFK task through worktree, review, merge, and durable
     assert.equal(git(root, ['show-ref', '--verify', '--quiet', `refs/heads/${evidence.branch}`]), '');
   } finally {
     process.env.PATH = oldPath;
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 });
 
@@ -290,7 +290,7 @@ test('creates a missing integration branch from the clean current branch before 
     assert.equal(run.topology.repositories[0].branchAction, 'created');
   } finally {
     process.env.PATH = oldPath;
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 });
 
@@ -319,7 +319,7 @@ test('maps tasks to configured repositories and integrates real branches in a mu
     assert.match(git(knowledge, ['log', '-1', '--pretty=%s']), /delivery evidence/);
   } finally {
     process.env.PATH = oldPath;
-    rmSync(base, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 });
 
@@ -345,7 +345,7 @@ test('safe pause finishes and integrates the active wave before leasing more wor
     assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 0);
   } finally {
     process.env.PATH = oldPath;
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 });
 
@@ -377,7 +377,7 @@ test('cancellation abandons leases and does not integrate late worker output', a
     assert.equal(git(root, ['status', '--porcelain']), '');
   } finally {
     process.env.PATH = oldPath;
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 });
 
@@ -400,7 +400,7 @@ test('unknown cancellation retains active leases and refuses integration', async
     assert.equal(result.executionStopped, false); assert.equal(result.activeWorkers.length, 1);
     assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 1);
     assert.equal(git(root, ['status', '--porcelain']), '');
-  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 });
 
 test('autonomous AFK needs a live authority guard and rechecks it before review and integration', async () => {
@@ -425,7 +425,7 @@ test('autonomous AFK needs a live authority guard and rechecks it before review 
     assert.equal(boundaries.some(value => value.stage === 'integrate'), false, 'revoked review result cannot integrate');
     assert.equal(listExecutionLeases(root, { activeOnly: true }).length, 0);
     assert.equal(git(root, ['status', '--porcelain']), '');
-  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 });
 
 test('a real conductor crash cannot resume over its surviving tracked provider (T004-R03)', async () => {
@@ -457,7 +457,7 @@ test('a real conductor crash cannot resume over its surviving tracked provider (
     assert.equal(afkRunStatus(root, run.id).activeWorkers.some(worker => worker.pid === providerPid), true);
   } finally {
     for (const pid of [providerPid, conductorPid]) if (pid) try { process.kill(-pid, 'SIGKILL'); } catch {}
-    process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true });
+    process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 });
 
@@ -475,7 +475,7 @@ test('changes appearing during post-merge checks are not staged or deleted (T004
     assert.equal(readFileSync(resolve(root, 'human-edit.txt'), 'utf8'), 'preserve unrelated work');
     assert.equal(git(root, ['ls-files', 'human-edit.txt']), '');
     assert.ok(git(root, ['rev-parse', '--verify', 'MERGE_HEAD']), 'conflicting checkout is retained for human recovery');
-  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 });
 
 test('a branch change before integration never aborts the owners unrelated merge (T004-R07)', async () => {
@@ -498,7 +498,7 @@ test('a branch change before integration never aborts the owners unrelated merge
     assert.equal(run.status, 'blocked'); assert.equal(git(root, ['branch', '--show-current']), 'owner-integration');
     assert.equal(git(root, ['rev-parse', 'HEAD']), head); assert.equal(git(root, ['rev-parse', 'MERGE_HEAD']), mergeHead);
     assert.equal(git(root, ['write-tree']), index); assert.equal(readFileSync(resolve(root, 'owner.txt'), 'utf8'), 'preserve owner merge');
-  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); }
+  } finally { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
 });
 
 function configureContinuation(root, maxIterations = 3) {
@@ -518,7 +518,7 @@ function endedTurn(invocation, output = '<promise>T-001 COMPLETE</promise>') {
 
 test('AFK continues an opted-in worker after a premature successful exit', async t => {
   const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-continue-')), oldPath = process.env.PATH;
-  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   configureContinuation(root);
   const calls = [];
@@ -552,7 +552,7 @@ test('AFK repairs failed green verification without discarding partial work', as
     process.env.PATH = oldPath;
     if (oldTestContext === undefined) delete process.env.NODE_TEST_CONTEXT;
     else process.env.NODE_TEST_CONTEXT = oldTestContext;
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   configureContinuation(root);
@@ -580,7 +580,7 @@ for (const [name, enabled, response, expected] of [
 ]) {
   test(`AFK stops rather than repeating ${name}`, async t => {
     const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-stop-')), oldPath = process.env.PATH;
-    t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+    t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
     process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
     if (enabled) configureContinuation(root, 2);
     let calls = 0;
@@ -596,7 +596,7 @@ for (const [name, enabled, response, expected] of [
 
 test('AFK checks write scope before another continuation turn', async t => {
   const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-scope-loop-')), oldPath = process.env.PATH;
-  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   configureContinuation(root);
   let calls = 0;
@@ -612,7 +612,7 @@ test('AFK checks write scope before another continuation turn', async t => {
 
 test('AFK continuation shares one deadline instead of resetting it per turn', async t => {
   const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-deadline-')), oldPath = process.env.PATH;
-  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   configureContinuation(root);
   let elapsed = 0, calls = 0;
@@ -627,7 +627,7 @@ test('AFK continuation shares one deadline instead of resetting it per turn', as
 
 test('AFK pause prevents a new continuation turn after current worker stops', async t => {
   const root = mkdtempSync(resolve(tmpdir(), 'ewai-afk-pause-loop-')), oldPath = process.env.PATH;
-  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   configureContinuation(root);
   let calls = 0;
@@ -650,7 +650,7 @@ for (const [format, output] of [
 ]) {
   test(`AFK stops on an assistant blocker in ${format}`, async t => {
     const root = mkdtempSync(resolve(tmpdir(), 'ewai-native-blocker-')), oldPath = process.env.PATH;
-    t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+    t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
     process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
     configureContinuation(root);
     let calls = 0;
@@ -665,7 +665,7 @@ for (const [format, output] of [
 
 test('AFK preserves hashed failed-iteration evidence across explicit resume', async t => {
   const root = mkdtempSync(resolve(tmpdir(), 'ewai-loop-resume-')), oldPath = process.env.PATH;
-  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   configureContinuation(root);
   const autonomy = { runId: '11111111-1111-1111-1111-111111111111', grantDigest: `sha256:${'a'.repeat(64)}` };
@@ -691,7 +691,7 @@ test('AFK preserves hashed failed-iteration evidence across explicit resume', as
 
 test('AFK captures complete large command output with quoted log paths before hashing', async t => {
   const root = mkdtempSync(resolve(tmpdir(), "ewai-loop quote'-")), oldPath = process.env.PATH;
-  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   configureContinuation(root);
   const path = resolve(root, 'SPECS/6.Build/safe-change/task-graph.json'), graph = JSON.parse(readFileSync(path));
@@ -713,7 +713,7 @@ test('AFK captures complete large command output with quoted log paths before ha
 
 test('AFK blocks a generic review PASS without per-claim validation', async t => {
   const root = mkdtempSync(resolve(tmpdir(), 'ewai-claim-review-')), oldPath = process.env.PATH;
-  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { process.env.PATH = oldPath; rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
   process.env.PATH = `${prepareProject(root)}${delimiter}${oldPath}`;
   const run = await startAfkRun(root, 'safe-change', { foreground: true, dependencies: { invokeProvider: async (invocation, options) => {
     if (invocation.mode === 'review') return endedTurn(invocation, 'VERDICT: PASS\n');
@@ -727,7 +727,7 @@ test('AFK blocks a generic review PASS without per-claim validation', async t =>
 
 test('AFK checkpoint reports verified work and refuses tampered completion or unknown recovery', async t => {
   const root=mkdtempSync(resolve(tmpdir(),'ewai-checkpoint-')),oldPath=process.env.PATH;
-  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true});});
+  t.after(()=>{process.env.PATH=oldPath;rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:200});});
   process.env.PATH=`${prepareProject(root)}${delimiter}${oldPath}`;
   const run=await startAfkRun(root,'safe-change',{foreground:true,dependencies:{invokeProvider:fakeProvider}});
   const status=afkRunStatus(root,run.id);

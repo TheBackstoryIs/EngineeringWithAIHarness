@@ -8,15 +8,13 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 ## What's new in this version
 
-Version `0.3.8` helps you change code without losing sight of why it was written. Every file in a long-running project carries promises: what it was meant to do, what someone agreed it would handle and which tests were meant to prove it. Those promises usually sit in old plans that nobody rereads. EWAI now brings them back at the moment they matter.
+Version `0.3.9` helps your AI assistant carry work forward when it connects to a project on another machine. Once you've enabled access, it can update project records, make code changes you've approved and run the checks you've chosen. The work and its progress stay together in the same project.
 
-**Ask a file what it's responsible for.** Before you change a file, run `ewai index behaviour <path>` or simply ask your assistant. You'll see the outcomes earlier work linked to it, the acceptance criteria behind them, and the tests and evidence recorded when they were delivered, with the most relevant first.
+**Less carrying things back and forth.** Your assistant can save its work directly, rather than leaving you to copy it across before anything can move on. If the connection drops while a check is running, it can pick up the result when it reconnects.
 
-**Know when old evidence has gone stale.** EWAI checks each piece of recorded evidence against what's on disk now and tells you if it's changed. It's honest about what it can't see, too. Finding nothing doesn't mean nothing is affected, and EWAI won't claim old work is still correct. That judgement stays with you.
+**You stay in charge.** This access is off until you enable it. You choose whether code changes are allowed and which checks can run. EWAI still requires your approval before implementation, and you decide whether the finished work is ready to release.
 
-**Your assistant remembers too.** When you plan, build or review, EWAI adds a short reminder of earlier outcomes linked to the files you're about to touch, so your assistant can recheck them without being asked. It's kept brief, so the work in front of you still comes first.
-
-**Confirm what you actually reviewed.** Impact assessments now show the earlier outcomes worth rechecking. If anything changes between your review and your confirmation, EWAI asks you to take another look rather than recording a decision on evidence you never saw. If you confirm assessments through the API, include the `previewId` from the preview.
+This works through an existing authorised connection to your project, with checks currently supported on Mac and Linux. The [setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/remote-project-operations.md) explains how to enable it and what access you're giving.
 
 ## Quick start
 
