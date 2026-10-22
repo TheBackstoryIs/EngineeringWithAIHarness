@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import {assertProjectChecksFresh} from './runtime/project-checks.mjs';
 import {
   existsSync,
   lstatSync,
@@ -840,6 +841,7 @@ function completeOwnedDeliveryPhase(projectRoot, slug, phaseId, options) {
   }
   assertIntentCopiesConsistent(paths, state);
   const phaseProviders = phase.validation?.providers ?? state.providers;
+  assertProjectChecksFresh(paths.projectRoot, slug, phaseId);
   if (phase.validation) assertExternalValidationComplete(phase);
   validatePhaseArtefacts(
     paths.deliveryRoot,

@@ -100,6 +100,8 @@ import {
   healthPacket
 } from './repository-context.mjs';
 import { listRuntimeIntents, readRuntimeIntent, syncIntentIndex } from './intents.mjs';
+import {registerProjectOperationTools} from './project-operations-mcp.mjs';
+import {projectPreflight} from './project-operations.mjs';
 import { listCommandRuns, markStaleCommandRuns } from './runs.mjs';
 import {
   acquireExecutionLease,
@@ -167,6 +169,15 @@ function result(value) {
     content: [{ type: 'text', text: JSON.stringify(value ?? null, null, 2) }],
     structuredContent: value ?? null
   };
+}
+
+registerProjectOperationTools(server, paths.projectRoot, result);
+
+function withProjectAccess(value, slug) {
+  let projectAccess;
+  try { projectAccess=projectPreflight(paths.projectRoot,{slug}); }
+  catch { projectAccess={ready:false,missing:['project-preflight-unavailable'],recovery:'Use ewai_project_capabilities and ewai_project_preflight before remote delivery.'}; }
+  return {...value,projectAccess};
 }
 
 const autonomyFieldGuidance = Object.freeze({
@@ -1427,7 +1438,7 @@ server.registerTool(
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   },
-  async ({ slug, ...input }) => result(beginDelivery(paths.projectRoot, slug, input))
+  async ({ slug, ...input }) => result(withProjectAccess(beginDelivery(paths.projectRoot, slug, input),slug))
 );
 
 server.registerTool(
@@ -1438,7 +1449,7 @@ server.registerTool(
     inputSchema: { slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   },
-  async ({ slug }) => result(continueDelivery(paths.projectRoot, slug))
+  async ({ slug }) => result(withProjectAccess(continueDelivery(paths.projectRoot, slug),slug))
 );
 
 server.registerTool(
@@ -1463,7 +1474,7 @@ server.registerTool(
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
   },
-  async ({ slug, tool }) => result(resumeShelvedDelivery(paths.projectRoot, slug, { tool }))
+  async ({ slug, tool }) => result(withProjectAccess(resumeShelvedDelivery(paths.projectRoot, slug, { tool }),slug))
 );
 
 server.registerTool(
