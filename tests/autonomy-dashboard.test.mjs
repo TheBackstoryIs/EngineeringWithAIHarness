@@ -32,6 +32,8 @@ test('revoked authority disables dispatch and shows preserved pending work', { t
   const { root, page } = await browserFixture(t);
   await page.locator('#configurationNav').click();
   await page.getByRole('heading', { name: 'Delegated delivery' }).waitFor({ timeout: 5000 });
+  // Let the initial authority refresh settle before reviewing a new draft.
+  await page.locator('#autonomyConfigurationStatus').getByText('Autonomy is off until you approve a named grant.', { exact: true }).waitFor();
   assert.equal(readAutonomyPolicy(root).mode, 'off');
   await page.getByRole('checkbox', { name: 'Invoice export' }).click();
   await page.getByRole('button', { name: 'Preview selected work' }).click();
