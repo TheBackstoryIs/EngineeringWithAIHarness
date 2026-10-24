@@ -1,3 +1,4 @@
+import {refreshSharedIntent} from './coordination/integration.mjs';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { validatePhaseArtefacts } from './delivery-artifacts.mjs';
@@ -143,9 +144,15 @@ function deriveTasks(paths, leases) {
 }
 
 export function deriveExecutionState(projectRoot, intent, options = {}) {
+  let coordinationFailure=null;
+  if(intent)try{refreshSharedIntent(projectRoot,intent.id??intent.slug);}catch(error){
+    if(!['local-source-missing','local-task-graph-diverged','local-source-diverged'].includes(error.code))throw error;
+    coordinationFailure=error.code;
+  }
   if (!intent) throw new Error('Execution state requires an intent.');
   const paths = deliveryPaths(projectRoot, intent.slug);
   const blockers = [];
+  if(coordinationFailure)blockers.push(blocker(coordinationFailure,'Synchronise and reconcile this intent source through Git before execution.'));
   let state = null;
 
   if (existsSync(paths.statePath)) {

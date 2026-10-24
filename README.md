@@ -8,13 +8,13 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 ## What's new in this version
 
-Version `0.3.9` helps your AI assistant carry work forward when it connects to a project on another machine. Once you've enabled access, it can update project records, make code changes you've approved and run the checks you've chosen. The work and its progress stay together in the same project.
+Version `0.4.0` introduces shared project coordination for teams working on separate developer machines. A central service holds intent and delivery records while each developer keeps their code, SPECS files, Docker services, tests and Git workflow local.
 
-**Less carrying things back and forth.** Your assistant can save its work directly, rather than leaving you to copy it across before anything can move on. If the connection drops while a check is running, it can pick up the result when it reconnects.
+**One shared view of the work.** Versioned records and ownership leases help developers hand work over without overwriting newer intent state. Approval permissions remain separate from ordinary development access.
 
-**You stay in charge.** This access is off until you enable it. You choose whether code changes are allowed and which checks can run. EWAI still requires your approval before implementation, and you decide whether the finished work is ready to release.
+**Your files stay in your workflow.** Git distributes code and authored documents. EWAI checks their fingerprints before advancing shared work, and records evidence references rather than running commands on the central server.
 
-This works through an existing authorised connection to your project, with checks currently supported on Mac and Linux. The [setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/remote-project-operations.md) explains how to enable it and what access you're giving.
+Shared coordination is optional; existing standalone projects remain the default. See the [setup and recovery guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/shared-project-coordination.md) for private HTTP/Tailscale access, credentials, migration and team validation.
 
 ## Quick start
 

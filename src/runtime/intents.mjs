@@ -1,3 +1,4 @@
+import {refreshSharedCatalog} from '../coordination/integration.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, relative, resolve } from 'node:path';
@@ -81,11 +82,20 @@ function sourceIntent(intentsRoot, path) {
 }
 
 export function syncIntentIndex(projectRoot, database = null) {
+  const sharedCatalog = refreshSharedCatalog(projectRoot);
   recoverIntentTransactions(projectRoot);
   const ownsDatabase = !database;
   const db = database ?? openRuntimeDatabase(projectRoot);
   const { intentsRoot } = runtimePaths(projectRoot);
-  const intents = findMarkdown(intentsRoot).map((path) => sourceIntent(intentsRoot, path));
+  let intents = findMarkdown(intentsRoot).map((path) => sourceIntent(intentsRoot, path));
+  if (sharedCatalog) {
+    const local = new Map(intents.map(intent => [intent.id,intent]));
+    intents = sharedCatalog.intents.map(({record}) => ({
+      id:record.id,slug:record.slug,domain:record.domain,title:record.title,...record.state,
+      path:resolve(intentsRoot,record.id+'.md'),deliveryStatePath:'',intentMap:null,personas:[],relationships:[],deliveryShape:null,
+      excerpt:'Source documents must be synchronised through Git.',markdown:'',contentHash:record.bodyHash,sourceMtimeMs:0,...local.get(record.id),...record.state,title:record.title
+    }));
+  }
   const upsert = db.prepare(`
     INSERT INTO intents (
       id, slug, domain, title, status, delivery_status, current_phase,
@@ -154,7 +164,7 @@ export function syncIntentIndex(projectRoot, database = null) {
   }
 
   if (ownsDatabase) db.close();
-  return { count: intents.length, intents };
+  return { count: intents.length, intents, sharedCatalog };
 }
 
 function rowToIntent(row, includeMarkdown = false) {

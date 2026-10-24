@@ -1,3 +1,5 @@
+import {centralRequest} from '../coordination/client.mjs';
+import {readConnection} from '../coordination/config.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, lstatSync, openSync, closeSync, fstatSync, readFileSync, writeFileSync, mkdirSync, fsyncSync, constants } from 'node:fs';
 import { resolve, relative, dirname } from 'node:path';
@@ -7,7 +9,7 @@ const idPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
 const actions = new Set(['begin-harness', 'prepare-phase', 'afk-build', 'record-gate', 'record-validation', 'start-phase', 'complete-phase',
   'resume-shelf', 'ratify-plan', 'ratify-evidence', 'approve-build', 'approve-manual-qa', 'update-projection', 'update-phase-projection', 'start-session',
-  'project-change', 'project-check-start']);
+  'project-change', 'project-check-start', 'update-session', 'finish-session']);
 const digest = value => 'sha256:' + createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 
 function fail(code, statusCode = 409) {
@@ -96,7 +98,7 @@ export function readIntentMutationSnapshot(root, reference) {
 
 export function normaliseAutonomyOperation(input = {}) {
   if (!actions.has(input.action)) fail('autonomy-operation-action-invalid', 422);
-  const id = input.id ?? randomUUID(), maxAttempts = input.maxAttempts ?? 1;
+  const id = input.id ?? input.mutationId ?? randomUUID(), maxAttempts = input.maxAttempts ?? 1;
   if (!idPattern.test(id) || !Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 100) fail('autonomy-operation-input-invalid', 422);
   if (input.phase !== undefined && (typeof input.phase !== 'string' || !/^[a-z]+(?:-[a-z]+)*$/.test(input.phase))) fail('autonomy-operation-input-invalid', 422);
   if (input.provider !== undefined && (typeof input.provider !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(input.provider))) fail('autonomy-operation-input-invalid', 422);
@@ -202,8 +204,26 @@ export function assertNoUnresolvedIntentOperation(root, intentId, operationId) {
     // Only allowlisted checker reports are harmless diagnostic changes. Runs,
     // gate ledgers and all other durable evidence retain recovery ownership.
     if (!attempt.tracked && outcome?.executionStopped === true && outcome.diagnosticOnly === true) continue;
+    const resolutionPath=resolve(paths.operationRoot,'shared-resolution.json');
+    if(existsSync(resolutionPath)){
+      const resolution=readRecord(paths,resolutionPath),connection=readConnection(root);
+      if(connection?.mode==='shared'&&resolution.schema==='ewai.shared-operation-resolution/v1'&&resolution.operationId===id&&resolution.intentId===intentId&&resolution.identity===connection.identity&&resolution.decision==='abandoned'&&(connection.revisions?.[intentId]??0)>=resolution.revision)continue;
+    }
     fail('autonomy-recovery-required');
   }
+}
+
+export function recordSharedOperationResolution(root,operationId,input){
+  const connection=readConnection(root),paths=operationPaths(root,operationId),attempt=readAttempts(paths,operationId).at(-1);
+  if(!attempt)return {status:'not-found'};
+  if(connection?.mode!=='shared'||input.identity!==connection.identity||input.intentId!==attempt.intentId||input.decision!=='abandoned'||input.revision>(connection.revisions?.[input.intentId]??0))fail('shared-resolution-invalid');
+  const central=centralRequest(root,'operation-status',{operationId:input.centralOperationId});
+  if(central.abandoned!==true||central.record?.id!==attempt.intentId||central.revision!==input.revision||central.executionStoppedAttestedBy!==input.attestedBy)fail('shared-resolution-invalid');
+  try{process.kill(attempt.owner.pid,0);fail('shared-execution-stop-unverified');}catch(error){if(error.code!=='ESRCH')throw error;}
+  recoverStoppedIntentOwnership(root,attempt.owner,attempt.intentId);
+  const path=resolve(paths.operationRoot,'shared-resolution.json');
+  if(existsSync(path))return readRecord(paths,path);
+  return writeRecord(paths,path,{schema:'ewai.shared-operation-resolution/v1',operationId,intentId:input.intentId,identity:input.identity,revision:input.revision,decision:'abandoned',attestedBy:input.attestedBy,centralOperationId:input.centralOperationId,recordedAt:new Date().toISOString()});
 }
 
 export function beginAutonomyOperation(root, intentId, operation, owner) {

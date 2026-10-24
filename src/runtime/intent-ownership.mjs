@@ -1,3 +1,5 @@
+import {isShared,centralRequest,readConnection} from '../coordination/client.mjs';
+import {withSharedMutation,sharedMutationActive,refreshSharedIntent} from '../coordination/integration.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, realpathSync, lstatSync, readdirSync, readFileSync, mkdirSync, openSync, closeSync, fstatSync, writeFileSync, fsyncSync, unlinkSync } from 'node:fs';
@@ -123,6 +125,15 @@ function assertHandle(database, handle, intentId = handle?.intentId) {
 }
 
 export function acquireIntentOwnership(root, reference, input = {}) {
+  if (!isShared(root) || sharedMutationActive(root)) return acquireLocalIntentOwnership(root,reference,input);
+  refreshSharedIntent(root,reference);
+  const intentId=resolveIntentMutationReference(root,reference),connection=readConnection(root);
+  const action=String(input.ownerId??'').startsWith('project-check-')?'project-check-execute':String(input.ownerId??'').startsWith('supervisor-')?'afk-build':'prepare-phase';
+  const coordination=centralRequest(root,'lease-acquire',{operationId:randomUUID(),intentId,kind:'intent',machineId:connection.machineId,action,ttlMs:input.durationMs??600000});
+  try{return {...acquireLocalIntentOwnership(root,reference,input),coordination};}
+  catch(error){try{centralRequest(root,'lease-release',{operationId:randomUUID(),lease:coordination});}catch{}throw error;}
+}
+function acquireLocalIntentOwnership(root, reference, input = {}) {
   const paths = intentMutationPaths(root), intentId = resolveIntentMutationReference(paths.projectRoot, reference), ttl = duration(input);
   const ownerId = input.ownerId ?? `interactive-${processInstance}`;
   if (typeof ownerId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,119}$/.test(ownerId)) intentOwnershipError('intent-owner-invalid', 422);
@@ -144,10 +155,12 @@ export function acquireIntentOwnership(root, reference, input = {}) {
 }
 
 export function assertIntentOwnership(root, handle) {
+  if (handle?.coordination) centralRequest(root,'lease-assert',{lease:handle.coordination});
   const paths = intentMutationPaths(root);
   return withDatabase(paths, database => { assertHandle(database, handle); return { intentId: handle.intentId, epoch: handle.epoch, generation: handle.generation }; });
 }
 export function renewIntentOwnership(root, handle, input = {}) {
+  if (handle?.coordination) centralRequest(root,'lease-renew',{operationId:randomUUID(),lease:handle.coordination,ttlMs:input.durationMs??600000});
   const paths = intentMutationPaths(root), ttl = duration(input);
   return withMutex(paths, handle?.intentId ?? '', () => withDatabase(paths, database => {
     assertHandle(database, handle); const expiresAt = Date.now() + ttl;
@@ -156,6 +169,7 @@ export function renewIntentOwnership(root, handle, input = {}) {
   }));
 }
 export function releaseIntentOwnership(root, handle) {
+  if (handle?.coordination) centralRequest(root,'lease-release',{operationId:randomUUID(),lease:handle.coordination});
   const paths = intentMutationPaths(root);
   return withMutex(paths, handle?.intentId ?? '', () => withDatabase(paths, database => {
     assertHandle(database, handle);
@@ -200,6 +214,7 @@ function assertMutationAuthority(paths, intentId, operation, nested = null) {
 }
 
 export function recoverStoppedIntentOwnership(root, owner, intentId) {
+  if (isShared(root) && owner?.machineId) intentOwnershipError('remote-recovery-requires-central-owner');
   if (!owner || !Number.isInteger(owner.pid) || owner.pid < 1 || !intentPattern.test(intentId ?? '')) intentOwnershipError('intent-recovery-invalid', 422);
   try { process.kill(owner.pid, 0); return; } catch (error) { if (error.code !== 'ESRCH') return; }
   const paths = intentMutationPaths(root), path = safeIntentMutationPath(paths.projectRoot, resolve(paths.ownershipRoot, `${tokenHash(intentId)}.lock`));
@@ -218,6 +233,12 @@ export function recoverStoppedIntentOwnership(root, owner, intentId) {
 // Synchronous canonical transitions only. Workers propose outside this critical
 // section; acceptance enters it with a still-current ownership capability.
 export function withIntentMutation(root, reference, operation, callback) {
+  if(!operation||typeof operation!=='object')intentOwnershipError('intent-mutation-invalid',422);
+  const request={...operation,mutationId:operation?.mutationId??randomUUID()};
+  return withSharedMutation(root, reference, request, () => withLocalIntentMutation(root, reference, request, callback));
+}
+
+function withLocalIntentMutation(root, reference, operation, callback) {
   const paths = intentMutationPaths(root), intentId = resolveIntentMutationReference(paths.projectRoot, reference);
   if (typeof callback !== 'function' || !operation || typeof operation !== 'object') intentOwnershipError('intent-mutation-invalid', 422);
   if (callback.constructor?.name === 'AsyncFunction') intentOwnershipError('intent-mutation-must-be-synchronous', 422);

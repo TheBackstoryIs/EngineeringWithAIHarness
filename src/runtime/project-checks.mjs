@@ -1,3 +1,4 @@
+import {coordinationWorkerEnvironment} from '../coordination/config.mjs';
 import {spawn} from 'node:child_process';
 import {existsSync, readdirSync, mkdirSync, writeFileSync} from 'node:fs';
 import {dirname, relative, resolve} from 'node:path';
@@ -40,7 +41,7 @@ export async function startProjectCheck(root,input) {
       atomicRecord(ctx.root,paths.attempt,{schema:'ewai.project-operation/v1',kind:'check',dispatchProtocol:'launch-permit-v1',operationId:input.operationId,slug:input.slug,phase:current.phase,check:input.check,requestDigest,configDigest:ctx.configDigest,before,phaseDigest:phaseFingerprint(ctx,current),createdAt:new Date().toISOString()},true);
       if(input.taskId!==undefined)atomicRecord(ctx.root,resolve(paths.runtime,'task-authority.json'),{taskId:input.taskId,leaseId:input.leaseId,leaseToken:input.leaseToken},true);
     });
-    child=spawn(process.execPath,[fileURLToPath(new URL('./project-check-worker.mjs',import.meta.url)),ctx.root,input.slug,input.operationId],{detached:true,stdio:'ignore',env:environment()});
+    child=spawn(process.execPath,[fileURLToPath(new URL('./project-check-worker.mjs',import.meta.url)),ctx.root,input.slug,input.operationId],{detached:true,stdio:'ignore',env:coordinationWorkerEnvironment(ctx.root,environment())});
     // The launch record precedes returning the run ID; a reconnect never dispatches again.
     if(child.pid)atomicRecord(ctx.root,paths.launch,{pid:child.pid,launchedAt:new Date().toISOString()},true);
     await once(child,'spawn');child.unref();

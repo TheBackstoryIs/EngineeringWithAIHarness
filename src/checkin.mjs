@@ -1,3 +1,5 @@
+import {refreshSharedCatalog} from './coordination/integration.mjs';
+import {readConnection} from './coordination/config.mjs';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -117,6 +119,8 @@ export async function checkinProject(projectRoot, options = {}) {
   const instructions = refreshCheckinInstructions(projectRoot);
   const validationMigration = migrateProjectValidationConfig(projectRoot);
   const { config, paths } = loadProjectConfig(projectRoot);
+  refreshSharedCatalog(paths.projectRoot);
+  const coordination=readConnection(paths.projectRoot);
   const intentState = auditIntentStateCopies(paths.projectRoot, { repairMissing: true });
   const operationalState = intentState.status === 'consistent'
     ? auditOperationalState(paths.projectRoot)
@@ -161,6 +165,7 @@ export async function checkinProject(projectRoot, options = {}) {
   const result = {
     schema: 'ewai.checkin/v1',
     project: { name: config.project.name, root: paths.projectRoot },
+    coordination:coordination?{mode:coordination.mode,projectId:coordination.projectId,machineId:coordination.machineId,endpoint:coordination.endpoint,identity:coordination.identity}:{mode:'standalone'},
     premium,
     framework,
     validation: {

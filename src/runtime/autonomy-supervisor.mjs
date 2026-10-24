@@ -1,3 +1,4 @@
+import {refreshSharedIntent} from '../coordination/integration.mjs';
 import { resolve, relative } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -262,6 +263,7 @@ export function controlAutonomyRun(root, input) {
 
 function assertBuild(root, candidate, initial = false) {
   const paths = autonomyPaths(root), directory = resolve(paths.buildRoot, candidate.intentId.split('/')[1]);
+  refreshSharedIntent(paths.projectRoot,candidate.intentId);
   const state = JSON.parse(readAutonomyFile(paths.projectRoot, resolve(directory, 'delivery-state.json')));
   const approval = JSON.parse(readAutonomyFile(paths.projectRoot, resolve(directory, 'gates/build/build-approval.json')));
   if (approval.schema !== 'ewai.build-approval/v1' || approval.decision !== 'approved' || !named(approval.approvedBy)

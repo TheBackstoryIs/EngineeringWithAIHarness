@@ -8,7 +8,7 @@ For feature delivery, **`ewai-deliver` coordinates the full fourteen-stage workf
 
 If you want EWAI to act on an approved, exact pool of registered intents, read [governed autonomous intent delivery](autonomous-intent-delivery.md). It starts off, needs a named and bounded grant, and leaves human Build approval and Manual QA separate.
 
-Read [what's new in version 0.3.9](releases/0.3.9.md), the [0.3.8 release notes](releases/0.3.8.md), the [0.3.7 release notes](releases/0.3.7.md), the [0.3.6 release notes](releases/0.3.6.md), the [0.3.5 release notes](releases/0.3.5.md), the [0.3.5 beta release notes](releases/0.3.5-beta.1.md), the [stable 0.3.4 release notes](releases/0.3.4.md), or the [earlier Jev and OpenAI Decisions beta notes](releases/0.3.4-beta.6.md).
+Read [what's new in version 0.4.0](releases/0.4.0.md), [version 0.3.9](releases/0.3.9.md), the [0.3.8 release notes](releases/0.3.8.md), the [0.3.7 release notes](releases/0.3.7.md), the [0.3.6 release notes](releases/0.3.6.md), the [0.3.5 release notes](releases/0.3.5.md), the [0.3.5 beta release notes](releases/0.3.5-beta.1.md), the [stable 0.3.4 release notes](releases/0.3.4.md), or the [earlier Jev and OpenAI Decisions beta notes](releases/0.3.4-beta.6.md).
 
 ## New to EWAI?
 
@@ -27,6 +27,7 @@ If you have a persona licence, [set it up before the analysis](operations/premiu
 | --- | --- |
 | Describe a feature or improve an existing idea | [Use Intent Studio](guided-intent-workspace-guide.md) |
 | Decide what to tackle next | [Use the Companion](context-aware-delivery-companion-user-guide.md) |
+| Coordinate developers on separate local machines | [Shared project coordination](shared-project-coordination.md) |
 | Implement an agreed change | [Developer delivery guide](developer-delivery-guide.md) |
 | Let an assistant update a project on another machine | [Remote project changes and checks](remote-project-operations.md) |
 | Check that the result works for people | [Manual QA and acceptance](quality/manual-qa-and-acceptance.md) |

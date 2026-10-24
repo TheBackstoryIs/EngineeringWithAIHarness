@@ -1,3 +1,4 @@
+import {coordinationCommand} from './coordination/cli.mjs';
 import {openaiCredentialStatus,configureOpenaiCredentials,checkOpenaiConnection,removeOpenaiCredentials,safeOpenaiCredentialError} from './openai-credentials.mjs';
 import {jevCredentialStatus,configureJevCredentials,checkJevConnection,removeJevCredentials} from './jev-credentials.mjs';
 import {readJevSettings,saveJevSettings,readJevMeasurements,readDecisionCredentials,safeJevError} from './jev.mjs';
@@ -557,6 +558,8 @@ Commands:
   ewai team resource inspect ID VERSION [--project PATH]
   ewai team resource install ID VERSION --expected-digest DIGEST --approved-by NAME --yes [--project PATH]
   ewai team resource receipts [--project PATH]
+  ewai coordination start|server-status|stop --data PATH --credentials-file PATH [--host HOST] [--port N] [--allow-network]
+  ewai coordination create-project|connect|status|seed|read|publish|export|recover|disconnect [options]
   ewai team-hub start|status|stop --data PATH [--token-env NAME] [--publisher-token-env NAME] [--host HOST] [--port N] [--allow-network]
   ewai team-hub resource publish FOLDER --data PATH --publisher-token-env NAME [--publisher-name NAME] --yes
   ewai rollout validate [--project PATH]
@@ -1159,6 +1162,11 @@ export async function run(args) {
         }
       }
       throw new Error(`Unknown team command: ${subcommand ?? ''}`);
+    }
+
+    if (command === 'coordination') {
+      print(await coordinationCommand(['start','serve','stop','server-status','create-project'].includes(subcommand)?process.cwd():selectedProject(args), args.slice(1)), json);
+      return;
     }
 
     if (command === 'team-hub') {

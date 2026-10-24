@@ -1,3 +1,4 @@
+import {refreshSharedIntent} from '../coordination/integration.mjs';
 import { randomUUID } from 'node:crypto';
 import {
   copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync,
@@ -285,6 +286,7 @@ function prepareParentBranches(topology) {
 }
 
 export function preflightAfkRun(projectRoot, slug, options = {}) {
+  refreshSharedIntent(projectRoot,slug);
   const root = resolve(projectRoot);
   const { config, paths: project } = loadProjectConfig(root);
   const failures = [];

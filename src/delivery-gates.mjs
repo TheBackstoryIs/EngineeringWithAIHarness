@@ -9,7 +9,7 @@ const taskGraphPhases = new Set([
   'plan', 'pattern-validation', 'test-plan', 'build', 'delivery',
 ]);
 
-const phaseGateIds = Object.freeze({
+export const phaseGateIds = Object.freeze({
   ideate: ['phase-artifact-written'],
   intent: [
     'knowledge-onboard', 'standing-standards-read', 'intent-dependency-map',

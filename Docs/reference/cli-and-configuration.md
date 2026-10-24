@@ -442,3 +442,18 @@ Do not store secrets in these examples or commit runtime logs and SQLite state a
 ## Choose the correct evidence amendment
 
 Use [Which amendment operation?](../completed-phase-evidence-amendments.md#which-amendment-operation) to distinguish pre-Build `ratify-amendments` from `evidence-amendment` for stale nested evidence references. They aren't interchangeable, and neither supplies approval to implement or release.
+
+## Shared coordination (0.4.0)
+
+`ewai coordination` operates the optional central intent and delivery service. See [the complete setup and recovery guide](../shared-project-coordination.md).
+
+- `start`, `server-status`, `stop`: private service lifecycle with an explicit `--data` directory. `start` reads actor/token environment references from `--credentials-file`; network binding requires `--allow-network`.
+- `create-project`: owner-only initial registration using `--url`, `--project-id`, `--token-env`, `--name` and `--yes`.
+- `connect`: machine-local connection using those endpoint/credential references plus a unique `--machine-id` and `--yes`.
+- `seed`: explicit owner import of local intents; refuses existing records.
+- `status`, `read INTENT`, `export [--output PATH]`: connection, record and audit inspection.
+- `publish INTENT --expected-revision N`: register an intentional authored-source change after Git synchronisation.
+- `recover REQUEST_UUID`: resolve an interrupted operation from its durable request identity.
+- `disconnect --yes`: disable the connection without silently granting standalone authority.
+
+Consumer commands accept `--project PATH` and `--json`. Token values are supplied through the referenced environment variable, never command-line arguments or project YAML. The local dashboard and Team Hub remain separate services.

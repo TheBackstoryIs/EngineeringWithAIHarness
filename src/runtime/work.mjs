@@ -1,3 +1,6 @@
+import {hydrateSharedActivity} from '../coordination/activity.mjs';
+import {isShared} from '../coordination/client.mjs';
+import {mirrorSharedTasks} from '../coordination/leases.mjs';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { deriveExecutionState } from '../execution-state.mjs';
@@ -149,7 +152,8 @@ function withDatabase(projectRoot, supplied, operation) {
 
 export function syncWorkItems(projectRoot, suppliedDatabase = null) {
   return withDatabase(projectRoot, suppliedDatabase, (database) => {
-    syncIntentIndex(projectRoot, database);
+    const indexed = syncIntentIndex(projectRoot, database);
+    mirrorSharedTasks(projectRoot,database);
     const execution = executionInputs(database);
     const { intents } = execution;
     const insertItem = database.prepare(`
@@ -252,6 +256,7 @@ export function syncWorkItems(projectRoot, suppliedDatabase = null) {
       database.exec('ROLLBACK;');
       throw error;
     }
+    if (indexed.sharedCatalog) for (const {record} of indexed.sharedCatalog.intents) hydrateSharedActivity(projectRoot,record.id,record.work);
     return { count: intents.length };
   });
 }
@@ -661,11 +666,13 @@ export function startActiveSession(projectRoot, reference, input = {}) {
 }
 
 export function addActivityEvent(projectRoot, reference, input = {}) {
-  return recordActivity(projectRoot, reference, input, 'event');
+  if (!isShared(projectRoot)) return recordActivity(projectRoot,reference,input,'event');
+  return withIntentMutation(projectRoot, reference, {action:'update-session',input,ownership:input.ownership}, () => recordActivity(projectRoot,reference,input,'event'));
 }
 
 export function finishActiveSession(projectRoot, reference, input = {}) {
-  return recordActivity(projectRoot, reference, input, 'finish');
+  if (!isShared(projectRoot)) return recordActivity(projectRoot,reference,input,'finish');
+  return withIntentMutation(projectRoot, reference, {action:'finish-session',input,ownership:input.ownership}, () => recordActivity(projectRoot,reference,input,'finish'));
 }
 
 export function readWorkItemView(projectRoot, reference) {
