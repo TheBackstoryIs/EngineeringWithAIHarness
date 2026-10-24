@@ -174,3 +174,27 @@ test('task completion binds reports to the current source and fences late report
  assert.equal(f.execute(other,'list-leases').leases[0].outcome,'completed');
  f.advance(30001);assert.throws(()=>f.execute(developer,'complete-task',{...input,operationId:randomUUID(),expectedRevision:2}),/lease-stale/);
 });
+
+test('acknowledged revisions survive connection JSON resets and historical receipt replay',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'ewai-coordination-watermark-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const {observeRevisions}=await import('../src/coordination/revisions.mjs');
+ const connection={identity:randomUUID(),projectId:'example',revisions:{}};
+ assert.equal(observeRevisions(root,connection,[{revision:7,record:record()}],{strict:true})['platform/example'],7);
+ assert.throws(()=>observeRevisions(root,{...connection,revisions:{}},[{revision:6,record:record()}],{strict:true}),/coordination-revision-rollback/);
+ assert.equal(observeRevisions(root,connection,[{revision:2,record:record()}],{strict:false})['platform/example'],7);
+ assert.equal(observeRevisions(root,connection,[{revision:8,record:record()}],{strict:true})['platform/example'],8);
+});
+
+// The service has no delete-intent operation: omission is a rollback, too.
+test('complete catalogues cannot omit acknowledged intents, including empty responses',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'ewai-coordination-catalogue-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const {observeRevisions}=await import('../src/coordination/revisions.mjs');
+ const connection={identity:randomUUID(),projectId:'example',revisions:{}};
+ assert.deepEqual(observeRevisions(root,connection,[],{strict:true,complete:true}),{});
+ observeRevisions(root,connection,[{revision:7,record:record()}],{strict:true});
+ assert.throws(()=>observeRevisions(root,connection,[],{strict:true,complete:true}),/coordination-catalogue-rollback/);
+ assert.throws(()=>observeRevisions(root,connection,[{revision:1,record:{...record(),id:'platform/other'}}],{strict:true,complete:true}),/coordination-catalogue-rollback/);
+ assert.equal(observeRevisions(root,connection,[{revision:7,record:record()}],{strict:true,complete:true})['platform/example'],7);
+ const fresh={...connection,identity:randomUUID(),revisions:{'platform/from-json':3}};
+ assert.throws(()=>observeRevisions(root,fresh,[],{strict:true,complete:true}),/coordination-catalogue-rollback/);
+});

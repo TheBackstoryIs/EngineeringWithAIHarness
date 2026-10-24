@@ -8,6 +8,11 @@ import {captureRecord,hydrateRecord,localIntentId} from './workspace.mjs';
 import {atomicPrivate,safeLocalPath} from './config.mjs';
 import {fail,digest} from './contract.mjs';
 const context=new AsyncLocalStorage();
+const readContext=new AsyncLocalStorage();
+export function withSharedRead(root,callback){
+  if(!isShared(root)||sharedMutationActive(root)||readContext.getStore()?.root===realpathSync(root))return callback();
+  return readContext.run({root:realpathSync(root),catalog:null,errors:new Map()},callback);
+}
 const journalRoot=root=>resolve(projectPaths(root).runtimeRoot,'runtime/coordination');
 export function deferCoordinationEvent(root,descriptor,callback){const scope=context.getStore();if(scope?.root===realpathSync(root)){scope.events.push({descriptor,callback});return true;}return false;}
 export function sharedMutationActive(root){return context.getStore()?.root===realpathSync(root);}
@@ -16,15 +21,23 @@ export function refreshSharedIntent(root,reference){
   if(!isShared(root)||sharedMutationActive(root))return null;
   if(pendingOperations(root).length)fail('coordination-recovery-required');
   const id=reference.includes('/')?reference:localIntentId(root,reference);
+  const snapshot=readContext.getStore();
+  if(snapshot?.root===realpathSync(root)&&snapshot.catalog){
+    if(snapshot.errors.has(id))throw snapshot.errors.get(id);
+    const current=snapshot.catalog.intents.find(item=>item.record.id===id);if(current)return current;
+  }
   const current=centralRequest(root,'read-intent',{intentId:id});hydrateRecord(root,current.record);return current;
 }
 export function refreshSharedCatalog(root){
   if(!isShared(root)||sharedMutationActive(root))return null;
   if(pendingOperations(root).length)fail('coordination-recovery-required');
+  const snapshot=readContext.getStore();
+  if(snapshot?.root===realpathSync(root)&&snapshot.catalog)return snapshot.catalog;
   const result=centralRequest(root,'list-intents');
   for(const current of result.intents){const known=readConnection(root).revisions?.[current.record.id]??0;if(current.revision<known)fail('coordination-revision-rollback');
-    try{hydrateRecord(root,current.record);}catch(error){if(!['local-source-missing','local-task-graph-diverged','local-source-diverged'].includes(error.code))throw error;}
+    try{hydrateRecord(root,current.record);}catch(error){if(snapshot?.root===realpathSync(root))snapshot.errors.set(current.record.id,error);if(!['local-source-missing','local-task-graph-diverged','local-source-diverged'].includes(error.code))throw error;}
   }
+  if(snapshot?.root===realpathSync(root))snapshot.catalog=result;
   return result;
 }
 export function withSharedMutation(root,reference,operation,callback){

@@ -1,3 +1,4 @@
+import {withSharedRead} from '../coordination/integration.mjs';
 import {hydrateSharedActivity} from '../coordination/activity.mjs';
 import {isShared} from '../coordination/client.mjs';
 import {mirrorSharedTasks} from '../coordination/leases.mjs';
@@ -151,6 +152,9 @@ function withDatabase(projectRoot, supplied, operation) {
 }
 
 export function syncWorkItems(projectRoot, suppliedDatabase = null) {
+  return withSharedRead(projectRoot,()=>syncLocalWorkItems(projectRoot,suppliedDatabase));
+}
+function syncLocalWorkItems(projectRoot, suppliedDatabase = null) {
   return withDatabase(projectRoot, suppliedDatabase, (database) => {
     const indexed = syncIntentIndex(projectRoot, database);
     mirrorSharedTasks(projectRoot,database);

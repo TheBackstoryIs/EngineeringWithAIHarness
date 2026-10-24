@@ -1,3 +1,4 @@
+import {observeRevisions} from './revisions.mjs';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {readConnection,requireShared,saveConnection} from './config.mjs';
@@ -11,10 +12,12 @@ export function requestSync(connection,action,input={}){
 export function centralRequest(root,action,input={}){
   const connection=requireShared(root);if(!connection)fail('shared-connection-required',400);
   const response=requestSync(connection,action,input);
-  if(response.result?.revision&&response.result.record){
-    const reference=response.result.record.id,previous=connection.revisions?.[reference]??0;
-    if(response.result.revision<previous)fail('coordination-revision-rollback');
-    saveConnection(root,{...connection,revisions:{...connection.revisions,[reference]:response.result.revision}});
+  const entries=response.result?.intents??(response.result?.revision&&response.result.record?[response.result]:[]);
+  const complete=['list-intents','export-project'].includes(action);
+  if((entries.length||complete)&&action!=='operation-status'){
+    const revisions=observeRevisions(root,connection,entries,{strict:['read-intent','list-intents','export-project'].includes(action),complete});
+    const current=readConnection(root);if(current.identity!==connection.identity||current.projectId!==connection.projectId)fail('coordination-identity-conflict');
+    saveConnection(root,{...current,revisions});
   }
   return response.result;
 }
