@@ -1,3 +1,5 @@
+import {isShared,centralRequest} from './coordination/client.mjs';
+import {captureRecord} from './coordination/workspace.mjs';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
@@ -351,6 +353,11 @@ export function parsePersonaAttachment(value) {
 }
 
 export function createIntent(projectRoot, options) {
+  const shared = isShared(projectRoot);
+  if (shared) {
+    centralRequest(projectRoot,'read-project');
+    if (options.force) throw new Error('Shared intent replacement requires explicit source publication.');
+  }
   recoverIntentTransactions(projectRoot);
   const slug = options.slug ?? '';
   const domain = options.domain ?? 'general';
@@ -423,6 +430,7 @@ export function createIntent(projectRoot, options) {
       content: `${JSON.stringify(structuredIntentState(paths.projectRoot, path, metadata), null, 2)}\n`,
     },
   ]);
+  if (shared) centralRequest(projectRoot,'create-intent',{operationId:randomUUID(),record:captureRecord(projectRoot,domain+'/'+slug)});
   publishLifecycleEventSafely(paths.projectRoot, 'ewai.intent.created', {
     sourceKey: `intent.created:${domain}/${slug}`,
     occurredAt: metadata.updated_at,

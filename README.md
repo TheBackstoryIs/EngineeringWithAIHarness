@@ -8,13 +8,13 @@ Engineering With AI (EWAI) helps you plan, build and review software with an AI 
 
 ## What's new in this version
 
-Version `0.3.9` helps your AI assistant carry work forward when it connects to a project on another machine. Once you've enabled access, it can update project records, make code changes you've approved and run the checks you've chosen. The work and its progress stay together in the same project.
+Version `0.4.0` lets your team work on separate developer machines with one shared record of intents, delivery progress and approvals. Run a central coordination service, connect each developer's EWAI installation, and keep using your usual AI assistant and Git workflow.
 
-**Less carrying things back and forth.** Your assistant can save its work directly, rather than leaving you to copy it across before anything can move on. If the connection drops while a check is running, it can pick up the result when it reconnects.
+**Pick up where the team left off.** Developers can see the same work and hand it over between machines. EWAI tracks who owns an active piece of work and checks for newer changes before accepting an update. Permission to develop remains separate from permission to approve.
 
-**You stay in charge.** This access is off until you enable it. You choose whether code changes are allowed and which checks can run. EWAI still requires your approval before implementation, and you decide whether the finished work is ready to release.
+**Keep development on your machine.** Your code, project documents, Docker services and tests stay local. Git shares the files; the central service coordinates the work. If your local documents differ from the shared record, EWAI asks you to reconcile them before continuing.
 
-This works through an existing authorised connection to your project, with checks currently supported on Mac and Linux. The [setup guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/remote-project-operations.md) explains how to enable it and what access you're giving.
+Shared coordination is optional. Existing projects continue to work locally by default. The [team setup and recovery guide](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/shared-project-coordination.md) covers private HTTP/Tailscale connections, access permissions and moving an existing project into shared coordination.
 
 ## Quick start
 
@@ -102,6 +102,7 @@ terms.
 | When you want to… | Start here |
 | --- | --- |
 | Decide which work needs attention next | [Companion](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/context-aware-delivery-companion-user-guide.md) |
+| Coordinate work across developer machines | [Shared project coordination](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/shared-project-coordination.md) |
 | Describe a feature and agree its boundaries | [Intent Studio](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/guided-intent-workspace-guide.md) |
 | Understand how delivery moves through its stages | [The fourteen-stage workflow](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/explanation/delivery-workflow.md) |
 | Investigate dependencies before a change | [Source Map](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/repository-source-map-guide.md) and [Blast Radius](https://github.com/TheBackstoryIs/EngineeringWithAIHarness/blob/main/Docs/blast-radius-and-impact-routing-guide.md) |

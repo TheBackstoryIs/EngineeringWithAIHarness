@@ -175,3 +175,7 @@ For eligible approved Build tasks, the conductor provides execution continuity o
 ## Evidence-derived recovery checkpoint
 
 Use the checkpoint returned by AFK status to present integration/task branches, evidence-validated completed claims, the exact next action and open questions. It is stored atomically in the run record and recomputed on status reads, so changed evidence is never accepted from a stale checkpoint. Reports and guarded action/preflight surfaces remain authoritative; checkpoint output never grants resume, Build, release or acceptance authority. Unknown worker termination requires recovery, and missing/tampered completion evidence requires diagnosis. Present the checkpoint at interruptions and handoffs rather than replaying raw logs.
+
+### Shared project coordination
+
+When `.ewai-pipeline/coordination.json` is present, inspect `ewai coordination status --project . --json` (or `ewai_coordination_status`) before shared delivery. Keep source files, command execution, Docker and Git local; synchronise authored files through Git. Use canonical EWAI operations so central revisions, role checks and fenced leases apply. Never copy SQLite databases between developers or remove a disconnected marker to enable local authority. On source divergence, reconcile Git before explicitly publishing the reviewed revision. Resolve pending operation journals with `ewai coordination recover`; do not repeat a workflow callback whose commit outcome is unknown. Read `Docs/shared-project-coordination.md` for service setup and recovery.

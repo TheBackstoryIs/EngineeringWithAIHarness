@@ -1,3 +1,4 @@
+import {refreshSharedIntent} from './coordination/integration.mjs';
 import { randomUUID } from 'node:crypto';
 import {assertProjectChecksFresh} from './runtime/project-checks.mjs';
 import {
@@ -133,7 +134,10 @@ function validationEvidencePath(paths, relativePath) {
   return absolute;
 }
 
-function phaseSequence(state) {
+export function mandatoryDeliveryPhaseIds(){return deliveryContract.stages.filter(phase=>phase.required==='always').map(phase=>phase.id);}
+export function canonicalDeliveryPhaseIds(){return deliveryContract.stages.map(phase=>phase.id);}
+
+export function phaseSequence(state) {
   const result = [];
   for (const phase of state.phases) {
     result.push(phase);
@@ -144,7 +148,7 @@ function phaseSequence(state) {
   return result.filter(Boolean);
 }
 
-function nextRequiredPhase(state) {
+export function nextRequiredPhase(state) {
   const running = phaseSequence(state).find((phase) => phase.status === 'running');
   if (running) return running.id;
   const next = phaseSequence(state).find((phase) => !terminalPhaseStatuses.has(phase.status));
@@ -483,6 +487,7 @@ function normaliseDeliveryValidation(paths, state) {
 }
 
 export function readDeliveryState(projectRoot, slug) {
+  refreshSharedIntent(projectRoot, slug);
   const paths = deliveryPaths(projectRoot, slug);
   if (!existsSync(paths.statePath)) throw new Error(`No EWAI delivery state exists for ${slug}`);
   const state = JSON.parse(readFileSync(paths.statePath, 'utf8'));

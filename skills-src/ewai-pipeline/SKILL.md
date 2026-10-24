@@ -129,3 +129,7 @@ Do not relocate or overwrite an existing SPECS contract through init. Relocation
 - Never carry repository paths or project state from one project into another.
 
 Read [CLI reference](references/cli.md) for command details and [SPECS contract](references/specs-contract.md) when creating or validating project artefacts.
+
+### Shared project coordination
+
+When `.ewai-pipeline/coordination.json` is present, inspect `ewai coordination status --project . --json` (or `ewai_coordination_status`) before shared delivery. Keep source files, command execution, Docker and Git local; synchronise authored files through Git. Use canonical EWAI operations so central revisions, role checks and fenced leases apply. Never copy SQLite databases between developers or remove a disconnected marker to enable local authority. On source divergence, reconcile Git before explicitly publishing the reviewed revision. Resolve pending operation journals with `ewai coordination recover`; do not repeat a workflow callback whose commit outcome is unknown. Read `Docs/shared-project-coordination.md` for service setup and recovery.

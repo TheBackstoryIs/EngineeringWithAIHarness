@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {registerCoordinationTools} from '../coordination/mcp.mjs';
 import { readJevSettings,saveJevSettings,readJevMeasurements,readDecisionCredentials,safeJevError } from '../jev.mjs';
 import { jevCredentialStatus,checkJevConnection } from '../jev-credentials.mjs';
 import { decideWithJev,prepareProjectContextWithJev,recommendPersonasWithJev,readCompanionWithJev } from './jev-operations.mjs';
@@ -172,6 +173,7 @@ function result(value) {
 }
 
 registerProjectOperationTools(server, paths.projectRoot, result);
+registerCoordinationTools(server,paths.projectRoot,result);
 
 function withProjectAccess(value, slug) {
   let projectAccess;

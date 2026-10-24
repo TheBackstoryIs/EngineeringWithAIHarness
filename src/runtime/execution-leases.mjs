@@ -1,3 +1,5 @@
+import {isShared} from '../coordination/client.mjs';
+import {claimSharedTask,updateSharedTask,listSharedTasks,mirrorSharedTasks,abandonSharedRun} from '../coordination/leases.mjs';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -122,6 +124,7 @@ function withDatabase(projectRoot, operation) {
   const database = openRuntimeDatabase(projectRoot);
   try {
     syncWorkItems(projectRoot, database);
+    mirrorSharedTasks(projectRoot, database);
     return operation(database);
   } finally {
     database.close();
@@ -129,6 +132,20 @@ function withDatabase(projectRoot, operation) {
 }
 
 export function acquireExecutionLease(projectRoot, reference, input = {}) {
+  if (isShared(projectRoot)) {
+    const lease = acquireLocalExecutionLease(projectRoot, reference, input);
+    try {
+      const existing=listSharedTasks(projectRoot,{includeTokens:true}).find(item=>item.id===lease.id&&item.token===lease.token);
+      return existing?updateSharedTask(projectRoot,existing.id,{token:existing.token,durationMs:input.durationMs??900000}):claimSharedTask(projectRoot,lease);
+    }
+    finally {
+      const db = openRuntimeDatabase(projectRoot);
+      try { db.prepare("UPDATE execution_leases SET status='superseded' WHERE id=?").run(lease.id); } finally { db.close(); }
+    }
+  }
+  return acquireLocalExecutionLease(projectRoot, reference, input);
+}
+function acquireLocalExecutionLease(projectRoot, reference, input = {}) {
   const taskId = required(input.taskId, 'taskId');
   const ownerId = required(input.ownerId, 'ownerId');
   const tool = String(input.tool ?? '').trim();
@@ -188,6 +205,7 @@ export function acquireExecutionLease(projectRoot, reference, input = {}) {
 }
 
 export function heartbeatExecutionLease(projectRoot, leaseId, input = {}) {
+  if (isShared(projectRoot)) return updateSharedTask(projectRoot, leaseId, input);
   const token = required(input.token, 'token');
   const at = timestamp(input.now);
   const expiresAt = timestamp(new Date(new Date(at).getTime() + duration(input.durationMs)));
@@ -212,6 +230,17 @@ export function heartbeatExecutionLease(projectRoot, leaseId, input = {}) {
 }
 
 export function releaseExecutionLease(projectRoot, leaseId, input = {}) {
+  if (isShared(projectRoot)) {
+    if (input.outcome === 'completed') {
+      const lease = listSharedTasks(projectRoot, {includeTokens:true}).find(item=>item.id===leaseId);
+      if (!lease || lease.token !== input.token) throw new Error('Execution lease token does not match.');
+      const root = resolve(projectPaths(projectRoot).buildRoot, lease.workItemId.split('/')[1]);
+      const graph = JSON.parse(readFileSync(resolve(root,'task-graph.json'),'utf8'));
+      const task = graph.tasks?.find(task=>task.id===lease.taskId);
+      if (!task || validateTaskReport(root,task).status !== 'complete') throw new Error('Task report is incomplete.');
+    }
+    return updateSharedTask(projectRoot,leaseId,input,true);
+  }
   const token = required(input.token, 'token');
   const outcome = String(input.outcome ?? 'released').trim();
   const at = timestamp(input.now);
@@ -248,6 +277,7 @@ export function releaseExecutionLease(projectRoot, leaseId, input = {}) {
 }
 
 export function listExecutionLeases(projectRoot, options = {}) {
+  if (isShared(projectRoot)) return listSharedTasks(projectRoot,options);
   const at = timestamp(options.now);
   return withDatabase(projectRoot, (database) => {
     database.exec('BEGIN IMMEDIATE;');
@@ -275,6 +305,7 @@ export function listExecutionLeases(projectRoot, options = {}) {
 // Conductor recovery deliberately does not require the private capability token: it is
 // scoped to one durable run ID and can only abandon leases, never complete work.
 export function abandonExecutionLeasesForRun(projectRoot, runId, input = {}) {
+  if (isShared(projectRoot)) return abandonSharedRun(projectRoot,runId,input);
   const requiredRunId = required(runId, 'runId');
   const at = timestamp(input.now);
   const outcome = String(input.outcome ?? 'conductor-recovered').trim();

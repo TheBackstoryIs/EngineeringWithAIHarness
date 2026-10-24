@@ -1,3 +1,4 @@
+import {deferCoordinationEvent} from '../coordination/integration.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
@@ -511,6 +512,7 @@ function eventFromRow(row, idempotencyKey = '') {
 }
 
 export function publishLifecycleEvent(projectRoot, eventName, input = {}) {
+  if (deferCoordinationEvent(projectRoot, {eventName,input}, () => publishLifecycleEvent(projectRoot, eventName, input))) return {status:'deferred-until-central-commit'};
   const catalogue = catalogueByName.get(eventName);
   if (!catalogue) throw new Error(`Unsupported lifecycle event: ${eventName}`);
   const sourceKey = assertShortText(input.sourceKey, 'Lifecycle source key', 400);
